@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 /** 设置 mock 返回成功结果 */
-function mockSuccess(stdout: string): void {
+function mockSuccess(stdout: string, stderr = ""): void {
   mockExecFile.mockImplementation(
     (
       _cmd: string,
@@ -35,7 +35,7 @@ function mockSuccess(stdout: string): void {
       _opts: unknown,
       cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void,
     ) => {
-      cb(null, { stdout, stderr: "" });
+      cb(null, { stdout, stderr });
     },
   );
 }
@@ -178,6 +178,36 @@ describe("trvl-service", () => {
       );
     });
 
+    it("stdout 非 JSON 时应抛出带片段的友好错误", async () => {
+      mockSuccess("not valid json output");
+
+      await expect(searchFlights("北京", "上海", "2026-07-01")).rejects.toThrow(
+        /trvl flights output is not valid JSON/,
+      );
+    });
+
+    it("stderr 有输出时应继续解析 stdout 并告警", async () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockSuccess(
+        JSON.stringify({
+          success: true,
+          count: 1,
+          trip_type: "one_way",
+          flights: [{ price: 580, currency: "CNY", duration: 120, stops: 0, legs: [] }],
+        }),
+        "some warning from trvl",
+      );
+
+      const result = await searchFlights("北京", "上海", "2026-07-01");
+      expect(result.success).toBe(true);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[TrvlService] flights stderr:",
+        "some warning from trvl",
+      );
+
+      consoleSpy.mockRestore();
+    });
+
     it("支持往返航班搜索", async () => {
       mockSuccess(
         JSON.stringify({
@@ -251,6 +281,42 @@ describe("trvl-service", () => {
       mockError(new Error("timeout"));
 
       await expect(searchHotels("北京", "2026-07-01", "2026-07-03")).rejects.toThrow("timeout");
+    });
+
+    it("stdout 非 JSON 时应抛出带片段的友好错误", async () => {
+      mockSuccess("<html>error page</html>");
+
+      await expect(searchHotels("北京", "2026-07-01", "2026-07-03")).rejects.toThrow(
+        /trvl hotels output is not valid JSON/,
+      );
+    });
+
+    it("stderr 有输出时应继续解析 stdout 并告警", async () => {
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockSuccess(
+        JSON.stringify({
+          success: true,
+          count: 1,
+          hotels: [
+            {
+              name: "测试酒店",
+              hotel_id: "h1",
+              rating: 4.5,
+              stars: 4,
+              price: 398,
+              currency: "CNY",
+              sources: [],
+            },
+          ],
+        }),
+        "some hotel warning",
+      );
+
+      const result = await searchHotels("北京", "2026-07-01", "2026-07-03");
+      expect(result.success).toBe(true);
+      expect(consoleSpy).toHaveBeenCalledWith("[TrvlService] hotels stderr:", "some hotel warning");
+
+      consoleSpy.mockRestore();
     });
   });
 });
