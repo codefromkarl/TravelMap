@@ -67,6 +67,27 @@
     }
     #export-toolbar.visible { display: flex; }
 
+    #lang-switcher {
+      display: flex;
+      gap: 2px;
+      margin-left: 8px;
+      background: #27272a;
+      border-radius: 6px;
+      padding: 2px;
+    }
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: #71717a;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    .lang-btn:hover { color: #e4e4e7; }
+    .lang-btn.active { background: #3f3f46; color: #e4e4e7; }
+
     .export-btn {
       background: #27272a;
       border: 1px solid #3f3f46;
@@ -145,11 +166,16 @@
   <div id="app">
     <header>
       <h1>🌍 旅途星辰</h1>
-      <span>AI 旅行规划助手</span>
+      <span data-i18n="subtitle">AI 旅行规划助手</span>
+      <div id="lang-switcher">
+        <button class="lang-btn active" data-lang="zh">中文</button>
+        <button class="lang-btn" data-lang="en">EN</button>
+        <button class="lang-btn" data-lang="ja">日本語</button>
+      </div>
       <div id="export-toolbar">
-        <button class="export-btn" id="btn-export-md" title="导出为 Markdown 文件">📄 MD</button>
-        <button class="export-btn" id="btn-export-pdf" title="导出为 PDF">📕 PDF</button>
-        <button class="export-btn" id="btn-share-link" title="复制分享链接">🔗 分享</button>
+        <button class="export-btn" id="btn-export-md" title="导出为 Markdown 文件" data-i18n-title="exportMd">📄 MD</button>
+        <button class="export-btn" id="btn-export-pdf" title="导出为 PDF" data-i18n-title="exportPdf">📕 PDF</button>
+        <button class="export-btn" id="btn-share-link" title="复制分享链接" data-i18n-title="share">🔗 <span data-i18n="share">分享</span></button>
       </div>
     </header>
     <div id="print-content"></div>
@@ -205,7 +231,9 @@
 - 每天必须包含早中晚三餐推荐
 - 门票价格、费用必须是纯数字，不带单位
 - 如果某个信息无法获取，基于常识给出保守建议，不要说"无法查询"
-- 支持多城市行程规划，城际移动日要标注交通建议`;
+- 支持多城市行程规划，城际移动日要标注交通建议
+
+{{LANGUAGE_INSTRUCTION}}`;
 
     // ─── 工具定义 ──────────────────────────────────────────
     // 景点搜索（浏览器端 → 调用后端 API，这里用 mock）
@@ -675,6 +703,107 @@ ${trip.content}`,
     loadSharedTrip();
     // 清理过期分享
     renderSharedTrips();
+
+    // ─── i18n 多语言 ────────────────────────────────────
+    const I18N = {
+      zh: {
+        subtitle: "AI 旅行规划助手",
+        share: "分享",
+        loading: "正在初始化...",
+        exportMd: "导出为 Markdown 文件",
+        exportPdf: "导出为 PDF",
+        shareTitle: "复制分享链接",
+        noContent: "⚠️ 没有可导出的行程内容",
+        mdDownloaded: "✅ Markdown 已下载",
+        pdfHint: "🖨️ 请在打印对话框中选择「另存为 PDF」",
+        linkCopied: "🔗 分享链接已复制到剪贴板",
+        tripNotFound: "⚠️ 未找到该分享的行程",
+        tripLoaded: "📋 已加载分享的行程",
+        langSet: "语言已切换为中文",
+      },
+      en: {
+        subtitle: "AI Travel Planner",
+        share: "Share",
+        loading: "Initializing...",
+        exportMd: "Export as Markdown",
+        exportPdf: "Export as PDF",
+        shareTitle: "Copy share link",
+        noContent: "⚠️ No itinerary to export",
+        mdDownloaded: "✅ Markdown downloaded",
+        pdfHint: "🖨️ Select 'Save as PDF' in print dialog",
+        linkCopied: "🔗 Share link copied to clipboard",
+        tripNotFound: "⚠️ Shared trip not found",
+        tripLoaded: "📋 Shared trip loaded",
+        langSet: "Language switched to English",
+      },
+      ja: {
+        subtitle: "AI旅行プランナー",
+        share: "共有",
+        loading: "初期化中...",
+        exportMd: "Markdownでエクスポート",
+        exportPdf: "PDFでエクスポート",
+        shareTitle: "共有リンクをコピー",
+        noContent: "⚠️ エクスポートする旅程がありません",
+        mdDownloaded: "✅ Markdownダウンロード完了",
+        pdfHint: "🖨️ 印刷ダイアログで「PDFとして保存」を選択",
+        linkCopied: "🔗 共有リンクをクリップボードにコピーしました",
+        tripNotFound: "⚠️ 共有された旅程が見つかりません",
+        tripLoaded: "📋 共有された旅程を読み込みました",
+        langSet: "言語を日本語に切り替えました",
+      },
+    };
+
+    const LANG_PROMPTS = {
+      zh: "",
+      en: "Please output all travel plan content in English. Keep attraction names in their original Chinese language.",
+      ja: "すべての旅行プラン内容を日本語で出力してください。観光スポット名は元の中国語のままにしてください。",
+    };
+
+    let currentLang = localStorage.getItem("travel-agent-lang") || "zh";
+
+    function applyI18n(lang) {
+      const dict = I18N[lang] || I18N.zh;
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (dict[key]) el.textContent = dict[key];
+      });
+      document.querySelectorAll("[data-i18n-title]").forEach(el => {
+        const key = el.getAttribute("data-i18n-title");
+        if (dict[key]) el.title = dict[key];
+      });
+      // 更新语言按钮状态
+      document.querySelectorAll(".lang-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.lang === lang);
+      });
+      // 更新 html lang 属性
+      const langMap = { zh: "zh-CN", en: "en", ja: "ja" };
+      document.documentElement.lang = langMap[lang] || "zh-CN";
+    }
+
+    function updateAgentLanguage(lang) {
+      const instruction = LANG_PROMPTS[lang] || "";
+      // 替换 system prompt 中的语言占位符
+      const basePrompt = SYSTEM_PROMPT.replace("{{LANGUAGE_INSTRUCTION}}", instruction);
+      agent.state.systemPrompt = basePrompt;
+    }
+
+    // 语言切换按钮
+    document.querySelectorAll(".lang-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const lang = btn.dataset.lang;
+        currentLang = lang;
+        localStorage.setItem("travel-agent-lang", lang);
+        applyI18n(lang);
+        updateAgentLanguage(lang);
+        showToast(I18N[lang]?.langSet || "语言已切换");
+      });
+    });
+
+    // 初始化时应用保存的语言
+    if (currentLang !== "zh") {
+      applyI18n(currentLang);
+      updateAgentLanguage(currentLang);
+    }
   </script>
 </body>
 </html>

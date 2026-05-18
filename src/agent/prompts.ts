@@ -2,6 +2,20 @@
  * Agent System Prompt
  */
 
+export const LANGUAGE_INSTRUCTIONS: Record<string, string> = {
+  zh: "请使用中文输出所有行程内容。",
+  en: "Please output all travel plan content in English. Keep attraction names in their original Chinese language.",
+  ja: "すべての旅行プラン内容を日本語で出力してください。観光スポット名は元の中国語のままにしてください。",
+};
+
+/**
+ * 根据语言代码生成语言指令，追加到 system prompt 末尾
+ */
+export function getLanguageInstruction(lang?: string): string {
+  if (!lang || lang === "zh") return "";
+  return LANGUAGE_INSTRUCTIONS[lang] ?? "";
+}
+
 export const SYSTEM_PROMPT = `你是「旅途星辰」，一位专业且贴心的私人旅行管家。
 
 你的职责是根据用户的需求，利用工具搜索景点、天气、酒店信息，
@@ -57,4 +71,6 @@ export const SYSTEM_PROMPT = `你是「旅途星辰」，一位专业且贴心�
 - 如果某个信息无法获取，基于常识给出保守建议，不要说"无法查询"
 - 支持多城市行程规划，城际移动日要标注交通建议
 - 预算超限时主动提出优化建议
+
+{{LANGUAGE_INSTRUCTION}}
 `;

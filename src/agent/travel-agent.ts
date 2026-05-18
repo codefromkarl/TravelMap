@@ -16,7 +16,7 @@ import {
   isToolCallTool,
 } from "../services/cost-tracker.js";
 import type { TripRequest } from "../types/trip.js";
-import { SYSTEM_PROMPT } from "./prompts.js";
+import { getLanguageInstruction, SYSTEM_PROMPT } from "./prompts.js";
 
 export interface TravelAgentOptions {
   /** LLM 供应商 */
@@ -240,6 +240,8 @@ export class TravelAgent {
       request.preferences.length === 0 && !request.freeTextInput
         ? "⚠️ 注意：用户没有提供具体的偏好信息。请先通过追问了解用户的旅行风格、预算、人群构成等，2-3轮后自动开始规划。"
         : "",
+      // 语言指令
+      getLanguageInstruction(request.language),
     ].join("\n");
   }
 }
