@@ -3,7 +3,7 @@
   "name": "p3-dual-map",
   "title": "双地图引擎 - Google Maps/高德自动降级",
   "description": "",
-  "status": "planning",
+  "status": "done",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "yuanzhi",
   "assignee": "yuanzhi",
   "createdAt": "2026-05-18",
-  "completedAt": null,
+  "completedAt": "2026-05-18",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -20,7 +20,11 @@
   "subtasks": [],
   "children": [],
   "parent": null,
-  "relatedFiles": [],
-  "notes": "",
+  "relatedFiles": [
+    "src/services/dual-map-service.ts",
+    "src/tools/geocode.ts",
+    "src/__tests__/unit/services/dual-map-service.test.ts"
+  ],
+  "notes": "国内高德/国外Google双引擎 + 全局失败标记 + 代理支持。",
   "meta": {}
 }

@@ -3,7 +3,7 @@
   "name": "p3-multi-source",
   "title": "多数据源融合 - 小红书+TripAdvisor+Google Reviews",
   "description": "",
-  "status": "planning",
+  "status": "done",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "yuanzhi",
   "assignee": "yuanzhi",
   "createdAt": "2026-05-18",
-  "completedAt": null,
+  "completedAt": "2026-05-18",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -20,7 +20,11 @@
   "subtasks": [],
   "children": [],
   "parent": "05-18-p3-action-links",
-  "relatedFiles": [],
-  "notes": "",
+  "relatedFiles": [
+    "src/services/multi-source-service.ts",
+    "src/tools/attractions.ts",
+    "src/__tests__/unit/services/multi-source-service.test.ts"
+  ],
+  "notes": "Google Places + UGC 多源融合。30分钟缓存 + 去重 + UGC点评附加。",
   "meta": {}
 }
