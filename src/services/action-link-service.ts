@@ -173,8 +173,11 @@ async function generateTrvlFlightLinks(trip: TripPlan): Promise<ActionLink[]> {
           });
         }
       }
-    } catch {
-      // 单段失败不阻塞其他段，fallback 在外层处理
+    } catch (err) {
+      console.warn(
+        `[ActionLink] 航班搜索失败 ${fromCity} → ${toCity} (${date}):`,
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 
@@ -239,18 +242,22 @@ export async function enrichTripWithLiveLinks(trip: TripPlan): Promise<TripPlan>
       let links: ActionLink[];
 
       if (trvlAvailable) {
-        try {
-          // 计算入住/退房日期
-          const checkin = day.date;
-          const nextDay = enriched.days.find((d) => d.dayIndex === day.dayIndex + 1);
-          const checkout = nextDay?.date ?? day.date;
+        // 计算入住/退房日期
+        const checkin = day.date;
+        const nextDay = enriched.days.find((d) => d.dayIndex === day.dayIndex + 1);
+        const checkout = nextDay?.date ?? day.date;
 
+        try {
           links = await generateTrvlHotelLinks(day.hotel, day.city, checkin, checkout);
           // trvl 没返回有效链接时 fallback
           if (links.length === 0) {
             links = generateTemplateHotelLinks(day.hotel, day.city);
           }
-        } catch {
+        } catch (err) {
+          console.warn(
+            `[ActionLink] 酒店实时搜索失败 (${day.city} ${checkin}~${checkout}):`,
+            err instanceof Error ? err.message : err,
+          );
           links = generateTemplateHotelLinks(day.hotel, day.city);
         }
       } else {
@@ -269,7 +276,11 @@ export async function enrichTripWithLiveLinks(trip: TripPlan): Promise<TripPlan>
       try {
         const liveLinks = await generateTrvlFlightLinks(trip);
         flightLinks = liveLinks.length > 0 ? liveLinks : generateTemplateFlightLinks(trip);
-      } catch {
+      } catch (err) {
+        console.warn(
+          `[ActionLink] 航班实时搜索失败 (${trip.cities.join(" → ")}):`,
+          err instanceof Error ? err.message : err,
+        );
         flightLinks = generateTemplateFlightLinks(trip);
       }
     } else {

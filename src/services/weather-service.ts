@@ -7,6 +7,8 @@
  */
 
 import type { WeatherInfo } from "../types/trip.js";
+import { config } from "./config.js";
+import { fetchWithTimeout } from "./http-client.js";
 
 export interface WeatherSearchParams {
   city: string;
@@ -79,7 +81,7 @@ function translateWeather(desc: string): string {
 /** 城市名 → 经纬度 (用于 OpenWeatherMap) */
 async function geocodeCity(city: string, apiKey: string): Promise<{ lat: number; lon: number }> {
   const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${apiKey}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, { timeout: 5000 });
   if (!res.ok) throw new Error(`OWM Geocode error: ${res.status}`);
   const data = (await res.json()) as OWMGeocodeResponse[];
   if (!data.length) throw new Error(`City not found: ${city}`);
@@ -138,7 +140,7 @@ async function fetchFromOWM(params: WeatherSearchParams, apiKey: string): Promis
   const days = params.days ?? 7;
 
   const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&cnt=56&appid=${apiKey}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, { timeout: 8000 });
   if (!res.ok) throw new Error(`OWM Forecast error: ${res.status}`);
 
   const data = (await res.json()) as OWMForecastResponse;
@@ -180,14 +182,17 @@ export async function searchWeather(params: WeatherSearchParams): Promise<{
   weather: WeatherInfo[];
   source: string;
 }> {
-  const apiKey = process.env.OPENWEATHER_API_KEY;
+  const apiKey = config.openWeatherApiKey;
 
   if (apiKey) {
     try {
       const weather = await fetchFromOWM(params, apiKey);
       return { weather, source: "openweathermap" };
     } catch (err) {
-      console.warn("[WeatherService] OpenWeatherMap failed, using mock:", err);
+      console.warn(
+        "[WeatherService] OpenWeatherMap failed, using mock:",
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 

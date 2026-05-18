@@ -139,11 +139,23 @@ export async function searchFlights(
     args.push("--return", options.returnDate);
   }
 
-  const { stdout } = await execFileAsync("trvl", args, {
+  const { stdout, stderr } = await execFileAsync("trvl", args, {
     timeout: TRVL_TIMEOUT_MS,
   });
 
-  const result = JSON.parse(stdout) as TrvlFlightSearchResult;
+  if (stderr) {
+    console.warn("[TrvlService] flights stderr:", stderr);
+  }
+
+  let result: TrvlFlightSearchResult;
+  try {
+    result = JSON.parse(stdout) as TrvlFlightSearchResult;
+  } catch (parseErr) {
+    const snippet = stdout.slice(0, 200).replace(/\s+/g, " ");
+    throw new Error(`trvl flights output is not valid JSON. stdout snippet: "${snippet}..."`, {
+      cause: parseErr,
+    });
+  }
 
   if (!result.success) {
     throw new Error(`trvl flights failed: ${result.error ?? "unknown error"}`);
@@ -179,11 +191,23 @@ export async function searchHotels(
     options?.currency ?? "CNY",
   ];
 
-  const { stdout } = await execFileAsync("trvl", args, {
+  const { stdout, stderr } = await execFileAsync("trvl", args, {
     timeout: TRVL_TIMEOUT_MS,
   });
 
-  const result = JSON.parse(stdout) as TrvlHotelSearchResult;
+  if (stderr) {
+    console.warn("[TrvlService] hotels stderr:", stderr);
+  }
+
+  let result: TrvlHotelSearchResult;
+  try {
+    result = JSON.parse(stdout) as TrvlHotelSearchResult;
+  } catch (parseErr) {
+    const snippet = stdout.slice(0, 200).replace(/\s+/g, " ");
+    throw new Error(`trvl hotels output is not valid JSON. stdout snippet: "${snippet}..."`, {
+      cause: parseErr,
+    });
+  }
 
   if (!result.success) {
     throw new Error(`trvl hotels failed: ${result.error ?? "unknown error"}`);

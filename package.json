@@ -27,8 +27,10 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.75.1",
-    "@earendil-works/pi-ai": "^0.75.1"
+    "@earendil-works/pi-agent-core": "file:../pi/packages/agent",
+    "@earendil-works/pi-ai": "file:../pi/packages/ai",
+    "@earendil-works/pi-web-ui": "file:../pi/packages/web-ui",
+    "lru-cache": "^11.4.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.5",
@@ -38,6 +40,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "msw": "^2.14.6",
+    "node-stdlib-browser": "^1.3.1",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
     "vitest": "^3.2.1"

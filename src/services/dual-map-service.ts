@@ -9,6 +9,8 @@
  */
 
 import type { Location } from "../types/trip.js";
+import { config as appConfig } from "./config.js";
+import { fetchWithTimeout } from "./http-client.js";
 
 // ─── 配置 ────────────────────────────────────────────────
 
@@ -94,22 +96,6 @@ function isEngineFailed(engine: string): boolean {
 /** 重置引擎状态（测试用） */
 export function resetEngineState(): void {
   engineFailures.clear();
-}
-
-// ─── 带超时的 fetch ──────────────────────────────────────
-
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit & { timeout?: number } = {},
-): Promise<Response> {
-  const { timeout = 4000, ...fetchOptions } = options;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetch(url, { ...fetchOptions, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /** 可能走代理的 fetch */
@@ -233,9 +219,9 @@ export async function dualGeocode(
   config?: Partial<DualMapConfig>,
 ): Promise<DualGeocodeResult> {
   const cfg: DualMapConfig = {
-    amapKey: config?.amapKey ?? process.env.AMAP_WEB_KEY,
-    googleKey: config?.googleKey ?? process.env.GOOGLE_MAPS_API_KEY,
-    proxyUrl: config?.proxyUrl ?? process.env.HTTPS_PROXY,
+    amapKey: config?.amapKey ?? appConfig.amapWebKey,
+    googleKey: config?.googleKey ?? appConfig.googleMapsApiKey,
+    proxyUrl: config?.proxyUrl ?? appConfig.httpsProxy,
     timeout: config?.timeout ?? 4000,
   };
 

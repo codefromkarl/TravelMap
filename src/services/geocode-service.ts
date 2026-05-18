@@ -6,6 +6,8 @@
  */
 
 import type { Location } from "../types/trip.js";
+import { config } from "./config.js";
+import { fetchWithTimeout } from "./http-client.js";
 
 export interface GeocodeParams {
   address: string;
@@ -25,21 +27,6 @@ interface AmapGeocodeResult {
     formatted_address: string;
     location: string;
   }[];
-}
-
-/** 带超时的 fetch */
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit & { timeout?: number } = {},
-): Promise<Response> {
-  const { timeout = 4000, ...fetchOptions } = options;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetch(url, { ...fetchOptions, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /** Nominatim 地理编码 — 免费，无需 Key */
@@ -121,8 +108,8 @@ export async function geocodeAddress(params: GeocodeParams): Promise<{
   warning?: string;
 }> {
   // 优先级：Amap > Google > Nominatim
-  const amapKey = process.env.AMAP_WEB_KEY;
-  const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+  const amapKey = config.amapWebKey;
+  const googleKey = config.googleMapsApiKey;
 
   // 1. 高德地图（国内首选）
   if (amapKey) {
