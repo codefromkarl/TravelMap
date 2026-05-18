@@ -51,6 +51,11 @@ const EXPECTED_API_DOMAINS = [
   "api.openweathermap.org",
   "restapi.amap.com",
   "nominatim.openstreetmap.org",
+  "api.opentopodata.org",
+  "rnote.dev",
+  "api.justoneapi.com",
+  "api.tikhub.io",
+  "localhost",
 ];
 
 // 核心类型名，fixtures 应有对应工厂

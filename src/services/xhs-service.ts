@@ -46,16 +46,8 @@
  */
 
 import { LRUCache } from "lru-cache";
+import { fetchWithTimeout } from "./http-client.js";
 import type { UGCReview } from "./multi-source-service.js";
-
-// ─── 兼容性工具 ───────────────────────────────────────────
-
-/** AbortController + setTimeout 替代 AbortSignal.timeout（兼容 Node < 18.17） */
-function createAbortSignal(timeoutMs: number): AbortSignal {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), timeoutMs);
-  return controller.signal;
-}
 
 // ─── 类型 ─────────────────────────────────────────────────
 
@@ -249,12 +241,12 @@ async function fetchRnote(keyword: string, ctx: ProviderContext, page = 1): Prom
   url.searchParams.set("page", String(page));
   url.searchParams.set("sort", "popularity_descending");
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithTimeout(url.toString(), {
+    timeout: 15_000,
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${ctx.token}`,
     },
-    signal: createAbortSignal(15_000),
   });
 
   if (!res.ok) throw new Error(`Rnote error: ${res.status}`);
@@ -289,9 +281,9 @@ async function fetchJustOneApi(
   url.searchParams.set("page", String(page));
   url.searchParams.set("sort", "popularity_descending");
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithTimeout(url.toString(), {
+    timeout: 15_000,
     headers: { Accept: "application/json" },
-    signal: createAbortSignal(15_000),
   });
 
   if (!res.ok) throw new Error(`JustOneAPI error: ${res.status}`);
@@ -324,12 +316,12 @@ async function fetchTikHub(keyword: string, ctx: ProviderContext, page = 1): Pro
   url.searchParams.set("page", String(page));
   url.searchParams.set("sort", "popularity_descending");
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithTimeout(url.toString(), {
+    timeout: 15_000,
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${ctx.token}`,
     },
-    signal: createAbortSignal(15_000),
   });
 
   if (!res.ok) throw new Error(`TikHub error: ${res.status}`);
@@ -373,8 +365,9 @@ async function fetchCrawler(keyword: string, ctx: ProviderContext): Promise<UGCR
   if (ctx.token) headers.Authorization = `Bearer ${ctx.token}`;
 
   // 1. 启动爬虫任务
-  const startRes = await fetch(`${ctx.baseUrl}/api/crawler/start`, {
+  const startRes = await fetchWithTimeout(`${ctx.baseUrl}/api/crawler/start`, {
     method: "POST",
+    timeout: 15_000,
     headers,
     body: JSON.stringify({
       platform: "xhs",
@@ -385,7 +378,6 @@ async function fetchCrawler(keyword: string, ctx: ProviderContext): Promise<UGCR
       enable_comments: false,
       headless: true,
     }),
-    signal: createAbortSignal(15_000),
   });
 
   if (!startRes.ok) {
@@ -406,9 +398,9 @@ async function fetchCrawler(keyword: string, ctx: ProviderContext): Promise<UGCR
   while (Date.now() - startTime < CRAWLER_POLL_TIMEOUT) {
     await new Promise((r) => setTimeout(r, CRAWLER_POLL_INTERVAL));
 
-    const statusRes = await fetch(`${ctx.baseUrl}/api/crawler/status`, {
+    const statusRes = await fetchWithTimeout(`${ctx.baseUrl}/api/crawler/status`, {
+      timeout: 5_000,
       headers,
-      signal: createAbortSignal(5_000),
     });
     if (!statusRes.ok) continue;
 
@@ -417,10 +409,13 @@ async function fetchCrawler(keyword: string, ctx: ProviderContext): Promise<UGCR
   }
 
   // 3. 获取爬取结果
-  const filesRes = await fetch(`${ctx.baseUrl}/api/data/files?platform=xhs&file_type=json`, {
-    headers,
-    signal: createAbortSignal(10_000),
-  });
+  const filesRes = await fetchWithTimeout(
+    `${ctx.baseUrl}/api/data/files?platform=xhs&file_type=json`,
+    {
+      timeout: 10_000,
+      headers,
+    },
+  );
   if (!filesRes.ok) throw new Error(`Crawler data files error: ${filesRes.status}`);
 
   const filesBody = (await filesRes.json()) as CrawlerDataResponse;
@@ -431,9 +426,9 @@ async function fetchCrawler(keyword: string, ctx: ProviderContext): Promise<UGCR
   const latest = files.sort((a, b) => b.modified_at - a.modified_at)[0];
 
   // 4. 读取文件内容
-  const contentRes = await fetch(
+  const contentRes = await fetchWithTimeout(
     `${ctx.baseUrl}/api/data/files/${latest.path}?preview=true&limit=10`,
-    { headers, signal: createAbortSignal(10_000) },
+    { timeout: 10_000, headers },
   );
   if (!contentRes.ok) throw new Error(`Crawler read file error: ${contentRes.status}`);
 

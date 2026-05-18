@@ -1,11 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearXhsCache, getRouterStatus, searchXhsNotes } from "../../../services/xhs-service.js";
+import { server } from "../../mocks/server.js";
 
 // Mock global fetch
 const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
 
 describe("xhs-service — 统一路由层", () => {
+  // xhs-service.test.ts 使用 mockFetch 模式，与 MSW 默认 handler 冲突。
+  // 由于 vitest pool: forks，每个测试文件在独立进程中运行，
+  // 在此进程中关闭 MSW 不会影响其他测试文件。
+  beforeAll(() => {
+    server.close();
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
+  afterAll(() => {
+    server.listen({ onUnhandledRequest: "warn" });
+  });
+
   beforeEach(() => {
     clearXhsCache();
     // 清除所有 XHS 环境变量
@@ -95,9 +107,9 @@ describe("xhs-service — 统一路由层", () => {
       const result = await searchXhsNotes({ keyword: "北京故宫攻略", city: "北京" });
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      const request = mockFetch.mock.calls[0][0] as Request;
-      expect(request.url).toContain("/api/v1/xhs/search_notes");
-      expect(request.url).toContain("keyword=");
+      const request = mockFetch.mock.calls[0][0] as string;
+      expect(request).toContain("/api/v1/xhs/search_notes");
+      expect(request).toContain("keyword=");
 
       expect(result.length).toBe(1);
       expect(result[0].source).toBe("xiaohongshu");
@@ -151,8 +163,8 @@ describe("xhs-service — 统一路由层", () => {
       const result = await searchXhsNotes({ keyword: "上海外滩" });
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      const request = mockFetch.mock.calls[0][0] as Request;
-      expect(request.url).toContain("/api/xiaohongshu/search-note/v3");
+      const request = mockFetch.mock.calls[0][0] as string;
+      expect(request).toContain("/api/xiaohongshu/search-note/v3");
 
       expect(result.length).toBe(1);
       expect(result[0].meta?.likes).toBe(1500);
@@ -189,8 +201,8 @@ describe("xhs-service — 统一路由层", () => {
       const result = await searchXhsNotes({ keyword: "颐和园", city: "北京" });
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      const request = mockFetch.mock.calls[0][0] as Request;
-      expect(request.url).toContain("/api/v1/xiaohongshu/web/search_notes");
+      const request = mockFetch.mock.calls[0][0] as string;
+      expect(request).toContain("/api/v1/xiaohongshu/web/search_notes");
 
       expect(result.length).toBe(1);
       expect(result[0].summary).toBe("颐和园赏荷");
@@ -271,10 +283,10 @@ describe("xhs-service — 统一路由层", () => {
 
       // 验证 start 请求
       const startCall = mockFetch.mock.calls[0];
-      const startReq = startCall[0] as Request;
-      expect(startReq.url).toContain("/api/crawler/start");
-      // vitest undici wraps into Request, check method
-      expect(startReq.method).toBe("POST");
+      const startUrl = startCall[0] as string;
+      expect(startUrl).toContain("/api/crawler/start");
+      // 验证 POST method（第二个参数）
+      expect(startCall[1]).toMatchObject({ method: "POST" });
 
       expect(result.length).toBe(1);
       expect(result[0].summary).toContain("长城徒步攻略");

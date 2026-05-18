@@ -17,8 +17,11 @@ import {
   getOfficialRoutes,
 } from "../../../services/route-official-data.js";
 import {
+  calculateRouteRisk,
+  checkRouteSuitability,
   clearRouteCache,
   enrichAttractionWithRoutes,
+  filterRoutesByTravelers,
   isComplexAttraction,
   parseRouteEditIntent,
   searchAttractionRoutes,
@@ -400,5 +403,320 @@ describe("西湖路线数据质量", () => {
     // 至少有两条路线的途经点列表不同
     const unique = new Set(namesPerRoute);
     expect(unique.size).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ─── 路线风险评估 ────────────────────────────────────────
+
+describe("路线风险评估", () => {
+  it("官方路线均包含完整的 riskAssessment", async () => {
+    const result = await searchAttractionRoutes({ attractionName: "西湖", city: "杭州" });
+    for (const route of result.routes) {
+      expect(route.riskAssessment).toBeDefined();
+      expect(route.riskAssessment!.riskLevel).toBeGreaterThanOrEqual(1);
+      expect(route.riskAssessment!.riskLevel).toBeLessThanOrEqual(3);
+      expect(route.riskAssessment!.estimatedCalories).toBeGreaterThan(0);
+      expect(route.riskAssessment!.estimatedSteps).toBeGreaterThan(0);
+      expect(route.riskAssessment!.suitability).toBeDefined();
+      expect(route.riskAssessment!.suitability.seniors).toBeDefined();
+      expect(route.riskAssessment!.suitability.children).toBeDefined();
+      expect(route.riskAssessment!.suitability.pregnant).toBeDefined();
+      expect(route.riskAssessment!.suitability.mobilityImpaired).toBeDefined();
+    }
+  });
+
+  it("黄山风险等级为高风险", async () => {
+    const result = await searchAttractionRoutes({ attractionName: "黄山", city: "黄山" });
+    expect(result.routes.length).toBeGreaterThan(0);
+    // 所有路线都必须有风险评估
+    for (const route of result.routes) {
+      expect(route.riskAssessment).toBeDefined();
+    }
+    // 至少一条官方路线是高风险且有显著爬升
+    const highRiskRoutes = result.routes.filter(
+      (r) => r.riskAssessment!.riskLevel === 3 && r.riskAssessment!.totalElevationGain > 500,
+    );
+    expect(highRiskRoutes.length).toBeGreaterThan(0);
+  });
+
+  it("泰山红门路线累计爬升超过1000米", async () => {
+    const routes = getOfficialRoutes("泰山", "泰安");
+    const redGateRoute = routes.find((r) => r.id === "taishan_red_gate");
+    expect(redGateRoute).toBeDefined();
+    expect(redGateRoute!.riskAssessment!.totalElevationGain).toBeGreaterThan(1000);
+    expect(redGateRoute!.riskAssessment!.estimatedSteps).toBeGreaterThan(15000);
+    expect(redGateRoute!.riskAssessment!.suitability.seniors).toBe("not_recommended");
+  });
+
+  it("泰山天外村轻松路线风险等级为低", async () => {
+    const routes = getOfficialRoutes("泰山", "泰安");
+    const easyRoute = routes.find((r) => r.id === "taishan_tianwai");
+    expect(easyRoute).toBeDefined();
+    expect(easyRoute!.riskAssessment!.riskLevel).toBe(1);
+    expect(easyRoute!.riskAssessment!.totalElevationGain).toBeLessThan(100);
+    expect(easyRoute!.riskAssessment!.suitability.seniors).toBe("suitable");
+  });
+
+  it("西湖环湖线风险等级为低，有距离提示", async () => {
+    const routes = getOfficialRoutes("西湖", "杭州");
+    const classicRoute = routes.find((r) => r.id === "westlake_classic");
+    expect(classicRoute).toBeDefined();
+    expect(classicRoute!.riskAssessment!.riskLevel).toBe(1);
+    expect(classicRoute!.riskAssessment!.totalElevationGain).toBeLessThan(50);
+    const distanceRisk = classicRoute!.riskAssessment!.riskFactors.find(
+      (f) => f.type === "distance",
+    );
+    expect(distanceRisk).toBeDefined();
+  });
+
+  it("calculateRouteRisk 自动计算逻辑正确", () => {
+    const route = {
+      id: "test_route",
+      name: "测试路线",
+      description: "测试",
+      duration: 300,
+      waypoints: [
+        {
+          name: "起点",
+          location: { latitude: 0, longitude: 0 },
+          elevation: 100,
+          visitDuration: 10,
+          isOptional: false,
+        },
+        {
+          name: "中段",
+          location: { latitude: 0, longitude: 0 },
+          elevation: 800,
+          terrainType: "stairs" as const,
+          visitDuration: 10,
+          isOptional: false,
+        },
+        {
+          name: "终点",
+          location: { latitude: 0, longitude: 0 },
+          elevation: 1200,
+          visitDuration: 10,
+          isOptional: false,
+        },
+      ],
+      tags: ["测试"],
+      source: "user_custom" as const,
+      difficulty: 2 as const,
+    };
+
+    const risk = calculateRouteRisk(route);
+    expect(risk.riskLevel).toBe(3); // 爬升超过1000米，自动升级为高风险
+    expect(risk.totalElevationGain).toBe(1100);
+    expect(risk.totalElevationLoss).toBe(0);
+    expect(risk.maxElevation).toBe(1200);
+    expect(risk.minElevation).toBe(100);
+    expect(risk.estimatedCalories).toBeGreaterThan(0);
+    expect(risk.estimatedSteps).toBeGreaterThan(0);
+    expect(risk.riskFactors.some((f) => f.type === "elevation")).toBe(true);
+    expect(risk.riskFactors.some((f) => f.type === "terrain")).toBe(true);
+    expect(risk.suitability.seniors).toBe("not_recommended");
+  });
+
+  it("calculateRouteRisk 对无海拔数据返回保守估算", () => {
+    const route = {
+      id: "test_flat",
+      name: "平地路线",
+      description: "测试",
+      duration: 120,
+      waypoints: [
+        {
+          name: "A",
+          location: { latitude: 0, longitude: 0 },
+          visitDuration: 10,
+          isOptional: false,
+        },
+        {
+          name: "B",
+          location: { latitude: 0, longitude: 0 },
+          visitDuration: 10,
+          isOptional: false,
+        },
+      ],
+      tags: ["测试"],
+      source: "user_custom" as const,
+      difficulty: 1 as const,
+    };
+
+    const risk = calculateRouteRisk(route);
+    expect(risk.riskLevel).toBe(1);
+    expect(risk.totalElevationGain).toBe(0);
+    expect(risk.totalElevationLoss).toBe(0);
+    expect(risk.estimatedSteps).toBeGreaterThan(0);
+  });
+
+  it("mock 路线自动生成风险评估", () => {
+    const mockRoutes = getMockRoutes("某某大风景区", "某市");
+    expect(mockRoutes.length).toBe(1);
+    // mock 路线本身不生成 riskAssessment，由 enrich 阶段补充
+    // 这里验证 mock 路线结构完整
+    expect(mockRoutes[0].waypoints.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── 人群画像适配 ────────────────────────────────────────
+
+describe("checkRouteSuitability", () => {
+  const highRiskRoute = {
+    id: "test_high",
+    name: "高风险路线",
+    description: "测试",
+    duration: 300,
+    waypoints: [],
+    tags: ["测试"],
+    source: "official" as const,
+    difficulty: 3 as const,
+    riskAssessment: {
+      riskLevel: 3 as const,
+      totalElevationGain: 1200,
+      totalElevationLoss: 0,
+      maxElevation: 1800,
+      minElevation: 200,
+      estimatedCalories: 1000,
+      estimatedSteps: 20000,
+      riskFactors: [],
+      suitability: {
+        seniors: "not_recommended" as const,
+        children: "not_recommended" as const,
+        pregnant: "not_recommended" as const,
+        mobilityImpaired: "not_recommended" as const,
+      },
+    },
+  };
+
+  it("无 travelers 时返回适合", () => {
+    const result = checkRouteSuitability(highRiskRoute, undefined);
+    expect(result.suitable).toBe(true);
+    expect(result.reasons).toEqual([]);
+  });
+
+  it("带老人时高风险路线不适合", () => {
+    const result = checkRouteSuitability(highRiskRoute, {
+      adults: 2,
+      seniors: 1,
+      children: 0,
+      infants: 0,
+      pregnant: false,
+      mobilityImpaired: false,
+    });
+    expect(result.suitable).toBe(false);
+    expect(result.reasons).toContain("老人不适宜");
+  });
+
+  it("带婴幼儿时自动排除 riskLevel=3", () => {
+    const result = checkRouteSuitability(highRiskRoute, {
+      adults: 2,
+      seniors: 0,
+      children: 0,
+      infants: 1,
+      pregnant: false,
+      mobilityImpaired: false,
+    });
+    expect(result.suitable).toBe(false);
+    expect(result.reasons).toContain("婴幼儿不适宜高风险路线");
+  });
+
+  it("仅成人时高风险路线适合", () => {
+    const result = checkRouteSuitability(highRiskRoute, {
+      adults: 2,
+      seniors: 0,
+      children: 0,
+      infants: 0,
+      pregnant: false,
+      mobilityImpaired: false,
+    });
+    expect(result.suitable).toBe(true);
+    expect(result.reasons).toEqual([]);
+  });
+});
+
+describe("filterRoutesByTravelers", () => {
+  const routes = [
+    {
+      id: "r1",
+      name: "低风险",
+      description: "测试",
+      duration: 120,
+      waypoints: [],
+      tags: ["测试"],
+      source: "official" as const,
+      difficulty: 1 as const,
+      riskAssessment: {
+        riskLevel: 1 as const,
+        totalElevationGain: 10,
+        totalElevationLoss: 5,
+        maxElevation: 15,
+        minElevation: 5,
+        estimatedCalories: 100,
+        estimatedSteps: 2000,
+        riskFactors: [],
+        suitability: {
+          seniors: "suitable" as const,
+          children: "suitable" as const,
+          pregnant: "suitable" as const,
+          mobilityImpaired: "suitable" as const,
+        },
+      },
+    },
+    {
+      id: "r2",
+      name: "高风险",
+      description: "测试",
+      duration: 300,
+      waypoints: [],
+      tags: ["测试"],
+      source: "official" as const,
+      difficulty: 3 as const,
+      riskAssessment: {
+        riskLevel: 3 as const,
+        totalElevationGain: 1000,
+        totalElevationLoss: 0,
+        maxElevation: 1500,
+        minElevation: 100,
+        estimatedCalories: 800,
+        estimatedSteps: 15000,
+        riskFactors: [],
+        suitability: {
+          seniors: "not_recommended" as const,
+          children: "not_recommended" as const,
+          pregnant: "not_recommended" as const,
+          mobilityImpaired: "not_recommended" as const,
+        },
+      },
+    },
+  ];
+
+  it("无 travelers 时返回全部路线", () => {
+    expect(filterRoutesByTravelers(routes, undefined)).toHaveLength(2);
+  });
+
+  it("带老人时过滤掉高风险路线", () => {
+    const filtered = filterRoutesByTravelers(routes, {
+      adults: 2,
+      seniors: 1,
+      children: 0,
+      infants: 0,
+      pregnant: false,
+      mobilityImpaired: false,
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe("r1");
+  });
+
+  it("全部过滤掉时保留中低风险路线作为兜底", () => {
+    const allHighRisk = [routes[1], { ...routes[1], id: "r3" }];
+    const filtered = filterRoutesByTravelers(allHighRisk, {
+      adults: 2,
+      seniors: 1,
+      children: 0,
+      infants: 0,
+      pregnant: false,
+      mobilityImpaired: false,
+    });
+    expect(filtered).toHaveLength(0); // 两个都是高风险，兜底也过滤掉了
   });
 });

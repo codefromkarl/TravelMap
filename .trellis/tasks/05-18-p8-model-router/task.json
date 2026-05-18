@@ -3,7 +3,7 @@
   "name": "p8-model-router",
   "title": "两层模型智能路由",
   "description": "P3: 根据请求复杂度自动选择模型（L1 mini / L2 strong），优化成本",
-  "status": "active",
+  "status": "completed",
   "dev_type": "optimization",
   "scope": "backend",
   "package": null,

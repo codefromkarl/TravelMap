@@ -6,114 +6,76 @@
 
 ## Overview
 
-- 服务层统一通过 `src/services/http-client.ts` 进行外部 API 调用
-- 所有外部 API 调用必须有 try-catch 包装 + fallback 降级逻辑
-- 禁止空 `catch { }` 块 — 至少保留 `console.warn` 上下文日志
+服务层的外部 API 调用统一通过 `src/services/http-client.ts` 处理超时和网络错误。各 service 在此基础上做业务级降级。
 
 ---
 
 ## Error Types
 
-定义在 `src/services/http-client.ts`：
+定义在 `http-client.ts` 中：
 
-| 类型 | 场景 | 使用方 |
-|------|------|--------|
-| `NetworkError` | DNS 失败、连接中断等非 HTTP 错误 | `fetchWithTimeout` / `fetchWithRetry` |
-| `TimeoutError` | 请求超过 `timeout`（默认 4s） | `fetchWithTimeout` |
-| `ApiError` | HTTP 4xx/5xx 响应 | `fetchWithRetry`（5xx 重试耗尽后） |
-| `AuthError` | 认证/授权失败 | 预留，当前由调用方自行处理 |
-
-### 使用示例
-
-```ts
-import { fetchWithTimeout, TimeoutError, NetworkError } from "./http-client.js";
-
-try {
-  const res = await fetchWithTimeout(url, { timeout: 8000 });
-} catch (err) {
-  if (err instanceof TimeoutError) {
-    // 超时降级逻辑
-  } else if (err instanceof NetworkError) {
-    // 网络错误降级逻辑
-  }
-}
-```
+| 类型 | 用途 | 重试策略 |
+|------|------|---------|
+| `NetworkError` | DNS 失败、TCP 断开等底层网络错误 | 幂等请求自动重试（max 3，指数退避） |
+| `TimeoutError` | 请求超过 `timeout` 阈值 | 同上 |
+| `ApiError` | HTTP 4xx/5xx（除 401/403） | 4xx 不重试；5xx 自动重试 |
+| `AuthError` | HTTP 401/403 | **永不重试**，立即抛出 |
 
 ---
 
 ## Error Handling Patterns
 
-### 1. 外部 API 调用 → try-catch + fallback
+### 服务层调用外部 API
 
 ```ts
-// ✅ 正确：有降级路径
-try {
-  const data = await fetchExternalApi(params);
-  return { data, source: "external" };
-} catch (err) {
-  console.warn("[ServiceName] External API failed:", err);
-  return { data: mockData(params), source: "mock" };
-}
+import { fetchWithTimeout, fetchWithRetry } from "./http-client.js";
 
-// ❌ 错误：空 catch
-try {
-  const data = await fetchExternalApi(params);
-} catch { }
+// GET 请求：自动重试
+const res = await fetchWithRetry(url, { timeout: 8000 });
+
+// POST 请求：不重试，仅超时保护
+const res = await fetchWithTimeout(url, { method: "POST", body: json, timeout: 15000 });
 ```
 
-### 2. JSON.parse 必须加保护
+### 降级策略（所有外部 API 必须实现）
 
 ```ts
-// ✅ 正确：trvl CLI 可能输出非 JSON
-let result: SomeType;
-try {
-  result = JSON.parse(stdout) as SomeType;
-} catch (parseErr) {
-  throw new Error(`Invalid JSON output. Snippet: "${stdout.slice(0, 200)}..."`, { cause: parseErr });
+export async function searchXxx(params): Promise<Result> {
+  try {
+    const data = await fetchFromRealApi(params);
+    return { data, source: "real_api" };
+  } catch (err) {
+    console.warn("[XxxService] API failed, using mock:", err instanceof Error ? err.message : err);
+    return { data: getMockData(params), source: "mock" };
+  }
 }
-
-// ❌ 错误：直接 parse
-type Result = JSON.parse(stdout) as SomeType; // 可能抛出 SyntaxError
 ```
 
-### 3. AbortController 替代 AbortSignal.timeout
-
-```ts
-// ✅ 正确：兼容 Node < 18.17 / < v20.13
-function createAbortSignal(timeoutMs: number): AbortSignal {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), timeoutMs);
-  return controller.signal;
-}
-
-// ❌ 错误：旧 Node 不支持
-fetch(url, { signal: AbortSignal.timeout(15_000) });
-```
+**强制规则**：
+- 每个外部 API 调用必须有 `try-catch`
+- `catch` 块必须有日志（禁止空 `catch {}`）
+- 必须提供 fallback 数据或抛出带上下文的错误
 
 ---
 
 ## API Error Responses
 
-服务层返回统一结构（当前逐步迁移中）：
+服务层返回统一结构：
 
 ```ts
-{
-  data: T;        // 业务数据
-  source: string; // 数据来源标识（如 "openweathermap" | "mock"）
-  warning?: string; // 降级时的警告信息
-}
+{ data: T; source: string; warning?: string }
 ```
 
-> 注意：完整统一返回结构重构留待后续任务（影响所有调用方）。
+- `source` 标识数据来源（`"google_places"` / `"mock"` / `"default"` 等）
+- `warning` 在降级时向调用方说明原因
 
 ---
 
 ## Common Mistakes
 
-| 反模式 | 后果 | 预防 |
-|--------|------|------|
-| 空 `catch { }` | 失败静默，调试困难 | lint + 代码审查 |
-| 直接 `JSON.parse(stdout)` | CLI 输出非 JSON 时崩溃 | 始终包 try-catch |
-| `AbortSignal.timeout()` | 旧 Node 运行时崩溃 | 使用 `createAbortSignal` |
-| 无限增长 Map 缓存 | 内存泄漏 | 使用 `LRUCache`（max: 1000） |
-| API key 直接拼接 URL 且未脱敏 | key 泄露到日志 | 统一使用 `sanitizeUrl` |
+|  Mistake  | Why Bad  | Fix  |
+|---|---|---|
+| 裸 `fetch()` 不经过 http-client  | 无统一超时、无重试、无日志脱敏  | 统一使用 `fetchWithTimeout`/`fetchWithRetry`  |
+| 空 `catch {}`  | 失败静默，生产环境无法排查  | 至少 `console.warn("[Service] xxx failed:", err)`  |
+| API Key 直接拼在 URL 中且不做脱敏  | Key 可能泄露到日志/代理  | 使用 `sanitizeUrl()` 脱敏后再打印  |
+| 不对错误分类  | 401 也会触发重试，浪费资源  | 区分 `AuthError`（不重试）与 `ApiError`（可重试）  |
