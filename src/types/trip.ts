@@ -33,6 +33,10 @@ export interface Attraction {
   reservationRequired: boolean;
   reservationTips: string;
   bookingUrl?: string;
+  /** 该景点的可选游玩路线（大型景区适用，如西湖北线/西线/南线） */
+  routes?: import("./route.js").AttractionRoute[];
+  /** 当前选中的路线 ID */
+  selectedRouteId?: string;
 }
 
 /** 餐饮 */

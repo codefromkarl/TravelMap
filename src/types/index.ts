@@ -1,4 +1,13 @@
 export type {
+  AttractionRoute,
+  RouteEditIntent,
+  RouteSearchParams,
+  RouteSearchResult,
+  RouteSource,
+  Waypoint,
+} from "./route.js";
+export type {
+  ActionLink,
   Attraction,
   Budget,
   CityStay,
