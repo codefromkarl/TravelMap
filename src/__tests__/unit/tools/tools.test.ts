@@ -16,9 +16,9 @@ import {
 } from "../../../tools/index.js";
 
 describe("tools/createTools", () => {
-  it("应返回 7 个工具", () => {
+  it("应返回 8 个工具", () => {
     const tools = createTools();
-    expect(tools).toHaveLength(7);
+    expect(tools).toHaveLength(8);
     expect(tools.map((t) => t.name)).toEqual([
       "search_attractions",
       "search_weather",
@@ -27,6 +27,7 @@ describe("tools/createTools", () => {
       "calculate_budget",
       "generate_action_links",
       "query_trip_data",
+      "plan_multi_city",
     ]);
   });
 
