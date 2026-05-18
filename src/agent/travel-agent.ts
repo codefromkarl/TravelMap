@@ -9,6 +9,12 @@
 import type { AgentEvent, AgentTool } from "@earendil-works/pi-agent-core";
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModel } from "@earendil-works/pi-ai";
+import {
+  DEFAULT_HANDOFF_CONFIG,
+  getCostTracker,
+  type HandoffConfig,
+  isToolCallTool,
+} from "../services/cost-tracker.js";
 import type { TripRequest } from "../types/trip.js";
 import { SYSTEM_PROMPT } from "./prompts.js";
 
@@ -17,6 +23,8 @@ export interface TravelAgentOptions {
   provider?: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "openrouter";
   /** 模型 ID */
   model?: string;
+  /** 模型 Handoff 配置（null 表示不切换模型） */
+  handoff?: HandoffConfig | null;
 }
 
 export type TravelAgentEvent = AgentEvent;
@@ -24,23 +32,77 @@ export type TravelAgentEvent = AgentEvent;
 export class TravelAgent {
   private agent: Agent;
   private eventListeners: Set<(event: TravelAgentEvent) => void> = new Set();
+  private handoffConfig: HandoffConfig | null;
+  private strongModel: ReturnType<typeof getModel>;
+  private cheapModel: ReturnType<typeof getModel>;
+  private costTracker = getCostTracker();
 
   constructor(options: TravelAgentOptions = {}) {
     const provider = options.provider ?? "openai";
     const modelId = options.model ?? "gpt-4o";
-    // pi-ai 的 getModel 使用模板字面量类型，动态参数需断言
-    const model = getModel(
-      provider as Parameters<typeof getModel>[0],
-      modelId as Parameters<typeof getModel>[1],
+    this.handoffConfig = options.handoff ?? DEFAULT_HANDOFF_CONFIG;
+
+    // 初始化两个模型
+    const strongProvider = this.handoffConfig?.strongModel.provider ?? provider;
+    const strongModelId = this.handoffConfig?.strongModel.model ?? modelId;
+    this.strongModel = getModel(
+      strongProvider as Parameters<typeof getModel>[0],
+      strongModelId as Parameters<typeof getModel>[1],
+    );
+
+    const cheapProvider = this.handoffConfig?.cheapModel.provider ?? provider;
+    const cheapModelId = this.handoffConfig?.cheapModel.model ?? "gpt-4o-mini";
+    this.cheapModel = getModel(
+      cheapProvider as Parameters<typeof getModel>[0],
+      cheapModelId as Parameters<typeof getModel>[1],
     );
 
     this.agent = new Agent({
       initialState: {
         systemPrompt: SYSTEM_PROMPT,
-        model,
+        model: this.strongModel,
         thinkingLevel: "medium",
         tools: [],
         messages: [],
+      },
+      /**
+       * beforeToolCall: 根据工具类型切换模型
+       * 搜索/查询类工具 → 便宜模型
+       * 其他 → 强模型
+       */
+      beforeToolCall: async (ctx) => {
+        const toolName = ctx.toolCall.name;
+        if (this.handoffConfig && isToolCallTool(toolName)) {
+          this.agent.state.model = this.cheapModel;
+        }
+        return undefined;
+      },
+      /**
+       * afterToolCall: 工具执行完毕后切回强模型
+       * 同时记录 token 使用量
+       */
+      afterToolCall: async (ctx) => {
+        if (this.handoffConfig) {
+          this.agent.state.model = this.strongModel;
+        }
+        // 记录费用（从 assistant message 中提取 token 信息）
+        const lastMsg = ctx.assistantMessage as unknown as Record<string, unknown>;
+        if (lastMsg) {
+          const usage = lastMsg.usage as
+            | { inputTokens?: number; outputTokens?: number }
+            | undefined;
+          if (usage) {
+            const currentModel = this.agent.state.model as unknown as Record<string, unknown>;
+            this.costTracker.record({
+              model: (currentModel.modelId as string) ?? "unknown",
+              provider: (currentModel.provider as string) ?? "unknown",
+              inputTokens: usage.inputTokens ?? 0,
+              outputTokens: usage.outputTokens ?? 0,
+              phase: isToolCallTool(ctx.toolCall.name) ? "tool_call" : "planning",
+            });
+          }
+        }
+        return undefined;
       },
       /**
        * prepareNextTurn: 在每轮 assistant turn 结束后，
@@ -144,6 +206,11 @@ export class TravelAgent {
 
   getMessages() {
     return this.agent.state.messages;
+  }
+
+  /** 获取费用统计 */
+  getCostSummary() {
+    return this.costTracker.getFormattedSummary();
   }
 
   /** 清除对话历史和队列，回到初始状态 */
