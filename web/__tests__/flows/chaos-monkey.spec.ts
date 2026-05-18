@@ -79,7 +79,6 @@ test.describe("Chaos Monkey — 随机点击", () => {
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
         !e.includes("esm.sh") &&
-        !e.includes("AppStorage not initialized"),
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -106,7 +105,6 @@ test.describe("Chaos Monkey — 随机键盘", () => {
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
         !e.includes("esm.sh") &&
-        !e.includes("AppStorage not initialized"),
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -154,7 +152,6 @@ test.describe("Chaos Monkey — 随机输入文字", () => {
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
         !e.includes("esm.sh") &&
-        !e.includes("AppStorage not initialized"),
     );
     expect(criticalErrors).toEqual([]);
   });

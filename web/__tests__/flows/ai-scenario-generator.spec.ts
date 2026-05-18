@@ -222,8 +222,7 @@ async function executeScenario(
       !e.includes("Failed to resolve module specifier") &&
       !e.includes("esm.sh") &&
       !e.includes("Failed to fetch") &&
-      !e.includes("net::ERR") &&
-      !e.includes("AppStorage not initialized"),
+      !e.includes("net::ERR"),
   );
   expect(criticalErrors, `场景 ${scenario.name} 产生了致命错误`).toEqual([]);
 }

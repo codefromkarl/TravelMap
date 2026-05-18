@@ -107,8 +107,7 @@ test.describe("多轮对话 — 消息发送", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
-        !e.includes("AppStorage not initialized"),
+        !e.includes("esm.sh")
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -132,8 +131,7 @@ test.describe("多轮对话 — 消息发送", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
-        !e.includes("AppStorage not initialized"),
+        !e.includes("esm.sh")
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -237,8 +235,7 @@ test.describe("多轮对话 — ChatPanel Shadow DOM 交互", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
-        !e.includes("AppStorage not initialized"),
+        !e.includes("esm.sh")
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -275,8 +272,7 @@ test.describe("多轮对话 — 模拟真实用户行程", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
-        !e.includes("AppStorage not initialized"),
+        !e.includes("esm.sh")
     );
     expect(criticalErrors).toEqual([]);
   });
