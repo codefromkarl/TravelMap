@@ -1,0 +1,30 @@
+{
+  "id": "p2-partial-edit",
+  "name": "p2-partial-edit",
+  "title": "局部修改 - 用户只调整某天行程不影响已确认部分",
+  "description": "",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/services/partial-edit-service.ts",
+    "src/__tests__/unit/services/partial-edit-service.test.ts",
+    "src/agent/prompts.ts"
+  ],
+  "notes": "局部修改: parseTargetDays 解析自然语言天数 + applyPartialEdit 仅重算目标天。",
+  "meta": {}
+}

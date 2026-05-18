@@ -1,0 +1,35 @@
+{
+  "id": "p1-e2e-verify",
+  "name": "p1-e2e-verify",
+  "title": "端到端验证 - CLI 脚本调用 Agent 跑通完整链路",
+  "description": "",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-18-p1-attractions-tool",
+    "05-18-p1-weather-tool",
+    "05-18-p1-geocode-tool"
+  ],
+  "parent": null,
+  "relatedFiles": [
+    "src/bin/cli.ts",
+    "src/tools/index.ts",
+    "src/__tests__/unit/tools/tools.test.ts",
+    "src/tools/index.test.ts"
+  ],
+  "notes": "CLI 入口 + 工具注册。55 tests passed, 3 skipped (已有的 mock streamFn 接口不兼容)。",
+  "meta": {}
+}

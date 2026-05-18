@@ -1,0 +1,30 @@
+{
+  "id": "p1-attractions-tool",
+  "name": "p1-attractions-tool",
+  "title": "景点搜索工具 - 接入外部景点数据源",
+  "description": "",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-18-p1-e2e-verify",
+  "relatedFiles": [
+    "src/services/attraction-service.ts",
+    "src/tools/attractions.ts",
+    "src/__tests__/unit/services/attraction-service.test.ts"
+  ],
+  "notes": "Google Places API + mock 降级。55 tests passing。",
+  "meta": {}
+}

@@ -1,0 +1,30 @@
+{
+  "id": "p2-steering-loop",
+  "name": "p2-steering-loop",
+  "title": "Steering 交互循环 - 逐步确认式行程规划",
+  "description": "利用 pi-agent-core 的 steer() API 实现行程微调，用户可在行程生成后通过自然语言反馈进行增量修改。",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/agent/prompts.ts",
+    "src/agent/travel-agent.ts",
+    "src/bin/cli.ts"
+  ],
+  "notes": "实现方式：TravelAgent.steer() 封装 pi-agent-core 的 steer() API，system prompt 中注入 steering 规则（最小化修改、保持一致性、直接输出完整修订版）。CLI 增加交互式循环支持多轮微调。",
+  "meta": {}
+}

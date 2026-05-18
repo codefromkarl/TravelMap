@@ -1,0 +1,30 @@
+{
+  "id": "p3-budget",
+  "name": "p3-budget",
+  "title": "预算面板 - 自动汇总门票餐饮住宿交通费用",
+  "description": "",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/services/budget-service.ts",
+    "src/tools/budget.ts",
+    "src/__tests__/unit/services/budget-service.test.ts"
+  ],
+  "notes": "calculate_budget 工具: 门票/住宿/餐饮/交通分项统计 + 预算超限检查。",
+  "meta": {}
+}

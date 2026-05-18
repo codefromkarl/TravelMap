@@ -1,0 +1,30 @@
+{
+  "id": "p2-preference-dig",
+  "name": "p2-preference-dig",
+  "title": "对话式偏好挖掘 - Agent 主动追问用户偏好",
+  "description": "用户输入模糊时，Agent 通过 system prompt 中的偏好挖掘规则主动追问，2-3轮后自动开始规划。",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/agent/prompts.ts",
+    "src/agent/travel-agent.ts",
+    "src/bin/cli.ts"
+  ],
+  "notes": "实现方式：通过 system prompt 注入偏好挖掘规则（追问维度、每次只问一个问题、2-3轮后自动开始），TravelAgent.planTrip() 检测信息不足时触发追问，用户通过 respondToPreferenceDig() 注入回答。",
+  "meta": {}
+}

@@ -901,8 +901,8 @@ export default function trellisExtension(pi: {
   };
 
   pi.registerTool?.({
-    name: "subagent",
-    label: "Subagent",
+    name: "trellis-subagent",
+    label: "Trellis Subagent",
     description: "Run a Trellis project sub-agent with active task context.",
     parameters: {
       type: "object",

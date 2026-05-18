@@ -1,0 +1,29 @@
+{
+  "id": "p4-webui",
+  "name": "p4-webui",
+  "title": "前端 UI - pi-web-ui ChatPanel 快速验证",
+  "description": "",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "web/index.html",
+    "package.json"
+  ],
+  "notes": "pi-web-ui ChatPanel 集成。浏览器端 HTML 入口，esm.sh CDN 加载，包含 4 个工具 mock。",
+  "meta": {}
+}
