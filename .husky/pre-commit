@@ -4,5 +4,8 @@ npx biome check --write .
 # Type check
 npx tsc --noEmit
 
+# Test quality scan (warning only)
+bash scripts/test-qa-check.sh || true
+
 # Tests
 npx vitest run
