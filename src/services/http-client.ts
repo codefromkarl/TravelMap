@@ -183,13 +183,14 @@ export function createApiClient(config: ApiClientConfig = {}) {
       });
     },
 
-    async post(path: string, options: FetchOptions = {}): Promise<Response> {
+    async post(path: string, body?: unknown, options: FetchOptions = {}): Promise<Response> {
       const url = baseUrl ? `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}` : path;
       const finalUrl = proxyUrl ? `${proxyUrl}?url=${encodeURIComponent(url)}` : url;
       return fetchWithTimeout(finalUrl, {
         ...options,
         method: "POST",
-        headers: { ...headers, ...options.headers },
+        headers: { "Content-Type": "application/json", ...headers, ...options.headers },
+        body: body ? JSON.stringify(body) : undefined,
         timeout: options.timeout ?? timeout,
       });
     },
