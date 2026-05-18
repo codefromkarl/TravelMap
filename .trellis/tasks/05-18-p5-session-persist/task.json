@@ -3,7 +3,7 @@
   "name": "p5-session-persist",
   "title": "会话持久化 - IndexedDB 存储断点恢复",
   "description": "",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,

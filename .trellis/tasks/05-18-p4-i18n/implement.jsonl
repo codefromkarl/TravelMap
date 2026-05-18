@@ -1,1 +1,3 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend guidelines for i18n implementation"}
+{"file": "src/types/trip.ts", "reason": "TripRequest already has language field, TripPlan/Attraction have bilingual name fields"}
+{"file": "src/agent/prompts.ts", "reason": "System prompt needs language-aware instruction injection"}

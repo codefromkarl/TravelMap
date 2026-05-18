@@ -3,7 +3,7 @@
   "name": "p4-i18n",
   "title": "多语言支持 - 中英日三语界面+LLM输出语言控制",
   "description": "",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,

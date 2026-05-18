@@ -12,9 +12,9 @@ export default defineConfig({
     // 使用系统 Chrome
     launchOptions: {
       executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--ignore-certificate-errors"],
     },
-    baseURL: "file://" + process.cwd() + "/web/",
+    baseURL: process.env.BASE_URL || "file://" + process.cwd() + "/web/",
     actionTimeout: 10_000,
     screenshot: "only-on-failure",
     trace: "on-first-retry",

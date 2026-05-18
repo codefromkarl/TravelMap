@@ -140,6 +140,7 @@
       font-size: 14px;
     }
   </style>
+  <link rel="stylesheet" href="https://esm.sh/@earendil-works/pi-web-ui@0.75.1/app.css" />
 </head>
 <body>
   <div id="app">
@@ -162,7 +163,7 @@
 
   <script type="module">
     import { ChatPanel } from "@earendil-works/pi-web-ui";
-    import "@earendil-works/pi-web-ui/app.css";
+    // CSS 已通过 <link> 标签加载，无需 import
     import { Agent } from "@earendil-works/pi-agent-core";
     import { getModel } from "@earendil-works/pi-ai";
     import { Type } from "@earendil-works/pi-ai";
