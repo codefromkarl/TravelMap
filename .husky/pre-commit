@@ -1,0 +1,8 @@
+# TypeScript lint + format check
+npx biome check --write .
+
+# Type check
+npx tsc --noEmit
+
+# Tests
+npx vitest run

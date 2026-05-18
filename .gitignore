@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.trellis/.developer
+.trellis/.current-task
+.trellis/.runtime/
+.trellis/workspace/
