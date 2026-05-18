@@ -19,7 +19,7 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": "05-18-p6-token-opt",
+  "parent": null,
   "relatedFiles": [
     "src/agent/travel-agent.ts",
     "src/agent/prompts.ts",
