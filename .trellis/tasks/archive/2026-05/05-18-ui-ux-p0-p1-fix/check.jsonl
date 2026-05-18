@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端 spec 入口"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "质量检查规范"}
+{"file": ".trellis/spec/check-quick.md", "reason": "快速检查规范"}
+{"file": ".trellis/tasks/05-18-ui-ux-p0-p1-fix/prd.md", "reason": "PRD — 验收标准来源"}

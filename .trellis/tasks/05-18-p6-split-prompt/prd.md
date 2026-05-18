@@ -25,7 +25,7 @@ const SEARCH_PROMPT = `你是旅行助手。根据以下目的地和偏好搜索
 城市: {city}, 日期: {dates}, 偏好: {prefs}`;
 
 // 阶段 2: 编排（完整版，~1500 tokens）
-const PLANNING_PROMPT = `你是「旅途星辰」...
+const PLANNING_PROMPT = `你是「旅图」...
 [完整 prompt]`;
 
 // 阶段 3: 微调（最小版，~200 tokens）

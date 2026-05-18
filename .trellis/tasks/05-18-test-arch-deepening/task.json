@@ -1,0 +1,33 @@
+{
+  "id": "test-arch-deepening",
+  "name": "test-arch-deepening",
+  "title": "测试架构深化 — 6项深度机会修复",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-18-msw-handlers",
+    "05-18-orchestration-contract",
+    "05-18-xhs-provider-adapter",
+    "05-18-provider-contract-test",
+    "05-18-fixtures-scenario",
+    "05-18-quality-guard-metadata"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

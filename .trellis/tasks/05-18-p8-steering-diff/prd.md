@@ -33,7 +33,7 @@ merged.days[1] = diff.day2;
 ### Prompt 调整
 
 ```typescript
-const STEERING_PROMPT_DIFF = `你是「旅途星辰」旅行管家。
+const STEERING_PROMPT_DIFF = `你是「旅图」旅行管家。
 
 当前任务：基于已有行程做最小化修改。
 

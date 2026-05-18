@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端 spec 入口，了解 spec 组织结构"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件规范（虽为空模板，需遵循不引入新框架原则）"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "质量规范参考"}
+{"file": ".trellis/spec/check-quick.md", "reason": "快速检查规范"}
+{"file": ".trellis/tasks/05-18-ui-ux-p0-p1-fix/prd.md", "reason": "本任务 PRD，核心需求来源"}
