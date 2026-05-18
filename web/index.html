@@ -594,6 +594,7 @@
       color: #52525b;
       font-size: 12px;
       margin-left: 6px;
+      font-weight: 400;
     }
     .setting-row select,
     .setting-row input[type="text"],
@@ -625,6 +626,24 @@
       margin-top: 8px;
     }
     .save-settings-btn:hover { background: #4f46e5; }
+
+    .connection-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #4ade80;
+    }
+    .connection-banner .mode-icon { font-size: 16px; }
+    .connection-banner + .setting-section {
+      opacity: 0.5;
+      pointer-events: none;
+    }
 
     /* ─── 移动端适配 ───────────────────────────────────── */
     @media (max-width: 640px) {
@@ -669,6 +688,41 @@
       #welcome h2 { font-size: 18px; }
     }
 
+    /* ─── 减少动画偏好 ─────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* ─── skip-link ───────────────────────────────────── */
+    .skip-link {
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #6366f1;
+      color: #fff;
+      padding: 8px 20px;
+      border-radius: 0 0 8px 8px;
+      font-size: 14px;
+      z-index: 9999;
+      text-decoration: none;
+      transition: top 0.15s;
+    }
+    .skip-link:focus {
+      top: 0;
+    }
+
+    /* ─── 发送按钮增强（外部覆盖 shadow DOM） ─────────── */
+    pi-chat-panel::part(send-button) {
+      min-width: 40px;
+      min-height: 40px;
+    }
+
     #loading {
       display: flex;
       align-items: center;
@@ -683,6 +737,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
+  <a class="skip-link" href="#chat-container" data-i18n="skipLink">跳到聊天区</a>
   <div id="app">
     <!-- 左侧导航栏 -->
     <aside id="sidebar">
@@ -721,7 +776,7 @@
     <div id="travelers-panel">
       <div class="panel-header">
         <h3>👥 出行人群设置</h3>
-        <button class="close-btn" id="btn-close-travelers">✕</button>
+        <button class="close-btn" id="btn-close-travelers" aria-label="关闭">✕</button>
       </div>
       <div class="traveler-row">
         <label>成人（18-59岁）</label>
@@ -754,7 +809,7 @@
     <div id="history-panel">
       <div class="panel-header">
         <h2>📋 历史行程</h2>
-        <button class="close-btn" id="btn-close-history">✕</button>
+        <button class="close-btn" id="btn-close-history" aria-label="关闭">✕</button>
       </div>
       <div id="history-list">
         <div id="history-empty">暂无历史行程</div>
@@ -765,7 +820,7 @@
         <h2>🗺️ 行程地图</h2>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="map-btn" id="btn-enrich-supplies" title="丰富补给详情" style="display:none">🔄 丰富补给</button>
-          <button class="close-btn" id="btn-close-map">✕</button>
+          <button class="close-btn" id="btn-close-map" aria-label="关闭">✕</button>
         </div>
       </div>
       <div id="map-container"></div>
@@ -792,10 +847,10 @@
           <h2 data-i18n="welcomeTitle">欢迎使用旅图 ✨</h2>
           <p data-i18n="welcomeDesc">告诉我你的旅行需求，我会为你规划完美行程。你也可以点击下方示例快速开始：</p>
           <div class="prompts">
-            <div class="prompt-card" data-prompt="规划一个3天杭州亲子游，带两个老人和一个5岁小朋友">🌊 规划一个 3 天杭州亲子游，带两个老人和一个 5 岁小朋友</div>
-            <div class="prompt-card" data-prompt="北京5日文化之旅，预算5000元，住哪里比较方便">🏛️ 北京 5 日文化之旅，预算 5000 元</div>
-            <div class="prompt-card" data-prompt="成都周边3天自驾游，想去大熊猫基地和都江堰">🐼 成都周边 3 天自驾游，大熊猫基地 + 都江堰</div>
-            <div class="prompt-card" data-prompt="上海出发去黄山2日游，坐高铁，帮我安排详细路线和住宿">⛰️ 上海出发黄山 2 日游，高铁往返</div>
+            <div class="prompt-card" data-prompt="规划一个3天杭州亲子游，带两个老人和一个5岁小朋友" data-i18n="promptCard1">🌊 规划一个 3 天杭州亲子游，带两个老人和一个 5 岁小朋友</div>
+            <div class="prompt-card" data-prompt="北京5日文化之旅，预算5000元，住哪里比较方便" data-i18n="promptCard2">🏛️ 北京 5 日文化之旅，预算 5000 元</div>
+            <div class="prompt-card" data-prompt="成都周边3天自驾游，想去大熊猫基地和都江堰" data-i18n="promptCard3">🐼 成都周边 3 天自驾游，大熊猫基地 + 都江堰</div>
+            <div class="prompt-card" data-prompt="上海出发去黄山2日游，坐高铁，帮我安排详细路线和住宿" data-i18n="promptCard4">⛰️ 上海出发黄山 2 日游，高铁往返</div>
           </div>
         </div>
         <div id="loading">正在初始化...</div>
@@ -807,7 +862,12 @@
     <div id="page-model" class="page">
       <div id="page-model-content">
         <h2 data-i18n="modelConfigTitle">⚙️ 模型配置</h2>
+        <div id="connection-mode" class="connection-banner" style="display:none">
+          <span class="mode-icon">🛡️</span>
+          <span data-i18n="proxyModeDesc">共享体验模式 — 无需配置即可使用</span>
+        </div>
 
+        <!-- ① LLM 模型 -->
         <div class="setting-section">
           <h3 data-i18n="providerSection">AI 服务商</h3>
           <div class="setting-row">
@@ -836,13 +896,64 @@
               <option value="deepseek-reasoner">DeepSeek Reasoner</option>
             </select>
           </div>
+          <div class="setting-row">
+            <label data-i18n="llmKeyLabel">LLM API Key</label>
+            <input type="password" id="cfg-apikey" placeholder="sk-..." autocomplete="off">
+          </div>
         </div>
 
+        <!-- ② 地图服务 -->
         <div class="setting-section">
-          <h3 data-i18n="apiKeySection">API 密钥</h3>
+          <h3 data-i18n="mapApiSection">🗺️ 地图服务</h3>
           <div class="setting-row">
-            <label data-i18n="apiKeyLabel">API Key <span class="hint" data-i18n="apiKeyHint">（密钥保存在本地浏览器中）</span></label>
-            <input type="password" id="cfg-apikey" placeholder="sk-..." autocomplete="off">
+            <label>Google Maps API Key <span class="hint" data-i18n="optionalHint">（可选）</span></label>
+            <input type="password" id="cfg-google-maps" placeholder="AIza..." autocomplete="off">
+          </div>
+          <div class="setting-row">
+            <label>高德地图 Web API Key <span class="hint" data-i18n="optionalHint">（可选）</span></label>
+            <input type="password" id="cfg-amap-web" placeholder="高德 Key..." autocomplete="off">
+          </div>
+        </div>
+
+        <!-- ③ 天气服务 -->
+        <div class="setting-section">
+          <h3 data-i18n="weatherApiSection">🌤️ 天气服务</h3>
+          <div class="setting-row">
+            <label>OpenWeatherMap API Key <span class="hint" data-i18n="optionalHint">（可选）</span></label>
+            <input type="password" id="cfg-openweather" placeholder="owm-key..." autocomplete="off">
+          </div>
+        </div>
+
+        <!-- ④ 小红书数据 -->
+        <div class="setting-section">
+          <h3 data-i18n="xhsApiSection">📕 小红书数据</h3>
+          <div class="setting-row">
+            <label data-i18n="xhsStrategyLabel">路由策略</label>
+            <select id="cfg-xhs-strategy">
+              <option value="priority">priority（按优先级）</option>
+              <option value="cost">cost（按成本）</option>
+              <option value="all">all（并行合并）</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label>Rnote Token <span class="hint">rnote.dev</span></label>
+            <input type="password" id="cfg-xhs-rnote" placeholder="rnote token..." autocomplete="off">
+          </div>
+          <div class="setting-row">
+            <label>JustOneAPI Token <span class="hint">justoneapi.com</span></label>
+            <input type="password" id="cfg-xhs-justone" placeholder="justone token..." autocomplete="off">
+          </div>
+          <div class="setting-row">
+            <label>TikHub Token <span class="hint">tikhub.io</span></label>
+            <input type="password" id="cfg-xhs-tikhub" placeholder="tikhub token..." autocomplete="off">
+          </div>
+          <div class="setting-row">
+            <label>Crawler Base URL <span class="hint">自部署 MediaCrawler</span></label>
+            <input type="text" id="cfg-xhs-crawler-base" placeholder="http://localhost:8080" autocomplete="off">
+          </div>
+          <div class="setting-row">
+            <label>Crawler Token</label>
+            <input type="password" id="cfg-xhs-crawler-token" placeholder="crawler token..." autocomplete="off">
           </div>
         </div>
 
@@ -1401,6 +1512,80 @@
     const modelId = localStorage.getItem("travel-agent-model") || "gpt-4o";
     const model = getModel(provider, modelId);
 
+    // ─── 代理模式检测 ──────────────────────────────────────
+    // 如果用户没有配置自己的 API Key，且服务器端有代理，走代理模式
+    // 这样体验用户不需要填 Key 就能用
+    const PROXY_BASE = '/api/chat';
+    let isProxyMode = false;
+
+    // 检测是否有服务端代理可用（尝试 HEAD /api/chat）
+    async function detectProxyMode() {
+      try {
+        const resp = await fetch(PROXY_BASE, { method: 'HEAD' });
+        // 405 = Method not allowed → Function 存在但不接受 HEAD
+        if (resp.status === 405) {
+          isProxyMode = true;
+          console.log('[Proxy] Server-side proxy detected, using shared API');
+          installFetchProxy();
+          // 显示代理模式 banner
+          document.getElementById('connection-mode')?.style.setProperty('display', 'flex');
+        }
+      } catch {
+        // 无代理，走直连模式
+      }
+    }
+
+    // ─── Fetch 拦截器 ──────────────────────────────────────
+    // 代理模式下，拦截发往 LLM 提供商的请求，转发到 /api/chat
+    const LLM_HOSTS = {
+      'api.openai.com': 'openai',
+      'api.anthropic.com': 'anthropic',
+      'generativelanguage.googleapis.com': 'google',
+      'api.deepseek.com': 'deepseek',
+      'openrouter.ai': 'openrouter',
+    };
+
+    function installFetchProxy() {
+      const origFetch = window.fetch;
+      window.fetch = async function(input, init) {
+        const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+
+        // 检测是否是 LLM API 请求
+        let matchedProvider = null;
+        try {
+          const host = new URL(url).hostname;
+          matchedProvider = LLM_HOSTS[host] || null;
+        } catch {}
+
+        if (!matchedProvider) {
+          // 非 LLM 请求，直接透传
+          return origFetch.call(this, input, init);
+        }
+
+        // 提取请求体，注入 _provider
+        let body = init?.body;
+        if (body && typeof body === 'string') {
+          try {
+            const parsed = JSON.parse(body);
+            parsed._provider = matchedProvider;
+            body = JSON.stringify(parsed);
+          } catch {}
+        }
+
+        console.log(`[Proxy] → /api/chat (${matchedProvider})`);
+
+        // 转发到代理
+        return origFetch.call(this, PROXY_BASE, {
+          ...init,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+      };
+    }
+
+    detectProxyMode();
+
     const agent = new Agent({
       initialState: {
         systemPrompt: SYSTEM_PROMPT,
@@ -1411,6 +1596,7 @@
       },
       // 从 localStorage 读取 API Key，供给 LLM 请求使用
       getApiKey: (provider) => {
+        if (isProxyMode) return 'proxy'; // 代理模式不需要真实 Key
         return localStorage.getItem(`api-key-${provider}`) || undefined;
       },
     });
@@ -1635,6 +1821,13 @@ ${trip.content}`,
         tripNotFound: "⚠️ 未找到该分享的行程",
         tripLoaded: "📋 已加载分享的行程",
         langSet: "语言已切换为中文",
+        skipLink: "跳到聊天区",
+        sendTitle: "发送消息",
+        closeAria: "关闭",
+        promptCard1: "🌊 规划一个 3 天杭州亲子游，带两个老人和一个 5 岁小朋友",
+        promptCard2: "🏛️ 北京 5 日文化之旅，预算 5000 元",
+        promptCard3: "🐼 成都周边 3 天自驾游，大熊猫基地 + 都江堰",
+        promptCard4: "⛰️ 上海出发黄山 2 日游，高铁往返",
         welcomeTitle: "欢迎使用旅图 ✨",
         welcomeDesc: "告诉我你的旅行需求，我会为你规划完美行程。你也可以点击下方示例快速开始：",
         promptPlaceholder: "描述你的旅行计划...",
@@ -1649,8 +1842,15 @@ ${trip.content}`,
         apiKeySection: "API 密钥",
         apiKeyLabel: "API Key",
         apiKeyHint: "（密钥保存在本地浏览器中）",
+        llmKeyLabel: "LLM API Key",
+        mapApiSection: "🗺️ 地图服务",
+        weatherApiSection: "🌤️ 天气服务",
+        xhsApiSection: "📕 小红书数据",
+        xhsStrategyLabel: "路由策略",
+        optionalHint: "（可选）",
         saveSettings: "保存配置",
         settingsSaved: "✅ 配置已保存",
+        proxyModeDesc: "共享体验模式 — 无需配置即可使用",
       },
       en: {
         subtitle: "AI Travel Planner",
@@ -1666,7 +1866,14 @@ ${trip.content}`,
         tripNotFound: "⚠️ Shared trip not found",
         tripLoaded: "📋 Shared trip loaded",
         langSet: "Language switched to English",
-        welcomeTitle: "Welcome to TravelStar ✨",
+        skipLink: "Skip to chat",
+        sendTitle: "Send message",
+        closeAria: "Close",
+        promptCard1: "🌊 Plan a 3-day Hangzhou family trip with 2 seniors and a 5-year-old",
+        promptCard2: "🏛️ 5-day Beijing cultural tour, budget ¥5000",
+        promptCard3: "🐼 3-day Chengdu road trip: Panda Base + Dujiangyan",
+        promptCard4: "⛰️ 2-day Huangshan trip from Shanghai by high-speed rail",
+        welcomeTitle: "Welcome to TravelMap ✨",
         welcomeDesc: "Tell me your travel needs and I'll plan the perfect trip. Click an example below to get started:",
         promptPlaceholder: "Describe your travel plan...",
         exportDisabled: "Available after generating itinerary",
@@ -1680,8 +1887,15 @@ ${trip.content}`,
         apiKeySection: "API Key",
         apiKeyLabel: "API Key",
         apiKeyHint: "(Key is stored locally in your browser)",
+        llmKeyLabel: "LLM API Key",
+        mapApiSection: "🗺️ Map Service",
+        weatherApiSection: "🌤️ Weather Service",
+        xhsApiSection: "📕 Xiaohongshu Data",
+        xhsStrategyLabel: "Router Strategy",
+        optionalHint: "(Optional)",
         saveSettings: "Save Settings",
         settingsSaved: "✅ Settings saved",
+        proxyModeDesc: "Shared demo mode — ready to use, no setup needed",
       },
       ja: {
         subtitle: "AI旅行プランナー",
@@ -1697,7 +1911,14 @@ ${trip.content}`,
         tripNotFound: "⚠️ 共有された旅程が見つかりません",
         tripLoaded: "📋 共有された旅程を読み込みました",
         langSet: "言語を日本語に切り替えました",
-        welcomeTitle: "TravelStarへようこそ ✨",
+        skipLink: "チャットへスキップ",
+        sendTitle: "送信",
+        closeAria: "閉じる",
+        promptCard1: "🌊 3日間の杭州家族旅行：高齢者2名と5歳のお子様連れ",
+        promptCard2: "🏛️ 北京5日間文化ツアー、予算5000元",
+        promptCard3: "🐼 成都周辺3日間ドライブ：ジャイアントパンダ基地 + 都江堰",
+        promptCard4: "⛰️ 上海発黄山2日間、高速鉄道で往復",
+        welcomeTitle: "TravelMapへようこそ ✨",
         welcomeDesc: "旅行のニーズを教えてください。完璧なプランを提案します。下の例をクリックしてすぐ始められます：",
         promptPlaceholder: "旅行計画を入力...",
         exportDisabled: "旅程生成後に利用可能",
@@ -1711,8 +1932,15 @@ ${trip.content}`,
         apiKeySection: "APIキー",
         apiKeyLabel: "APIキー",
         apiKeyHint: "（キーはローカルブラウザに保存されます）",
+        llmKeyLabel: "LLM APIキー",
+        mapApiSection: "🗺️ マップサービス",
+        weatherApiSection: "🌤️ 天気サービス",
+        xhsApiSection: "📕 RED（小紅書）データ",
+        xhsStrategyLabel: "ルーティング戦略",
+        optionalHint: "（オプション）",
         saveSettings: "設定を保存",
         settingsSaved: "✅ 設定を保存しました",
+        proxyModeDesc: "共有体験モード — 設定不要ですぐに使えます",
       },
     };
 
@@ -1742,13 +1970,24 @@ ${trip.content}`,
         const key = el.getAttribute("data-i18n-title");
         if (dict[key]) el.title = dict[key];
       });
-      // 更新 textarea placeholder
+      // 更新 textarea placeholder + title
       const ta = document.querySelector("message-editor textarea");
-      if (ta) ta.placeholder = dict.promptPlaceholder || "描述你的旅行计划...";
+      if (ta) {
+        ta.placeholder = dict.promptPlaceholder || "描述你的旅行计划...";
+        ta.title = dict.sendTitle || "发送消息";
+      }
       // 更新 disabled-ghost 按钮 title
       document.querySelectorAll(".disabled-ghost").forEach(el => {
         el.title = dict.exportDisabled || "生成行程后可用";
       });
+      // 更新关闭按钮 aria-label
+      document.querySelectorAll(".close-btn").forEach(el => {
+        el.setAttribute("aria-label", dict.closeAria || "关闭");
+      });
+      // 更新 textarea title（发送提示）
+      if (ta) {
+        ta.title = dict.sendTitle || "发送消息";
+      }
       // 更新语言按钮状态
       document.querySelectorAll(".lang-btn").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.lang === lang);
@@ -1842,6 +2081,8 @@ ${trip.content}`,
         panel.classList.add("open");
         activePanel = panelId;
         overlay?.classList.add("visible");
+        // focus trap
+        trapFocus(panel);
       }
       // 特殊处理：打开历史面板时渲染历史
       if (panelId === "history-panel") renderHistory();
@@ -1868,6 +2109,29 @@ ${trip.content}`,
 
     // 遮罩层点击关闭
     overlay?.addEventListener("click", closeAllPanels);
+
+    // ─── Focus Trap ────────────────────────────────────────
+    function trapFocus(panelEl) {
+      const focusable = panelEl.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      first.focus();
+      panelEl.addEventListener('keydown', function handler(e) {
+        if (e.key !== 'Tab') return;
+        if (!panelEl.classList.contains('open')) {
+          panelEl.removeEventListener('keydown', handler);
+          return;
+        }
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      });
+    }
 
     // Esc 键关闭面板
     document.addEventListener("keydown", (e) => {
@@ -2678,6 +2942,22 @@ ${trip.content}`,
 
       const keyInput = document.getElementById('cfg-apikey');
       if (keyInput) keyInput.value = apiKey;
+
+      // 加载地图/天气/小红书配置
+      setInputValue('cfg-google-maps', localStorage.getItem('api-key-google-maps'));
+      setInputValue('cfg-amap-web', localStorage.getItem('api-key-amap-web'));
+      setInputValue('cfg-openweather', localStorage.getItem('api-key-openweather'));
+      setInputValue('cfg-xhs-strategy', localStorage.getItem('xhs-strategy') || 'priority');
+      setInputValue('cfg-xhs-rnote', localStorage.getItem('api-key-xhs-rnote'));
+      setInputValue('cfg-xhs-justone', localStorage.getItem('api-key-xhs-justone'));
+      setInputValue('cfg-xhs-tikhub', localStorage.getItem('api-key-xhs-tikhub'));
+      setInputValue('cfg-xhs-crawler-base', localStorage.getItem('xhs-crawler-base') || 'http://localhost:8080');
+      setInputValue('cfg-xhs-crawler-token', localStorage.getItem('api-key-xhs-crawler-token'));
+    }
+
+    function setInputValue(id, value) {
+      const el = document.getElementById(id);
+      if (el && value) el.value = value;
     }
 
     function updateModelOptions(provider) {
@@ -2699,9 +2979,25 @@ ${trip.content}`,
       const modelId = document.getElementById('cfg-model')?.value;
       const apiKey = document.getElementById('cfg-apikey')?.value;
 
+      // ① LLM
       if (provider) localStorage.setItem('travel-agent-provider', provider);
       if (modelId) localStorage.setItem('travel-agent-model', modelId);
       if (provider && apiKey) localStorage.setItem(`api-key-${provider}`, apiKey);
+
+      // ② 地图
+      saveInput('cfg-google-maps', 'api-key-google-maps');
+      saveInput('cfg-amap-web', 'api-key-amap-web');
+
+      // ③ 天气
+      saveInput('cfg-openweather', 'api-key-openweather');
+
+      // ④ 小红书
+      saveInput('cfg-xhs-strategy', 'xhs-strategy');
+      saveInput('cfg-xhs-rnote', 'api-key-xhs-rnote');
+      saveInput('cfg-xhs-justone', 'api-key-xhs-justone');
+      saveInput('cfg-xhs-tikhub', 'api-key-xhs-tikhub');
+      saveInput('cfg-xhs-crawler-base', 'xhs-crawler-base');
+      saveInput('cfg-xhs-crawler-token', 'api-key-xhs-crawler-token');
 
       // 更新 agent 的模型
       try {
@@ -2715,6 +3011,11 @@ ${trip.content}`,
       const dict = I18N[currentLang] || I18N.zh;
       showToast(dict.settingsSaved || '✅ 配置已保存');
     });
+
+    function saveInput(inputId, storageKey) {
+      const val = document.getElementById(inputId)?.value;
+      if (val !== undefined && val !== null) localStorage.setItem(storageKey, val);
+    }
 
     // 点击侧边栏外部收起（移动端）
     document.getElementById('main-content')?.addEventListener('click', () => {
