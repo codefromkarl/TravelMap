@@ -27,9 +27,9 @@ export default defineConfig({
         "src/types/**",
         "src/**/index.ts",
       ],
-      // 快速开发期阈值设为警告，不阻塞 CI
+      // Phase 3: 逐步提升覆盖率阈值
       thresholds: {
-        lines: 0,
+        lines: 30,
         functions: 0,
         branches: 0,
         statements: 0,

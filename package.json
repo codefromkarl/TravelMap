@@ -18,6 +18,7 @@
     "test:integration": "vitest run --config vitest.config.ts src/__tests__/integration",
     "test:eval": "vitest run --config vitest.config.ts src/__tests__/evaluation",
     "test:quality": "vitest run --config vitest.config.ts src/__tests__/quality",
+    "test:qa": "bash scripts/test-qa-check.sh",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:e2e": "playwright test --config playwright.config.ts",
     "test:e2e:ui": "playwright test --config playwright.config.ts --ui",

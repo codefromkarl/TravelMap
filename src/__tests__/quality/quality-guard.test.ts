@@ -163,6 +163,114 @@ describe("测试质量守卫", () => {
       expect(violations).toEqual([]);
     });
   });
+
+  // ─── 5. 断言质量检查 ────────────────────────────────────
+
+  describe("断言质量检查", () => {
+    it("测试不应以 .not.toThrow() 作为唯一实质性断言", () => {
+      const testFiles = findFiles(TEST_DIR, (f) => f.endsWith(".test.ts"));
+      const warnings: string[] = [];
+
+      for (const file of testFiles) {
+        const content = fs.readFileSync(file, "utf-8");
+        const lines = content.split("\n");
+
+        let notToThrowCount = 0;
+        let nonNotToThrowExpects = 0;
+
+        for (const line of lines) {
+          if (line.includes("expect(") && line.includes(".not.toThrow()")) {
+            notToThrowCount++;
+          } else if (line.includes("expect(")) {
+            nonNotToThrowExpects++;
+          }
+        }
+
+        if (notToThrowCount > 0 && nonNotToThrowExpects === 0) {
+          warnings.push(
+            `  - ${path.relative(TEST_DIR, file)} (${notToThrowCount}× .not.toThrow, 0× value assertions)`,
+          );
+        }
+      }
+
+      if (warnings.length > 0) {
+        console.warn(
+          "[测试守卫] 以下测试文件仅依赖 .not.toThrow() 断言，无实质值验证:\n" +
+            warnings.join("\n"),
+        );
+      }
+    });
+  });
+
+  // ─── 6. Catch 覆盖检查 ──────────────────────────────────
+
+  describe("Catch 覆盖检查", () => {
+    it("services 中的 catch 块应有对应的错误路径测试", () => {
+      const srcFiles = getAllSourceFiles().filter((f) => f.startsWith("services/"));
+      const warnings: string[] = [];
+      const ERROR_PATTERNS = [
+        /\btoThrow\b/,
+        /\brejects\b/,
+        /\bmockRejectedValue\b/,
+        /错误|异常|降级/,
+        /\berror\b/i,
+        /\bfail/i,
+        /\btimeout\b/i,
+      ];
+
+      for (const srcFile of srcFiles) {
+        const srcPath = path.join(SRC_DIR, srcFile);
+        const content = fs.readFileSync(srcPath, "utf-8");
+        const catchCount = (content.match(/catch\s*\(/g) ?? []).length;
+        if (catchCount === 0) continue;
+
+        const testContent = getTestContentForSource(srcFile);
+        if (!testContent) {
+          warnings.push(`  - ${srcFile}: ${catchCount} catch(es), 无测试文件`);
+          continue;
+        }
+
+        const hasErrorTest = ERROR_PATTERNS.some((p) => p.test(testContent));
+        if (!hasErrorTest) {
+          warnings.push(
+            `  - ${srcFile}: ${catchCount} catch(es), 但测试中无错误路径覆盖 (toThrow/rejects/mockRejectedValue/降级)`,
+          );
+        }
+      }
+
+      if (warnings.length > 0) {
+        console.warn("[测试守卫] 以下服务的 catch 块缺少对应错误路径测试:\n" + warnings.join("\n"));
+      }
+    });
+  });
+
+  // ─── 7. 断言密度检查 ────────────────────────────────────
+
+  describe("断言密度检查", () => {
+    it("测试文件应有足够的断言密度", () => {
+      const testFiles = findFiles(
+        TEST_DIR,
+        (f) => f.endsWith(".test.ts") && !f.includes("quality-guard"),
+      );
+      let totalTests = 0;
+      let totalExpects = 0;
+
+      for (const file of testFiles) {
+        const content = fs.readFileSync(file, "utf-8");
+        const testCount = (content.match(/\bit\s*\(|test\s*\(/g) ?? []).length;
+        const expectCount = (content.match(/\bexpect\s*\(/g) ?? []).length;
+        totalTests += testCount;
+        totalExpects += expectCount;
+      }
+
+      const ratio = totalTests > 0 ? totalExpects / totalTests : 0;
+      if (ratio < 1.0) {
+        console.warn(
+          `[测试守卫] 断言密度偏低: 共 ${totalTests} 个测试, ${totalExpects} 个 expect, 平均 ${ratio.toFixed(2)} expect/测试 (建议 ≥ 1.5)`,
+        );
+      }
+    });
+  });
 });
 
 // ─── 工具函数 ────────────────────────────────────────────────
@@ -232,4 +340,24 @@ function findFiles(dir: string, predicate: (name: string) => boolean): string[] 
   };
   walk(dir);
   return result;
+}
+
+function getTestContentForSource(srcFile: string): string | null {
+  const moduleName = path.basename(srcFile, ".ts");
+  const testDirs = [
+    path.join(TEST_DIR, "unit"),
+    path.join(TEST_DIR, "integration"),
+    path.join(TEST_DIR, "evaluation"),
+  ];
+
+  for (const dir of testDirs) {
+    if (!fs.existsSync(dir)) continue;
+    const files = findFiles(dir, (f) => f.endsWith(".test.ts"));
+    for (const testFile of files) {
+      if (path.basename(testFile) === `${moduleName}.test.ts`) {
+        return fs.readFileSync(testFile, "utf-8");
+      }
+    }
+  }
+  return null;
 }
