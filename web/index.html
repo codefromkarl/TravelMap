@@ -152,6 +152,56 @@
     }
     #print-content { display: none; }
 
+    #history-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 360px;
+      height: 100vh;
+      background: #18181b;
+      border-left: 1px solid #3f3f46;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+    }
+    #history-panel.open { transform: translateX(0); }
+    #history-panel .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #history-panel .panel-header h2 { font-size: 16px; }
+    #history-panel .close-btn {
+      background: none; border: none; color: #71717a; font-size: 20px; cursor: pointer;
+    }
+    #history-panel .close-btn:hover { color: #e4e4e7; }
+    #history-list {
+      flex: 1; overflow-y: auto; padding: 12px;
+    }
+    .history-item {
+      padding: 12px;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .history-item:hover { background: #27272a; }
+    .history-item .item-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+    .history-item .item-date { font-size: 12px; color: #71717a; margin-bottom: 6px; }
+    .history-item .item-summary { font-size: 13px; color: #a1a1aa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-item .item-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .history-item .item-actions button {
+      font-size: 12px; padding: 4px 10px; border-radius: 4px; border: 1px solid #3f3f46; background: #27272a; color: #a1a1aa; cursor: pointer;
+    }
+    .history-item .item-actions button:hover { color: #e4e4e7; background: #3f3f46; }
+    .history-item .item-actions .delete-btn:hover { color: #ef4444; border-color: #ef4444; }
+    #history-empty { text-align: center; padding: 40px 20px; color: #71717a; font-size: 14px; }
+
     #loading {
       display: flex;
       align-items: center;
@@ -178,8 +228,18 @@
         <button class="export-btn" id="btn-export-pdf" title="导出为 PDF" data-i18n-title="exportPdf">📕 PDF</button>
         <button class="export-btn" id="btn-share-link" title="复制分享链接" data-i18n-title="share">🔗 <span data-i18n="share">分享</span></button>
       </div>
+      <button class="export-btn" id="btn-history" title="历史行程">📋 历史</button>
     </header>
     <div id="print-content"></div>
+    <div id="history-panel">
+      <div class="panel-header">
+        <h2>📋 历史行程</h2>
+        <button class="close-btn" id="btn-close-history">✕</button>
+      </div>
+      <div id="history-list">
+        <div id="history-empty">暂无历史行程</div>
+      </div>
+    </div>
     <div id="toast"></div>
     <div id="chat-container">
       <div id="loading">正在初始化...</div>
@@ -805,6 +865,219 @@ ${trip.content}`,
       applyI18n(currentLang);
       updateAgentLanguage(currentLang);
     }
+
+    // ─── IndexedDB 会话持久化 ──────────────────────────────
+    const DB_NAME = "TravelAgentDB";
+    const DB_VERSION = 1;
+    const STORE_NAME = "trips";
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
+            store.createIndex("updatedAt", "updatedAt");
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveTrip(id, title, summary, content, messages) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        const now = new Date().toISOString();
+        // 先查是否已存在
+        const getReq = store.get(id);
+        getReq.onsuccess = () => {
+          const existing = getReq.result;
+          const record = {
+            id,
+            title,
+            summary,
+            content,
+            messages,
+            createdAt: existing?.createdAt || now,
+            updatedAt: now,
+          };
+          const putReq = store.put(record);
+          putReq.onsuccess = () => resolve(record);
+          putReq.onerror = () => reject(putReq.error);
+        };
+        getReq.onerror = () => reject(getReq.error);
+      });
+    }
+
+    async function listTrips() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const store = tx.objectStore(STORE_NAME);
+        const index = store.index("updatedAt");
+        const req = index.openCursor(null, "prev");
+        const results = [];
+        req.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            results.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve(results);
+          }
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function loadTripById(id) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function deleteTripById(id) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const req = tx.objectStore(STORE_NAME).delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    // ─── 自动保存 ──────────────────────────────────────────
+    let currentTripId = null;
+    let saveTimeout = null;
+
+    function autoSaveTrip() {
+      const content = getLastAssistantContent();
+      if (!content || content.length < 200) return;
+      if (!currentTripId) currentTripId = crypto.randomUUID();
+
+      // 提取标题和摘要
+      let title = "未命名行程";
+      const cityMatch = content.match(/(?:目的地|城市)[：:]\s*\*{0,2}([^*\n,，]+)/);
+      if (cityMatch) title = cityMatch[1].trim();
+      else {
+        const hMatch = content.match(/^#+\s*(.+?)(行程|旅行|计划)/m);
+        if (hMatch) title = hMatch[1].trim() + hMatch[2];
+      }
+      const summary = content.replace(/[#*\n]/g, " ").substring(0, 100).trim();
+
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        saveTrip(currentTripId, title, summary, content, agent.state.messages)
+          .catch(err => console.error("Auto-save failed:", err));
+      }, 1000);
+    }
+
+    // ─── 历史面板 ──────────────────────────────────────────
+    const historyPanel = document.getElementById("history-panel");
+    const historyList = document.getElementById("history-list");
+    const historyEmpty = document.getElementById("history-empty");
+
+    async function renderHistory() {
+      try {
+        const trips = await listTrips();
+        if (trips.length === 0) {
+          historyList.innerHTML = '<div id="history-empty">暂无历史行程</div>';
+          return;
+        }
+        historyList.innerHTML = trips.map(trip => {
+          const date = new Date(trip.updatedAt).toLocaleDateString("zh-CN");
+          return `<div class="history-item" data-id="${trip.id}">
+            <div class="item-title">${trip.title}</div>
+            <div class="item-date">${date}</div>
+            <div class="item-summary">${trip.summary}</div>
+            <div class="item-actions">
+              <button class="restore-btn" data-id="${trip.id}">恢复</button>
+              <button class="delete-btn" data-id="${trip.id}">删除</button>
+            </div>
+          </div>`;
+        }).join("");
+
+        // 绑定恢复和删除
+        historyList.querySelectorAll(".restore-btn").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const trip = await loadTripById(id);
+            if (trip?.messages && Array.isArray(trip.messages)) {
+              agent.state.messages = [...trip.messages];
+              currentTripId = id;
+              showToast("📋 已恢复行程");
+              historyPanel.classList.remove("open");
+            } else {
+              showToast("⚠️ 无法恢复");
+            }
+          });
+        });
+
+        historyList.querySelectorAll(".delete-btn").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await deleteTripById(btn.dataset.id);
+            showToast("🗑️ 已删除");
+            renderHistory();
+          });
+        });
+      } catch (err) {
+        console.error("Render history failed:", err);
+      }
+    }
+
+    document.getElementById("btn-history")?.addEventListener("click", () => {
+      historyPanel.classList.toggle("open");
+      renderHistory();
+    });
+    document.getElementById("btn-close-history")?.addEventListener("click", () => {
+      historyPanel.classList.remove("open");
+    });
+
+    // ─── Agent 事件监听 + 自动保存 ──────────────────────────
+    const origSubscribe = agent.subscribe.bind(agent);
+    // 追加 auto-save 到已有的事件监听
+    agent.subscribe((event) => {
+      if (event.type === "agent_end") {
+        autoSaveTrip();
+      }
+      if (event.type === "turn_start") {
+        // 新对话可能产生新行程
+        currentTripId = null;
+      }
+    });
+
+    // ─── 页面加载时恢复会话 ──────────────────────────────────
+    async function tryRestoreSession() {
+      try {
+        const trips = await listTrips();
+        if (trips.length > 0 && !new URLSearchParams(window.location.search).get("trip")) {
+          const latest = trips[0]; // listTrips 已按 updatedAt desc 排序
+          if (latest.messages && Array.isArray(latest.messages) && latest.messages.length > 0) {
+            const timeDiff = Date.now() - new Date(latest.updatedAt).getTime();
+            // 只在 24 小时内自动恢复
+            if (timeDiff < 24 * 60 * 60 * 1000) {
+              agent.state.messages = [...latest.messages];
+              currentTripId = latest.id;
+              showToast("📋 已恢复上次的会话");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Session restore failed:", err);
+      }
+    }
+    tryRestoreSession();
   </script>
 </body>
 </html>

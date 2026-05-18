@@ -1,0 +1,216 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: page-startup.spec.ts >> L1 — JS 模块加载与初始化 >> 无 module 加载失败的 console error
+- Location: web/__tests__/page-startup.spec.ts:249:3
+
+# Error details
+
+```
+Test timeout of 30000ms exceeded.
+```
+
+```
+Error: locator.waitFor: Test timeout of 30000ms exceeded.
+Call log:
+  - waiting for locator('#loading') to be hidden
+    62 × locator resolved to visible <div id="loading">正在初始化...</div>
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "🌍 旅途星辰" [level=1] [ref=e4]
+    - generic [ref=e5]: AI 旅行规划助手
+    - generic [ref=e6]:
+      - button "中文" [ref=e7] [cursor=pointer]
+      - button "EN" [ref=e8] [cursor=pointer]
+      - button "日本語" [ref=e9] [cursor=pointer]
+    - button "📋 历史" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - heading "📋 历史行程" [level=2] [ref=e13]
+      - button "✕" [ref=e14] [cursor=pointer]
+    - generic [ref=e16]: 暂无历史行程
+  - generic [ref=e18]: 正在初始化...
+```
+
+# Test source
+
+```ts
+  153 |       document.querySelectorAll('link[rel="stylesheet"]').forEach((link) => {
+  154 |         linkHrefs.push(link.getAttribute("href") || "");
+  155 |       });
+  156 | 
+  157 |       return {
+  158 |         bareImports: [...new Set(bareImports)],
+  159 |         missingMappings: [...new Set(missingMappings)],
+  160 |         mappedKeys: [...mappedKeys],
+  161 |         linkHrefs,
+  162 |       };
+  163 |     });
+  164 | 
+  165 |     // 关键断言：裸标识符必须全部有映射
+  166 |     expect(
+  167 |       analysis.missingMappings,
+  168 |       `以下裸标识符在 importmap 中没有映射: ${analysis.missingMappings.join(", ")}`,
+  169 |     ).toEqual([]);
+  170 | 
+  171 |     // 同时报告发现的所有裸标识符，便于 review
+  172 |     console.log("[L0] importmap 映射:", analysis.mappedKeys);
+  173 |     console.log("[L0] 页面裸标识符 import:", analysis.bareImports);
+  174 |     console.log("[L0] <link> CSS:", analysis.linkHrefs);
+  175 |   });
+  176 | 
+  177 |   test("不应对 CSS 文件使用 importmap 映射（CSS 不能作为 JS module 加载）", async ({ page }) => {
+  178 |     await page.goto("index.html");
+  179 | 
+  180 |     const cssInImportMap = await page.evaluate(() => {
+  181 |       const mapScript = document.querySelector('script[type="importmap"]');
+  182 |       const map = mapScript ? JSON.parse(mapScript.textContent || "{}") : { imports: {} };
+  183 |       return Object.keys(map.imports || {}).filter((key) => key.endsWith(".css"));
+  184 |     });
+  185 | 
+  186 |     expect(
+  187 |       cssInImportMap,
+  188 |       `importmap 中不应包含 .css 映射: ${cssInImportMap.join(", ")}`,
+  189 |     ).toEqual([]);
+  190 |   });
+  191 | 
+  192 |   test("初始无 JS 错误", async ({ page }) => {
+  193 |     const errors = collectErrors(page);
+  194 |     await page.goto("index.html");
+  195 |     await page.waitForTimeout(500);
+  196 | 
+  197 |     const critical = errors.getCriticalErrors();
+  198 |     expect(
+  199 |       critical,
+  200 |       `页面加载时出现非预期 JS 错误:\n${critical.join("\n")}`,
+  201 |     ).toEqual([]);
+  202 |   });
+  203 | });
+  204 | 
+  205 | // ─── L1: JS 模块加载与初始化（需要网络） ──────────────────────
+  206 | 
+  207 | test.describe("L1 — JS 模块加载与初始化", () => {
+  208 |   // L1 测试需要能访问 esm.sh，标记 @network
+  209 |   test.skip(({ browserName }) => browserName !== "chromium", "L1 只在 Chromium 下运行");
+  210 | 
+  211 |   test("JS 模块加载完成：loading 提示消失", async ({ page }) => {
+  212 |     const errors = collectErrors(page);
+  213 |     await page.goto("index.html");
+  214 | 
+  215 |     // JS 执行成功后会 remove #loading，给充足超时等 esm.sh 加载
+  216 |     const loading = page.locator("#loading");
+  217 |     await expect(loading, "JS 未在 30s 内完成加载，#loading 未被移除").toHaveCount(0, {
+  218 |       timeout: 30_000,
+  219 |     });
+  220 | 
+  221 |     // loading 消失后检查是否有 JS 错误
+  222 |     const critical = errors.getCriticalErrors();
+  223 |     expect(
+  224 |       critical,
+  225 |       `JS 加载完成但有错误:\n${critical.join("\n")}`,
+  226 |     ).toEqual([]);
+  227 |   });
+  228 | 
+  229 |   test("ChatPanel 组件渲染完成（shadowRoot 已挂载）", async ({ page }) => {
+  230 |     await page.goto("index.html");
+  231 | 
+  232 |     // 等待 JS 加载完成
+  233 |     await page.locator("#loading").waitFor({ state: "hidden", timeout: 30_000 });
+  234 | 
+  235 |     const shadowReady = await page.evaluate(() => {
+  236 |       const panel = document.querySelector("chat-panel");
+  237 |       return {
+  238 |         exists: !!panel,
+  239 |         hasShadowRoot: !!panel?.shadowRoot,
+  240 |         shadowChildCount: panel?.shadowRoot?.childElementCount ?? 0,
+  241 |       };
+  242 |     });
+  243 | 
+  244 |     expect(shadowReady.exists, "chat-panel 元素不存在").toBe(true);
+  245 |     expect(shadowReady.hasShadowRoot, "chat-panel 的 shadowRoot 未挂载").toBe(true);
+  246 |     expect(shadowReady.shadowChildCount, "chat-panel shadowRoot 为空").toBeGreaterThan(0);
+  247 |   });
+  248 | 
+  249 |   test("无 module 加载失败的 console error", async ({ page }) => {
+  250 |     const errors = collectErrors(page);
+  251 |     await page.goto("index.html");
+  252 | 
+> 253 |     await page.locator("#loading").waitFor({ state: "hidden", timeout: 30_000 });
+      |                                    ^ Error: locator.waitFor: Test timeout of 30000ms exceeded.
+  254 | 
+  255 |     // 专门检测模块加载类错误
+  256 |     const moduleErrors = [...errors.pageErrors, ...errors.consoleErrors].filter(
+  257 |       (e) =>
+  258 |         e.includes("Failed to resolve module specifier") ||
+  259 |         e.includes("Expected a JavaScript") ||
+  260 |         e.includes("MIME type") ||
+  261 |         e.includes("Failed to load module script"),
+  262 |     );
+  263 | 
+  264 |     expect(
+  265 |       moduleErrors,
+  266 |       `模块加载错误:\n${moduleErrors.join("\n")}`,
+  267 |     ).toEqual([]);
+  268 |   });
+  269 | 
+  270 |   test("Agent 实例已创建（window 上可检测到 Agent 状态）", async ({ page }) => {
+  271 |     await page.goto("index.html");
+  272 |     await page.locator("#loading").waitFor({ state: "hidden", timeout: 30_000 });
+  273 | 
+  274 |     // 验证 agent 初始化 — ChatPanel 的 setAgent 应该已经调用
+  275 |     const agentState = await page.evaluate(() => {
+  276 |       const panel = document.querySelector("chat-panel");
+  277 |       if (!panel?.shadowRoot) return { ready: false, reason: "no shadowRoot" };
+  278 | 
+  279 |       // ChatPanel 渲染后应该有内部结构（输入框、消息列表等）
+  280 |       const shadow = panel.shadowRoot;
+  281 |       return {
+  282 |         ready: true,
+  283 |         hasInput: shadow.querySelectorAll("input, textarea, [contenteditable]").length > 0,
+  284 |         innerHTML: shadow.innerHTML.substring(0, 200),
+  285 |       };
+  286 |     });
+  287 | 
+  288 |     expect(agentState.ready, agentState.reason || "Agent 未初始化").toBe(true);
+  289 |   });
+  290 | });
+  291 | 
+  292 | // ─── L2: 用户可交互（完整流程） ──────────────────────────────
+  293 | 
+  294 | test.describe("L2 — 用户可交互", () => {
+  295 |   test.skip(({ browserName }) => browserName !== "chromium", "L2 只在 Chromium 下运行");
+  296 | 
+  297 |   test("用户可以看到聊天输入区域", async ({ page }) => {
+  298 |     await page.goto("index.html");
+  299 |     await page.locator("#loading").waitFor({ state: "hidden", timeout: 30_000 });
+  300 | 
+  301 |     // ChatPanel 中应有可输入的元素
+  302 |     const inputReady = await page.evaluate(() => {
+  303 |       const panel = document.querySelector("chat-panel");
+  304 |       if (!panel?.shadowRoot) return false;
+  305 | 
+  306 |       const shadow = panel.shadowRoot;
+  307 |       const input =
+  308 |         shadow.querySelector("textarea") ||
+  309 |         shadow.querySelector("input[type='text']") ||
+  310 |         shadow.querySelector("[contenteditable='true']");
+  311 | 
+  312 |       return !!input;
+  313 |     });
+  314 | 
+  315 |     expect(inputReady, "ChatPanel 中未找到输入元素").toBe(true);
+  316 |   });
+  317 | });
+  318 | 
+```
