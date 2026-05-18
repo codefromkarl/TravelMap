@@ -24,7 +24,7 @@ test.describe("刷新中断恢复", () => {
         hasApp: !!document.querySelector("#app"),
         hasHeader: !!document.querySelector("header"),
         hasChatContainer: !!document.querySelector("#chat-container"),
-        hasChatPanel: !!document.querySelector("chat-panel"),
+        hasChatPanel: !!document.querySelector("pi-chat-panel"),
         title: document.title,
       };
     });

@@ -83,7 +83,7 @@ test.describe("无障碍 & 键盘导航", () => {
 });
 
 test.describe("DOM 结构完整性", () => {
-  test("应有正确的 DOM 层级: #app > header + #chat-container > chat-panel", async ({ page }) => {
+  test("应有正确的 DOM 层级: #app > header + #chat-container > pi-chat-panel", async ({ page }) => {
     await page.goto("index.html");
 
     const structure = await page.evaluate(() => {
@@ -93,7 +93,7 @@ test.describe("DOM 结构完整性", () => {
       return {
         hasHeader: !!app.querySelector(":scope > header"),
         hasChatContainer: !!app.querySelector(":scope > #chat-container"),
-        hasChatPanel: !!app.querySelector("chat-panel"),
+        hasChatPanel: !!app.querySelector("pi-chat-panel"),
         hasLoading: !!app.querySelector("#loading"),
       };
     });
@@ -169,5 +169,47 @@ test.describe("错误恢复", () => {
     );
 
     expect(criticalErrors).toEqual([]);
+  });
+});
+
+test.describe("地图面板", () => {
+  test("地图面板 DOM 结构应完整", async ({ page }) => {
+    await page.goto("index.html");
+
+    const structure = await page.evaluate(() => {
+      return {
+        hasMapPanel: !!document.getElementById("map-panel"),
+        hasMapContainer: !!document.getElementById("map-container"),
+        hasMapBtn: !!document.getElementById("btn-map"),
+        hasCloseMapBtn: !!document.getElementById("btn-close-map"),
+        hasMapStatus: !!document.getElementById("map-status"),
+      };
+    });
+
+    expect(structure.hasMapPanel).toBe(true);
+    expect(structure.hasMapContainer).toBe(true);
+    expect(structure.hasMapBtn).toBe(true);
+    expect(structure.hasCloseMapBtn).toBe(true);
+    expect(structure.hasMapStatus).toBe(true);
+  });
+
+  test("地图按钮默认隐藏", async ({ page }) => {
+    await page.goto("index.html");
+
+    const mapBtn = page.locator("#btn-map");
+    await expect(mapBtn).toBeHidden();
+  });
+
+  test("Leaflet 库应被加载", async ({ page }) => {
+    await page.goto("index.html");
+
+    // 等待外部资源加载
+    await page.waitForTimeout(3000);
+
+    const hasLeaflet = await page.evaluate(() => {
+      return typeof (window as unknown as Record<string, unknown>).L !== "undefined";
+    });
+
+    expect(hasLeaflet).toBe(true);
   });
 });

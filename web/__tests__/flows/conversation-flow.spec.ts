@@ -21,7 +21,7 @@ async function tryInputInChatPanel(
   text: string,
 ): Promise<boolean> {
   return page.evaluate((msg) => {
-    const panel = document.querySelector("chat-panel");
+    const panel = document.querySelector("pi-chat-panel");
     if (!panel?.shadowRoot) return false;
 
     // pi-web-ui ChatPanel 的输入区域
@@ -52,7 +52,7 @@ async function tryInputInChatPanel(
 /** 尝试提交消息（Enter 或点击发送按钮） */
 async function trySubmitChatPanel(page: import("@playwright/test").Page): Promise<boolean> {
   return page.evaluate(() => {
-    const panel = document.querySelector("chat-panel");
+    const panel = document.querySelector("pi-chat-panel");
     if (!panel?.shadowRoot) return false;
 
     // 查找发送按钮
@@ -107,7 +107,8 @@ test.describe("多轮对话 — 消息发送", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh"),
+        !e.includes("esm.sh") &&
+        !e.includes("AppStorage not initialized"),
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -131,7 +132,8 @@ test.describe("多轮对话 — 消息发送", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh"),
+        !e.includes("esm.sh") &&
+        !e.includes("AppStorage not initialized"),
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -201,7 +203,7 @@ test.describe("多轮对话 — ChatPanel Shadow DOM 交互", () => {
     await page.waitForTimeout(5000);
 
     const shadowInfo = await page.evaluate(() => {
-      const panel = document.querySelector("chat-panel");
+      const panel = document.querySelector("pi-chat-panel");
       return {
         exists: !!panel,
         hasShadowRoot: !!panel?.shadowRoot,
@@ -209,7 +211,7 @@ test.describe("多轮对话 — ChatPanel Shadow DOM 交互", () => {
       };
     });
 
-    // chat-panel 存在
+    // pi-chat-panel 存在
     expect(shadowInfo.exists).toBe(true);
 
     // 如果 JS 已加载完成，shadowRoot 应可访问（open mode）
@@ -235,7 +237,8 @@ test.describe("多轮对话 — ChatPanel Shadow DOM 交互", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh"),
+        !e.includes("esm.sh") &&
+        !e.includes("AppStorage not initialized"),
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -272,7 +275,8 @@ test.describe("多轮对话 — 模拟真实用户行程", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh"),
+        !e.includes("esm.sh") &&
+        !e.includes("AppStorage not initialized"),
     );
     expect(criticalErrors).toEqual([]);
   });

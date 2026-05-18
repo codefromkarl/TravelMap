@@ -56,9 +56,9 @@ const BASE = process.env.BASE_URL || "http://localhost:3456";
   });
   console.log(`\nStylesheet links:`, links);
 
-  // 检查 chat-panel 状态
+  // 检查 pi-chat-panel 状态
   const panelInfo = await page.evaluate(() => {
-    const p = document.querySelector("chat-panel");
+    const p = document.querySelector("pi-chat-panel");
     return {
       exists: !!p,
       hasShadow: !!p?.shadowRoot,

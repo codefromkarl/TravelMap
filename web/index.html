@@ -7,11 +7,11 @@
   <script type="importmap">
     {
       "imports": {
-        "@earendil-works/pi-agent-core": "https://esm.sh/@earendil-works/pi-agent-core@0.75.1",
-        "@earendil-works/pi-ai": "https://esm.sh/@earendil-works/pi-ai@0.75.1",
-        "@earendil-works/pi-web-ui": "https://esm.sh/@earendil-works/pi-web-ui@0.75.1",
-        "lit": "https://esm.sh/lit@3",
-        "typebox": "https://esm.sh/typebox@1.1.24"
+        "@earendil-works/pi-agent-core": "./pi-bundle.js",
+        "@earendil-works/pi-ai": "./pi-bundle.js",
+        "@earendil-works/pi-web-ui": "./pi-bundle.js",
+        "lit": "./pi-bundle.js",
+        "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
       }
     }
   </script>
@@ -43,13 +43,13 @@
       overflow: hidden;
     }
 
-    chat-panel {
+    pi-chat-panel {
       display: block;
       height: 100%;
     }
 
     /* pi-web-ui 主题覆盖 */
-    chat-panel {
+    pi-chat-panel {
       --bg-primary: #0f0f11;
       --bg-secondary: #18181b;
       --bg-tertiary: #27272a;
@@ -132,7 +132,7 @@
       #app { max-width: 100%; margin: 0; }
       header { display: none; }
       #chat-container { overflow: visible; }
-      chat-panel { display: none; }
+      pi-chat-panel { display: none; }
       #export-toolbar { display: none !important; }
       #print-content {
         display: block !important;
@@ -202,6 +202,74 @@
     .history-item .item-actions .delete-btn:hover { color: #ef4444; border-color: #ef4444; }
     #history-empty { text-align: center; padding: 40px 20px; color: #71717a; font-size: 14px; }
 
+    /* ─── 地图面板 ─────────────────────────────────────── */
+    #map-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 480px;
+      height: 100vh;
+      background: #18181b;
+      border-left: 1px solid #3f3f46;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      z-index: 55;
+      display: flex;
+      flex-direction: column;
+    }
+    #map-panel.open { transform: translateX(0); }
+    #map-panel .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #map-panel .panel-header h2 { font-size: 16px; }
+    #map-panel .close-btn {
+      background: none; border: none; color: #71717a; font-size: 20px; cursor: pointer;
+    }
+    #map-panel .close-btn:hover { color: #e4e4e7; }
+    #map-container { flex: 1; min-height: 0; }
+    #map-panel .map-info {
+      padding: 10px 16px;
+      border-top: 1px solid #27272a;
+      font-size: 12px;
+      color: #71717a;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    #map-panel .map-info .legend-dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    }
+    #map-warnings {
+      padding: 8px 16px;
+      border-top: 1px solid #27272a;
+      font-size: 12px;
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.05);
+      display: none;
+    }
+    #map-warnings div { margin-bottom: 4px; }
+    #map-warnings div:last-child { margin-bottom: 0; }
+    .supply-marker { background: transparent !important; border: none !important; }
+    .map-btn {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: #e4e4e7;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .map-btn:hover { background: #3f3f46; }
+    .map-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    @media (max-width: 640px) {
+      #map-panel { width: 100vw; }
+    }
+
     #loading {
       display: flex;
       align-items: center;
@@ -211,7 +279,9 @@
       font-size: 14px;
     }
   </style>
-  <link rel="stylesheet" href="https://esm.sh/@earendil-works/pi-web-ui@0.75.1/app.css" />
+  <link rel="stylesheet" href="./pi-web-ui.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
   <div id="app">
@@ -228,6 +298,7 @@
         <button class="export-btn" id="btn-export-pdf" title="导出为 PDF" data-i18n-title="exportPdf">📕 PDF</button>
         <button class="export-btn" id="btn-share-link" title="复制分享链接" data-i18n-title="share">🔗 <span data-i18n="share">分享</span></button>
       </div>
+      <button class="export-btn" id="btn-map" title="行程地图" style="display:none">🗺️ 地图</button>
       <button class="export-btn" id="btn-history" title="历史行程">📋 历史</button>
     </header>
     <div id="print-content"></div>
@@ -240,10 +311,26 @@
         <div id="history-empty">暂无历史行程</div>
       </div>
     </div>
+    <div id="map-panel">
+      <div class="panel-header">
+        <h2>🗺️ 行程地图</h2>
+        <button class="close-btn" id="btn-close-map">✕</button>
+      </div>
+      <div id="map-container"></div>
+      <div id="map-warnings"></div>
+      <div class="map-info">
+        <span><span class="legend-dot" style="background:#ef4444"></span> 景点</span>
+        <span><span class="legend-dot" style="background:#6366f1"></span> 路线</span>
+        <span><span class="legend-dot" style="background:#f59e0b"></span> 餐饮</span>
+        <span><span class="legend-dot" style="background:#10b981"></span> 商店</span>
+        <span><span class="legend-dot" style="background:#ec4899"></span> 休息</span>
+        <span id="map-status" style="margin-left:auto"></span>
+      </div>
+    </div>
     <div id="toast"></div>
     <div id="chat-container">
       <div id="loading">正在初始化...</div>
-      <chat-panel id="chat"></chat-panel>
+      <pi-chat-panel id="chat"></pi-chat-panel>
     </div>
   </div>
 
@@ -312,18 +399,22 @@
         // 浏览器端 mock — 后续接入 API
         const mockData = {
           "北京": [
-            { name: "故宫博物院", address: "东城区景山前街4号", ticketPrice: 60, visitDuration: 180, description: "明清皇家宫殿" },
-            { name: "天坛公园", address: "东城区天坛内东里7号", ticketPrice: 34, visitDuration: 120, description: "明清帝王祭天场所" },
-            { name: "颐和园", address: "海淀区新建宫门路19号", ticketPrice: 30, visitDuration: 180, description: "清代皇家园林" },
+            { name: "故宫博物院", nameZh: "故宫博物院", address: "东城区景山前街4号", ticketPrice: 60, visitDuration: 180, description: "明清皇家宫殿", location: { latitude: 39.9163, longitude: 116.3972 } },
+            { name: "天坛公园", nameZh: "天坛公园", address: "东城区天坛内东里7号", ticketPrice: 34, visitDuration: 120, description: "明清帝王祭天场所", location: { latitude: 39.8822, longitude: 116.4066 } },
+            { name: "颐和园", nameZh: "颐和园", address: "海淀区新建宫门路19号", ticketPrice: 30, visitDuration: 180, description: "清代皇家园林", location: { latitude: 39.9993, longitude: 116.2757 } },
           ],
           "上海": [
-            { name: "外滩", address: "黄浦区中山东一路", ticketPrice: 0, visitDuration: 90, description: "上海地标" },
-            { name: "豫园", address: "黄浦区安仁街137号", ticketPrice: 40, visitDuration: 120, description: "明代私家园林" },
-            { name: "东方明珠", address: "浦东新区世纪大道1号", ticketPrice: 199, visitDuration: 90, description: "上海标志性建筑" },
+            { name: "外滩", nameZh: "外滩", address: "黄浦区中山东一路", ticketPrice: 0, visitDuration: 90, description: "上海地标", location: { latitude: 31.2397, longitude: 121.4998 } },
+            { name: "豫园", nameZh: "豫园", address: "黄浦区安仁街137号", ticketPrice: 40, visitDuration: 120, description: "明代私家园林", location: { latitude: 31.2272, longitude: 121.4921 } },
+            { name: "东方明珠", nameZh: "东方明珠", address: "浦东新区世纪大道1号", ticketPrice: 199, visitDuration: 90, description: "上海标志性建筑", location: { latitude: 31.2397, longitude: 121.4998 } },
+          ],
+          "杭州": [
+            { name: "西湖", nameZh: "西湖", address: "杭州市西湖区", ticketPrice: 0, visitDuration: 240, description: "世界文化遗产，杭州名片", location: { latitude: 30.2485, longitude: 120.1466 } },
+            { name: "灵隐寺", nameZh: "灵隐寺", address: "西湖区灵隐路法云弄1号", ticketPrice: 75, visitDuration: 150, description: "千年古刹", location: { latitude: 30.2406, longitude: 120.0984 } },
           ],
         };
         const attractions = mockData[city] || [
-          { name: `${city}中心公园`, address: `${city}市中心`, ticketPrice: 0, visitDuration: 120, description: `${city}主要城市公园` },
+          { name: `${city}中心公园`, nameZh: `${city}中心公园`, address: `${city}市中心`, ticketPrice: 0, visitDuration: 120, description: `${city}主要城市公园`, location: { latitude: 31.23, longitude: 121.47 } },
         ];
         return {
           content: [{ type: "text", text: `## ${city}景点搜索结果\n\n${attractions.map((a, i) => `${i+1}. **${a.name}** — ¥${a.ticketPrice}\n   ${a.description} | 建议${a.visitDuration}分钟`).join("\n\n")}` }],
@@ -457,6 +548,9 @@
           }
         }
         lines.splice(1, 0, `生成了 **${linkCount}** 个实用链接`);
+        // 保存行程数据供地图渲染
+        window._lastTripPlan = tripPlan;
+        document.getElementById("btn-map")?.style.setProperty("display", "flex");
         return {
           content: [{ type: "text", text: lines.join("\n") }],
           details: { tripPlan, linkCount },
@@ -600,6 +694,10 @@
         thinkingLevel: "medium",
         tools: [searchAttractionsTool, searchWeatherTool, searchHotelsTool, calculateBudgetTool, generateActionLinksTool, companionQATool, planMultiCityTool],
         messages: [],
+      },
+      // 从 localStorage 读取 API Key，供给 LLM 请求使用
+      getApiKey: (provider) => {
+        return localStorage.getItem(`api-key-${provider}`) || undefined;
       },
     });
 
@@ -786,7 +884,7 @@ ${trip.content}`,
     // ─── 初始化 ChatPanel ─────────────────────────────────
     document.getElementById("loading")?.remove();
     const chatPanel = document.getElementById("chat");
-    await chatPanel.setAgent(agent, {
+    await chatPanel?.setAgent(agent, {
       onApiKeyRequired: async (prov) => {
         const key = prompt(`请输入 ${prov} API Key:`);
         if (key) {
@@ -1092,6 +1190,185 @@ ${trip.content}`,
         // 新对话可能产生新行程
         currentTripId = null;
       }
+    });
+
+    // ─── 地图面板 ─────────────────────────────────────────
+    const mapPanel = document.getElementById("map-panel");
+    const mapStatus = document.getElementById("map-status");
+    let leafletMap = null;
+    let leafletLayers = [];
+
+    function clearMapLayers() {
+      if (!leafletMap) return;
+      for (const layer of leafletLayers) {
+        leafletMap.removeLayer(layer);
+      }
+      leafletLayers = [];
+    }
+
+    function isDomesticCityForMap(city) {
+      const domestic = ["北京","上海","广州","深圳","成都","杭州","西安","重庆","南京","武汉","长沙","苏州","厦门","青岛","大连","昆明","丽江","三亚","桂林","张家界","黄山","九寨沟","拉萨","天津","哈尔滨","沈阳","济南","郑州","福州","合肥","贵阳","南宁","海口","石家庄","太原","兰州","银川","西宁","呼和浩特","乌鲁木齐","长春","南昌"];
+      return domestic.some(c => city.includes(c) || c.includes(city));
+    }
+
+    // 补给点类型 → 颜色和图标
+    const SUPPLY_COLORS = {
+      restaurant: "#f59e0b",
+      cafe: "#8b5cf6",
+      shop: "#10b981",
+      water: "#06b6d4",
+      rest_area: "#ec4899",
+      toilet: "#6b7280",
+    };
+
+    function renderTripOnMap(tripPlan) {
+      if (!tripPlan || !tripPlan.days || !L) {
+        mapStatus.textContent = "无法加载地图库";
+        return;
+      }
+
+      const container = document.getElementById("map-container");
+      if (!container) return;
+
+      // 初始化或复用地图
+      if (!leafletMap) {
+        leafletMap = L.map("map-container");
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 18,
+        }).addTo(leafletMap);
+      }
+      clearMapLayers();
+
+      const allCoords = [];
+      let markerCount = 0;
+      let routeCount = 0;
+      let supplyPointCount = 0;
+      const warnings = [];
+
+      for (const day of tripPlan.days) {
+        const dayCity = day.city || tripPlan.city;
+        for (const attr of day.attractions || []) {
+          const loc = attr.location;
+          if (loc && loc.latitude && loc.longitude && (loc.latitude !== 0 || loc.longitude !== 0)) {
+            const popup = `<b>${attr.nameZh || attr.name || "景点"}</b><br>${dayCity}<br>建议游览 ${attr.visitDuration || "?"} 分钟`;
+            const marker = L.marker([loc.latitude, loc.longitude]).bindPopup(popup);
+            marker.addTo(leafletMap);
+            leafletLayers.push(marker);
+            allCoords.push([loc.latitude, loc.longitude]);
+            markerCount++;
+          }
+
+          // 渲染景点内部游玩路线
+          if (attr.routes && attr.selectedRouteId) {
+            const route = attr.routes.find(r => r.id === attr.selectedRouteId);
+            if (route && route.waypoints && route.waypoints.length > 1) {
+              const path = route.waypoints
+                .filter(wp => wp.location && (wp.location.latitude !== 0 || wp.location.longitude !== 0))
+                .map(wp => [wp.location.latitude, wp.location.longitude]);
+              if (path.length > 1) {
+                const polyline = L.polyline(path, { color: "#6366f1", weight: 4, opacity: 0.85, lineJoin: "round" });
+                polyline.addTo(leafletMap);
+                leafletLayers.push(polyline);
+                routeCount++;
+
+                // 收集补给警告
+                if (route.supplyStrategy?.warnings?.length) {
+                  warnings.push(...route.supplyStrategy.warnings.map(w => `【${attr.nameZh || attr.name}】${w}`));
+                }
+
+                // 途经点标记
+                route.waypoints.forEach((wp, i) => {
+                  if (wp.location && (wp.location.latitude !== 0 || wp.location.longitude !== 0)) {
+                    let popupHtml = `<b>${i + 1}. ${wp.name}</b><br>${wp.visitDuration || ""}分钟`;
+                    if (wp.supplyPoints && wp.supplyPoints.length > 0) {
+                      popupHtml += "<br><b>🍴 补给:</b>";
+                      for (const sp of wp.supplyPoints) {
+                        const cost = sp.estimatedCost > 0 ? `¥${sp.estimatedCost}` : "免费";
+                        popupHtml += `<br>· ${sp.name} (${sp.type}) — ${cost}`;
+                      }
+                    }
+                    const dot = L.circleMarker([wp.location.latitude, wp.location.longitude], {
+                      radius: 5, color: "#6366f1", fillColor: "#818cf8", fillOpacity: 0.9, weight: 2
+                    }).bindPopup(popupHtml);
+                    dot.addTo(leafletMap);
+                    leafletLayers.push(dot);
+                    allCoords.push([wp.location.latitude, wp.location.longitude]);
+
+                    // 渲染补给点
+                    if (wp.supplyPoints) {
+                      for (const sp of wp.supplyPoints) {
+                        if (!sp.location) continue;
+                        const color = SUPPLY_COLORS[sp.type] || "#6b7280";
+                        const spIcon = L.divIcon({
+                          className: "supply-marker",
+                          html: `<div style="width:10px;height:10px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+                          iconSize: [14, 14],
+                          iconAnchor: [7, 7],
+                        });
+                        const spMarker = L.marker([sp.location.latitude, sp.location.longitude], { icon: spIcon })
+                          .bindPopup(`<b>${sp.name}</b><br>类型: ${sp.type}<br>${sp.description}<br>人均: ${sp.estimatedCost > 0 ? "¥" + sp.estimatedCost : "免费"}${sp.isRecommended ? "<br>⭐ 推荐休息点" : ""}`);
+                        spMarker.addTo(leafletMap);
+                        leafletLayers.push(spMarker);
+                        allCoords.push([sp.location.latitude, sp.location.longitude]);
+                        supplyPointCount++;
+                      }
+                    }
+                  }
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (allCoords.length > 0) {
+        leafletMap.fitBounds(allCoords, { padding: [40, 40], maxZoom: 15 });
+        let statusText = `${markerCount} 个景点 · ${routeCount} 条路线`;
+        if (supplyPointCount > 0) statusText += ` · ${supplyPointCount} 个补给点`;
+        mapStatus.textContent = statusText;
+      } else {
+        // 无坐标数据时fallback到城市中心
+        const city = tripPlan.city || "上海";
+        const cityCenters = {
+          "北京": [39.9042, 116.4074], "上海": [31.2304, 121.4737], "广州": [23.1291, 113.2644],
+          "深圳": [22.5431, 114.0579], "成都": [30.5728, 104.0668], "杭州": [30.2741, 120.1551],
+          "西安": [34.3416, 108.9398], "重庆": [29.563, 106.5516], "南京": [32.0603, 118.7969],
+          "武汉": [30.5928, 114.3055], "长沙": [28.228, 112.9388], "苏州": [31.2989, 120.5853],
+          "厦门": [24.4798, 118.0894], "青岛": [36.0671, 120.3826], "大连": [38.914, 121.6147],
+          "昆明": [25.0389, 102.7183], "三亚": [18.2528, 109.512], "桂林": [25.2345, 110.18],
+          "拉萨": [29.65, 91.1], "天津": [39.1252, 117.1904], "哈尔滨": [45.8038, 126.535],
+        };
+        const center = cityCenters[city] || [31.23, 121.47];
+        leafletMap.setView(center, 11);
+        mapStatus.textContent = "未获取到景点坐标，显示城市中心";
+      }
+
+      // 显示补给警告（如果有）
+      if (warnings.length > 0) {
+        const warnEl = document.getElementById("map-warnings");
+        if (warnEl) {
+          warnEl.innerHTML = warnings.map(w => `<div>⚠️ ${w}</div>`).join("");
+          warnEl.style.display = "block";
+        }
+      } else {
+        const warnEl = document.getElementById("map-warnings");
+        if (warnEl) warnEl.style.display = "none";
+      }
+    }
+
+    document.getElementById("btn-map")?.addEventListener("click", () => {
+      mapPanel.classList.toggle("open");
+      // 如果打开且有保存的行程，立即渲染
+      if (mapPanel.classList.contains("open") && window._lastTripPlan) {
+        // 延迟确保面板已展开
+        setTimeout(() => renderTripOnMap(window._lastTripPlan), 300);
+      }
+      // 关闭历史面板避免重叠
+      historyPanel.classList.remove("open");
+    });
+    document.getElementById("btn-close-map")?.addEventListener("click", () => {
+      mapPanel.classList.remove("open");
     });
 
     // ─── 页面加载时恢复会话 ──────────────────────────────────

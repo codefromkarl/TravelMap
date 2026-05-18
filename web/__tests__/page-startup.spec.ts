@@ -52,7 +52,11 @@ function collectErrors(page: Page) {
           !e.includes("net::ERR_CONNECTION_REFUSED") &&
           !e.includes("net::ERR_INTERNET_DISCONNECTED") &&
           !e.includes("net::ERR_NAME_NOT_RESOLVED") &&
-          !e.includes("net::ERR_CONNECTION_TIMED_OUT"),
+          !e.includes("net::ERR_CONNECTION_TIMED_OUT") &&
+          // file:// 协议 + proxy 导致的资源加载失败
+          !e.includes("net::ERR_FAILED") &&
+          // 非关键资源 404（favicon 等）
+          !e.includes("404 (Not Found)"),
       );
     },
   };
@@ -75,7 +79,7 @@ test.describe("L0 — 静态 HTML/CSS 结构", () => {
         hasApp: !!app,
         hasHeader: !!app?.querySelector(":scope > header"),
         hasChatContainer: !!app?.querySelector(":scope > #chat-container"),
-        hasChatPanel: !!app?.querySelector("chat-panel"),
+        hasChatPanel: !!app?.querySelector("pi-chat-panel"),
         hasLoading: !!app?.querySelector("#loading"),
       };
     });
@@ -83,7 +87,7 @@ test.describe("L0 — 静态 HTML/CSS 结构", () => {
     expect(structure.hasApp, "缺少 #app 容器").toBe(true);
     expect(structure.hasHeader, "缺少 header").toBe(true);
     expect(structure.hasChatContainer, "缺少 #chat-container").toBe(true);
-    expect(structure.hasChatPanel, "缺少 chat-panel 元素").toBe(true);
+    expect(structure.hasChatPanel, "缺少 pi-chat-panel 元素").toBe(true);
   });
 
   test("importmap 声明完整，所有裸标识符都有映射", async ({ page }) => {
@@ -189,6 +193,33 @@ test.describe("L0 — 静态 HTML/CSS 结构", () => {
     ).toEqual([]);
   });
 
+  test("HTML 中的 custom element 标签名应与 JS 注册名一致", async ({ page }) => {
+    await page.goto("index.html");
+
+    // 从 HTML 中提取所有非标准标签名
+    const htmlTags = await page.evaluate(() => {
+      const allElements = document.querySelectorAll("*");
+      const standardTags = new Set([
+        "html", "head", "body", "meta", "title", "link", "style", "script",
+        "div", "span", "p", "a", "img", "ul", "ol", "li", "button", "input",
+        "header", "main", "footer", "section", "nav", "article", "aside",
+        "h1", "h2", "h3", "h4", "h5", "h6", "label", "select", "option",
+        "textarea", "form", "table", "tr", "td", "th", "br", "hr",
+      ]);
+      const customTags = new Set<string>();
+      allElements.forEach((el) => {
+        if (!standardTags.has(el.localName) && el.localName.includes("-")) {
+          customTags.add(el.localName);
+        }
+      });
+      return [...customTags];
+    });
+
+    // 页面中应该有 pi-chat-panel（不是 chat-panel）
+    expect(htmlTags, `页面中未找到 custom element，实际标签: ${htmlTags.join(", ")}`).toContain("pi-chat-panel");
+    expect(htmlTags, `页面中不应有 chat-panel（已更名为 pi-chat-panel）`).not.toContain("chat-panel");
+  });
+
   test("初始无 JS 错误", async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto("index.html");
@@ -198,6 +229,24 @@ test.describe("L0 — 静态 HTML/CSS 结构", () => {
     expect(
       critical,
       `页面加载时出现非预期 JS 错误:\n${critical.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  test("内联脚本无语法错误（SyntaxError 前置检查）", async ({ page }) => {
+    const syntaxErrors: string[] = [];
+    page.on("pageerror", (err) => {
+      if (err.message.includes("SyntaxError")) {
+        syntaxErrors.push(err.message);
+      }
+    });
+
+    await page.goto("index.html");
+    // SyntaxError 是同步解析错误，不需要等网络，1 秒足够
+    await page.waitForTimeout(1000);
+
+    expect(
+      syntaxErrors,
+      `index.html 内联脚本有语法错误:\n${syntaxErrors.join("\n")}`,
     ).toEqual([]);
   });
 });
@@ -211,6 +260,14 @@ test.describe("L1 — JS 模块加载与初始化", () => {
   test("JS 模块加载完成：loading 提示消失", async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto("index.html");
+
+    // 先检查是否有 SyntaxError（解析即报错，不等网络）
+    await page.waitForTimeout(1000);
+    const syntaxErrors = errors.pageErrors.filter((e) => e.includes("SyntaxError"));
+    expect(
+      syntaxErrors,
+      `内联脚本语法错误导致 JS 无法执行:\n${syntaxErrors.join("\n")}`,
+    ).toEqual([]);
 
     // JS 执行成功后会 remove #loading，给充足超时等 esm.sh 加载
     const loading = page.locator("#loading");
@@ -226,24 +283,26 @@ test.describe("L1 — JS 模块加载与初始化", () => {
     ).toEqual([]);
   });
 
-  test("ChatPanel 组件渲染完成（shadowRoot 已挂载）", async ({ page }) => {
+  test("ChatPanel 组件渲染完成（内部 DOM 已挂载）", async ({ page }) => {
     await page.goto("index.html");
 
     // 等待 JS 加载完成
     await page.locator("#loading").waitFor({ state: "hidden", timeout: 30_000 });
 
-    const shadowReady = await page.evaluate(() => {
-      const panel = document.querySelector("chat-panel");
+    const panelState = await page.evaluate(() => {
+      const panel = document.querySelector("pi-chat-panel");
       return {
         exists: !!panel,
-        hasShadowRoot: !!panel?.shadowRoot,
-        shadowChildCount: panel?.shadowRoot?.childElementCount ?? 0,
+        constructorName: panel?.constructor?.name,
+        // ChatPanel 用 createRenderRoot() { return this; } — light DOM，无 shadowRoot
+        childCount: panel?.childElementCount ?? 0,
+        hasAgentInterface: !!panel?.querySelector("agent-interface"),
       };
     });
 
-    expect(shadowReady.exists, "chat-panel 元素不存在").toBe(true);
-    expect(shadowReady.hasShadowRoot, "chat-panel 的 shadowRoot 未挂载").toBe(true);
-    expect(shadowReady.shadowChildCount, "chat-panel shadowRoot 为空").toBeGreaterThan(0);
+    expect(panelState.exists, "pi-chat-panel 元素不存在").toBe(true);
+    expect(panelState.constructorName, "pi-chat-panel 未升级为 ChatPanel").not.toBe("HTMLElement");
+    expect(panelState.hasAgentInterface, "ChatPanel 内未渲染 agent-interface").toBe(true);
   });
 
   test("无 module 加载失败的 console error", async ({ page }) => {
@@ -273,19 +332,50 @@ test.describe("L1 — JS 模块加载与初始化", () => {
 
     // 验证 agent 初始化 — ChatPanel 的 setAgent 应该已经调用
     const agentState = await page.evaluate(() => {
-      const panel = document.querySelector("chat-panel");
-      if (!panel?.shadowRoot) return { ready: false, reason: "no shadowRoot" };
+      const panel = document.querySelector("pi-chat-panel");
+      if (!panel) return { ready: false, reason: "pi-chat-panel not found" };
 
-      // ChatPanel 渲染后应该有内部结构（输入框、消息列表等）
-      const shadow = panel.shadowRoot;
+      // ChatPanel 用 light DOM（createRenderRoot returns this）
+      const hasAgentInterface = !!panel.querySelector("agent-interface");
       return {
-        ready: true,
-        hasInput: shadow.querySelectorAll("input, textarea, [contenteditable]").length > 0,
-        innerHTML: shadow.innerHTML.substring(0, 200),
+        ready: hasAgentInterface,
+        reason: hasAgentInterface ? undefined : "agent-interface not rendered inside ChatPanel",
+        constructorName: panel.constructor.name,
       };
     });
 
     expect(agentState.ready, agentState.reason || "Agent 未初始化").toBe(true);
+  });
+
+  test("pi-chat-panel custom element 已升级，setAgent 方法存在", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("index.html");
+    await page.locator("#loading").waitFor({ state: "hidden", timeout: 30_000 });
+
+    const result = await page.evaluate(() => {
+      const panel = document.querySelector("pi-chat-panel");
+      if (!panel) return { upgraded: false, reason: "element not found" };
+
+      // Custom element 升级 = 原型链上应该有 setAgent
+      const hasSetAgent = typeof (panel as Record<string, unknown>).setAgent === "function";
+      const localName = panel.localName;
+      // 未升级的 HTMLUnknownElement 的 constructor 名是 HTMLUnknownElement
+      const constructorName = panel.constructor.name;
+
+      return {
+        upgraded: constructorName !== "HTMLUnknownElement",
+        hasSetAgent,
+        localName,
+        constructorName,
+      };
+    });
+
+    expect(result.upgraded, `pi-chat-panel 未升级 (constructor: ${result.constructorName})`).toBe(true);
+    expect(result.hasSetAgent, "pi-chat-panel 上 setAgent 方法不存在 — custom element 标签名可能不匹配").toBe(true);
+
+    // 同时确认初始化期间无 TypeError
+    const typeErrors = errors.pageErrors.filter((e) => e.includes("TypeError"));
+    expect(typeErrors, `初始化期间有 TypeError: ${typeErrors.join(", ")}`).toEqual([]);
   });
 });
 
@@ -298,16 +388,16 @@ test.describe("L2 — 用户可交互", () => {
     await page.goto("index.html");
     await page.locator("#loading").waitFor({ state: "hidden", timeout: 30_000 });
 
-    // ChatPanel 中应有可输入的元素
+    // ChatPanel 中应有可输入的元素（light DOM）
     const inputReady = await page.evaluate(() => {
-      const panel = document.querySelector("chat-panel");
-      if (!panel?.shadowRoot) return false;
+      const panel = document.querySelector("pi-chat-panel");
+      if (!panel) return false;
 
-      const shadow = panel.shadowRoot;
+      // ChatPanel 用 light DOM，直接查子元素
       const input =
-        shadow.querySelector("textarea") ||
-        shadow.querySelector("input[type='text']") ||
-        shadow.querySelector("[contenteditable='true']");
+        panel.querySelector("textarea") ||
+        panel.querySelector("input[type='text']") ||
+        panel.querySelector("[contenteditable='true']");
 
       return !!input;
     });

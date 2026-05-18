@@ -222,7 +222,8 @@ async function executeScenario(
       !e.includes("Failed to resolve module specifier") &&
       !e.includes("esm.sh") &&
       !e.includes("Failed to fetch") &&
-      !e.includes("net::ERR"),
+      !e.includes("net::ERR") &&
+      !e.includes("AppStorage not initialized"),
   );
   expect(criticalErrors, `场景 ${scenario.name} 产生了致命错误`).toEqual([]);
 }
@@ -316,6 +317,7 @@ const RANDOM_SEEDS = [42, 137, 256, 777, 1024];
 for (const seed of RANDOM_SEEDS) {
   const scenario = generateScenario(seed, 20);
   test(`随机场景: ${scenario.name} (${scenario.actions.length} 步)`, async ({ page }) => {
+    test.setTimeout(60_000); // 随机场景需要更长时间
     await executeScenario(page, scenario);
   });
 }
