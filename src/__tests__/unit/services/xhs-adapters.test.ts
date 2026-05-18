@@ -9,7 +9,7 @@
  */
 
 import { HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchCrawler,
   fetchJustOneApi,
@@ -17,6 +17,16 @@ import {
   fetchTikHub,
 } from "../../../services/xhs/adapters/index.js";
 import { server } from "../../mocks/server.js";
+
+/**
+ * 刷新事件循环 — 使用 setImmediate 让 MSW 等 event loop 后续阶段的回调执行。
+ * queueMicrotask 只推进 microtask 阶段，不够深。
+ */
+async function tickEventLoop(times = 5): Promise<void> {
+  for (let i = 0; i < times; i++) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
 
 afterEach(() => server.resetHandlers());
 
@@ -133,6 +143,9 @@ describe("Provider Adapter 单元测试", () => {
 
   describe("Crawler", () => {
     it("应正确执行爬虫流程", async () => {
+      // 只 fake setTimeout/clearTimeout，不影响 setImmediate/Date
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
       server.use(
         http.post("http://crawler.test/api/crawler/start", () =>
           HttpResponse.json({ status: "ok" }),
@@ -156,9 +169,20 @@ describe("Provider Adapter 单元测试", () => {
         ),
       );
 
-      const reviews = await fetchCrawler("泰山", { token: "", baseUrl: "http://crawler.test" });
+      const promise = fetchCrawler("泰山", { token: "", baseUrl: "http://crawler.test" });
+
+      // 让 start 请求完成（MSW 需要 setImmediate 级别的事件循环推进）
+      await tickEventLoop();
+
+      // 推进 poll interval (3000ms)，status 返回 idle 直接跳出循环
+      vi.advanceTimersByTime(3000);
+      await tickEventLoop();
+
+      const reviews = await promise;
       expect(reviews).toHaveLength(1);
       expect(reviews[0].meta?.noteId).toBe("n4");
+
+      vi.useRealTimers();
     });
 
     it("启动失败应抛出异常", async () => {

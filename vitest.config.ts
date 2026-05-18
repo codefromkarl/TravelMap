@@ -13,6 +13,7 @@ export default defineConfig({
     include: [
       "src/**/*.test.ts",
       "src/__tests__/**/*.test.ts",
+      "web/__tests__/unit/**/*.test.ts",
     ],
 
     // 覆盖率配置
@@ -26,13 +27,15 @@ export default defineConfig({
         "src/__tests__/**",
         "src/types/**",
         "src/**/index.ts",
+        // WIP / 未实现模块，暂时排除覆盖率检查
+        "src/services/dianping-scrape-service.ts",
       ],
-      // Phase 3: 逐步提升覆盖率阈值
+      // Phase 4: 提升覆盖率阈值
       thresholds: {
-        lines: 30,
-        functions: 0,
-        branches: 0,
-        statements: 0,
+        lines: 75,
+        functions: 70,
+        branches: 65,
+        statements: 75,
       },
     },
 

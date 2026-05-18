@@ -8,7 +8,7 @@
  * - URL 脱敏
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   AuthError,
@@ -20,6 +20,15 @@ import {
   TimeoutError,
 } from "../../../services/http-client.js";
 
+/**
+ * 刷新微任务队列 — fake timers 下 setTimeout(0) 不会触发，
+ * 需要用纯 Promise 链来 flush 所有 pending microtasks
+ */
+async function flushPromises(): Promise<void> {
+  // 链式 await 让所有 pending microtasks 执行完
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+}
+
 describe("http-client", () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
@@ -27,6 +36,11 @@ describe("http-client", () => {
     mockFetch = vi.fn();
     globalThis.fetch = mockFetch;
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // 确保 fake timers 不泄漏到其他 describe
+    vi.useRealTimers();
   });
 
   // ─── sanitizeUrl ──────────────────────────────────────────
@@ -70,16 +84,29 @@ describe("http-client", () => {
     });
 
     it("超时应抛出 TimeoutError", async () => {
+      vi.useFakeTimers();
+
+      // mock fetch 监听 AbortSignal，超时时 abort 会触发 reject
       mockFetch.mockImplementationOnce(
-        () =>
+        (_url: string, opts?: RequestInit) =>
           new Promise((_resolve, reject) => {
-            setTimeout(() => reject(new Error("should be aborted")), 1000);
+            const signal = opts?.signal as AbortSignal | undefined;
+            if (signal?.aborted) {
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+              return;
+            }
+            signal?.addEventListener("abort", () => {
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+            });
           }),
       );
 
-      await expect(
-        fetchWithTimeout("https://api.example.com/slow", { timeout: 50 }),
-      ).rejects.toThrow(TimeoutError);
+      const promise = fetchWithTimeout("https://api.example.com/slow", { timeout: 50 });
+
+      // 推进时钟触发 setTimeout → controller.abort() → signal abort → reject
+      vi.advanceTimersByTime(50);
+
+      await expect(promise).rejects.toThrow(TimeoutError);
     });
 
     it("网络错误应抛出 NetworkError", async () => {
@@ -138,20 +165,42 @@ describe("http-client", () => {
     });
 
     it("超时错误应重试后仍失败则抛 TimeoutError", async () => {
-      mockFetch.mockImplementation(
-        () =>
-          new Promise((_resolve, reject) => {
-            setTimeout(() => reject(new Error("timeout")), 1000);
-          }),
-      );
+      vi.useFakeTimers();
 
-      await expect(
-        fetchWithRetry("https://api.example.com", {
-          timeout: 50,
-          maxRetries: 1,
-          baseDelayMs: 10,
-        }),
-      ).rejects.toThrow(TimeoutError);
+      // mock fetch 监听 AbortSignal，超时时 abort 触发 reject
+      const abortableFetch = (_url: string, opts?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = opts?.signal as AbortSignal | undefined;
+          if (signal?.aborted) {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+            return;
+          }
+          signal?.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        });
+
+      mockFetch.mockImplementation(abortableFetch);
+
+      const promise = fetchWithRetry("https://api.example.com", {
+        timeout: 50,
+        maxRetries: 1,
+        baseDelayMs: 10,
+      });
+
+      // 第一次请求超时（50ms）
+      vi.advanceTimersByTime(50);
+      await flushPromises();
+
+      // 推进重试退避延迟（10ms）
+      vi.advanceTimersByTime(10);
+      await flushPromises();
+
+      // 第二次请求超时（50ms）
+      vi.advanceTimersByTime(50);
+      await flushPromises();
+
+      await expect(promise).rejects.toThrow(TimeoutError);
     });
   });
 

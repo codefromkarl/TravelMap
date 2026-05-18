@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
+// 代理配置：PROXY_URL 有值则启用代理，无值则不走代理
+const proxy = process.env.PROXY_URL
+  ? { server: process.env.PROXY_URL, bypass: "localhost,127.0.0.1" }
+  : undefined;
+
 export default defineConfig({
   testDir: "./web/__tests__",
   timeout: 30_000,
@@ -9,21 +14,21 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [["list"]],
   use: {
-    // 使用系统 Chrome
+    // 浏览器启动选项：CHROME_PATH 有值则使用指定浏览器，否则用 Playwright 内置 chromium
     launchOptions: {
-      executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
+      ...(process.env.CHROME_PATH
+        ? { executablePath: process.env.CHROME_PATH }
+        : {}),
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--ignore-certificate-errors",
         "--disable-features=NetworkService",
       ],
-      proxy: {
-        server: "http://127.0.0.1:7897",
-        bypass: "localhost,127.0.0.1",
-      },
+      ...(proxy ? { proxy } : {}),
     },
-    baseURL: process.env.BASE_URL || "file://" + process.cwd() + "/web/",
+    // 基础 URL：BASE_URL 有值则使用，否则默认指向本地 web 目录
+    baseURL: process.env.BASE_URL || `file://${process.cwd()}/web/`,
     actionTimeout: 10_000,
     screenshot: "only-on-failure",
     trace: "on-first-retry",

@@ -1,6 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearXhsCache, getRouterStatus, searchXhsNotes } from "../../../services/xhs-service.js";
 import { server } from "../../mocks/server.js";
+
+/**
+ * 刷新微任务队列 — fake timers 下 setTimeout(0) 不会触发，
+ * 需要用纯 Promise 链来 flush 所有 pending microtasks。
+ * 多层 await 需要多轮 flush 才能执行完。
+ */
+async function flushPromises(times = 10): Promise<void> {
+  for (let i = 0; i < times; i++) {
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+  }
+}
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -19,11 +30,16 @@ describe("xhs-service — 统一路由层", () => {
   });
 
   beforeEach(() => {
+    vi.useRealTimers();
     clearXhsCache();
     // 清除所有 XHS 环境变量
     const envKeys = Object.keys(process.env).filter((k) => k.startsWith("XHS_"));
     for (const k of envKeys) delete process.env[k];
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   // ─── 配置解析 ───────────────────────────────────────────
@@ -221,6 +237,7 @@ describe("xhs-service — 统一路由层", () => {
     });
 
     it("应正确调用本地爬虫服务", async () => {
+      vi.useFakeTimers();
       process.env.XHS_CRAWLER_BASE = "http://localhost:8080";
       process.env.XHS_ROUTER_PROVIDERS = "crawler";
 
@@ -276,7 +293,20 @@ describe("xhs-service — 统一路由层", () => {
         }),
       });
 
-      const result = await searchXhsNotes({ keyword: "长城" });
+      const resultPromise = searchXhsNotes({ keyword: "长城" });
+
+      // 让 start 请求完成（多层 async/await 需要 flush microtasks）
+      await flushPromises();
+
+      // 推进第一轮 poll interval (3000ms) → status: running
+      vi.advanceTimersByTime(3000);
+      await flushPromises();
+
+      // 推进第二轮 poll interval (3000ms) → status: idle → 获取结果
+      vi.advanceTimersByTime(3000);
+      await flushPromises();
+
+      const result = await resultPromise;
 
       // 5 次 fetch 调用
       expect(mockFetch).toHaveBeenCalledTimes(5);

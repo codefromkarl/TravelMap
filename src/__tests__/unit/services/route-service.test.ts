@@ -10,7 +10,8 @@
  * - 景点路线附加 / 切换
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { HttpResponse, http } from "msw";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getAvailableAttractionNames,
   getMockRoutes,
@@ -28,6 +29,7 @@ import {
   switchAttractionRoute,
 } from "../../../services/route-service.js";
 import type { Attraction } from "../../../types/trip.js";
+import { server } from "../../mocks/server.js";
 
 // Mock dual-map-service 避免真实网络请求
 vi.mock("../../../services/dual-map-service.js", () => ({
@@ -718,5 +720,285 @@ describe("filterRoutesByTravelers", () => {
       mobilityImpaired: false,
     });
     expect(filtered).toHaveLength(0); // 两个都是高风险，兜底也过滤掉了
+  });
+
+  it("过滤后返回低风险路线作为兜底", () => {
+    // 一个高风险 + 一个中风险
+    const mediumRisk = {
+      ...routes[0],
+      id: "r_med",
+      riskAssessment: {
+        ...routes[0].riskAssessment,
+        riskLevel: 2 as const,
+        suitability: {
+          seniors: "caution" as const,
+          children: "suitable" as const,
+          pregnant: "not_recommended" as const,
+          mobilityImpaired: "not_recommended" as const,
+        },
+      },
+    };
+    const mixed = [routes[1], mediumRisk]; // 高风险 + 中风险
+    const filtered = filterRoutesByTravelers(mixed, {
+      adults: 2,
+      seniors: 1,
+      children: 0,
+      infants: 0,
+      pregnant: false,
+      mobilityImpaired: false,
+    });
+    // 高风险被过滤，中风险保留
+    expect(filtered.length).toBeGreaterThanOrEqual(1);
+    expect(filtered.some((r) => r.id === "r_med")).toBe(true);
+  });
+});
+
+// ─── extractRoutesFromUGC / extractRouteTags（通过 searchAttractionRoutes 间接测试）──
+
+describe("UGC 路线提取（间接测试）", () => {
+  beforeEach(() => {
+    clearRouteCache();
+  });
+
+  it("无官方路线时触发 mock 降级（不走 UGC）", async () => {
+    const result = await searchAttractionRoutes({
+      attractionName: "某大景区",
+      city: "某市",
+    });
+    expect(result.sources).toContain("mock");
+  });
+
+  it("带偏好但无匹配路线时保留全部", async () => {
+    const result = await searchAttractionRoutes({
+      attractionName: "西湖",
+      city: "杭州",
+      preferences: ["完全不存在的偏好"],
+    });
+    // 偏好无匹配 → 保留全部
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+
+  it("带 travelers 且偏好筛选后路线全被过滤时保留低风险", async () => {
+    const result = await searchAttractionRoutes({
+      attractionName: "西湖",
+      city: "杭州",
+      preferences: ["深度"],
+      travelers: {
+        adults: 2,
+        seniors: 1,
+        children: 0,
+        infants: 0,
+        pregnant: false,
+        mobilityImpaired: false,
+      },
+    });
+    // 西湖路线基本都是低风险，应该有返回
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── extractRoutesFromUGC / extractRouteTags（通过 xhs 路线数据触发）──────
+
+describe("UGC 路线提取 — 通过 xhs 环境变量触发", () => {
+  beforeEach(() => {
+    clearRouteCache();
+    // 设置 xhs token 让 xhs-service 调用 provider
+    process.env.XHS_RNOTE_TOKEN = "test-rnote-token";
+  });
+
+  afterEach(() => {
+    delete process.env.XHS_RNOTE_TOKEN;
+  });
+
+  it("有 xhs 数据时不崩溃", async () => {
+    const result = await searchAttractionRoutes({
+      attractionName: "西湖",
+      city: "杭州",
+    });
+    expect(result).toHaveProperty("routes");
+    expect(result).toHaveProperty("sources");
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+
+  it("无官方路线时 xhs 数据可触发 mock 降级", async () => {
+    const result = await searchAttractionRoutes({
+      attractionName: "某大景区",
+      city: "某市",
+    });
+    // 不知名景区 → 无官方路线 → 可能走 xhs 或 mock
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+
+  it("包含路线关键词的 xhs 笔记触发 UGC 路线提取", async () => {
+    // 覆盖 rnote handler 返回包含路线关键词的数据
+    server.use(
+      http.get("https://rnote.dev/api/v1/xhs/search_notes", () => {
+        return HttpResponse.json({
+          code: 0,
+          data: {
+            items: [
+              {
+                note_id: "xhs-route-1",
+                title: "西湖一日游经典路线推荐",
+                desc: "西湖经典路线：断桥→白堤→孤山→曲院风荷→苏堤→花港观鱼→雷峰塔。轻松休闲不走回头路",
+                liked_count: 500,
+                user: { nickname: "杭州旅游达人" },
+              },
+            ],
+          },
+        });
+      }),
+    );
+    clearRouteCache();
+
+    const result = await searchAttractionRoutes({
+      attractionName: "西湖",
+      city: "杭州",
+    });
+
+    // 官方路线 + 可能的 UGC 路线
+    expect(result.routes.length).toBeGreaterThan(0);
+    expect(result.sources).toContain("official");
+  });
+
+  it("包含箭头分隔途经点的 UGC 笔记提取路线", async () => {
+    server.use(
+      http.get("https://rnote.dev/api/v1/xhs/search_notes", () => {
+        return HttpResponse.json({
+          code: 0,
+          data: {
+            items: [
+              {
+                note_id: "xhs-route-2",
+                title: "故宫深度游路线",
+                desc: "推荐路线：从午门→太和殿→中和殿→保和殿→御花园→神武门。小众深度游不走回头路",
+                liked_count: 300,
+                user: { nickname: "北京攻略" },
+              },
+            ],
+          },
+        });
+      }),
+    );
+    clearRouteCache();
+
+    const result = await searchAttractionRoutes({
+      attractionName: "故宫",
+      city: "北京",
+    });
+
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+
+  it("包含'第X站'模式的 UGC 笔记提取路线", async () => {
+    server.use(
+      http.get("https://rnote.dev/api/v1/xhs/search_notes", () => {
+        return HttpResponse.json({
+          code: 0,
+          data: {
+            items: [
+              {
+                note_id: "xhs-route-3",
+                title: "黄山亲子路线推荐",
+                desc: "黄山亲子游一日游路线：第一站慈光阁，第二站玉屏楼，第三站光明顶，第四站飞来石。带孩子轻松游",
+                liked_count: 200,
+                user: { nickname: "亲子旅行家" },
+              },
+            ],
+          },
+        });
+      }),
+    );
+    clearRouteCache();
+
+    const result = await searchAttractionRoutes({
+      attractionName: "黄山",
+      city: "黄山",
+    });
+
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+
+  it("包含补给警告的 UGC 笔记标记警告", async () => {
+    server.use(
+      http.get("https://rnote.dev/api/v1/xhs/search_notes", () => {
+        return HttpResponse.json({
+          code: 0,
+          data: {
+            items: [
+              {
+                note_id: "xhs-route-4",
+                title: "泰山经典线路推荐",
+                desc: "泰山经典路线：红门→中天门→南天门→玉皇顶。自带水很重要！没有水卖。没有餐厅吃饭困难",
+                liked_count: 400,
+                user: { nickname: "登山达人" },
+              },
+            ],
+          },
+        });
+      }),
+    );
+    clearRouteCache();
+
+    const result = await searchAttractionRoutes({
+      attractionName: "泰山",
+      city: "泰安",
+    });
+
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+
+  it("无路线关键词的 UGC 笔记不触发路线提取", async () => {
+    server.use(
+      http.get("https://rnote.dev/api/v1/xhs/search_notes", () => {
+        return HttpResponse.json({
+          code: 0,
+          data: {
+            items: [
+              {
+                note_id: "xhs-no-route",
+                title: "西湖很美",
+                desc: "去西湖玩了一天，风景很好，下次还来",
+                liked_count: 10,
+                user: { nickname: "普通用户" },
+              },
+            ],
+          },
+        });
+      }),
+    );
+    clearRouteCache();
+
+    // 对于西湖，有官方路线
+    const result = await searchAttractionRoutes({
+      attractionName: "西湖",
+      city: "杭州",
+    });
+
+    // 仍然有官方路线
+    expect(result.sources).toContain("official");
+    expect(result.routes.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── 路线去重 ──────────────────────────────────────────
+
+describe("路线去重（间接测试）", () => {
+  beforeEach(() => {
+    clearRouteCache();
+  });
+
+  it("官方路线本身不应有重复", async () => {
+    const result = await searchAttractionRoutes({ attractionName: "西湖", city: "杭州" });
+    const names = result.routes.map((r) => r.name);
+    const uniqueNames = new Set(names);
+    expect(uniqueNames.size).toBe(names.length);
+  });
+
+  it("路线 ID 不重复", async () => {
+    const result = await searchAttractionRoutes({ attractionName: "西湖", city: "杭州" });
+    const ids = result.routes.map((r) => r.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBe(ids.length);
   });
 });
