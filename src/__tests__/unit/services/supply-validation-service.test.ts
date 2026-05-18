@@ -207,7 +207,13 @@ describe("validateRouteSupplies", () => {
 
 describe("shouldRefresh", () => {
   it("从未验证的补给点应需要刷新", () => {
-    const point: SupplyPoint = { name: "A", type: "shop", description: "", estimatedCost: 10, isRecommended: false };
+    const point: SupplyPoint = {
+      name: "A",
+      type: "shop",
+      description: "",
+      estimatedCost: 10,
+      isRecommended: false,
+    };
     const result = shouldRefresh(point);
     expect(result.needsRefresh).toBe(true);
     expect(result.reason).toContain("从未验证");
@@ -215,8 +221,14 @@ describe("shouldRefresh", () => {
 
   it("exact + api 数据在 180 天内不需要刷新", () => {
     const point: SupplyPoint = {
-      name: "A", type: "shop", description: "", estimatedCost: 10, isRecommended: false,
-      locationAccuracy: "exact", priceConfidence: "api", lastUpdated: new Date().toISOString().split("T")[0],
+      name: "A",
+      type: "shop",
+      description: "",
+      estimatedCost: 10,
+      isRecommended: false,
+      locationAccuracy: "exact",
+      priceConfidence: "api",
+      lastUpdated: new Date().toISOString().split("T")[0],
     };
     const result = shouldRefresh(point);
     expect(result.needsRefresh).toBe(false);
@@ -226,8 +238,13 @@ describe("shouldRefresh", () => {
     const d = new Date();
     d.setDate(d.getDate() - 31);
     const point: SupplyPoint = {
-      name: "A", type: "shop", description: "", estimatedCost: 10, isRecommended: false,
-      locationAccuracy: "unknown", lastUpdated: d.toISOString().split("T")[0],
+      name: "A",
+      type: "shop",
+      description: "",
+      estimatedCost: 10,
+      isRecommended: false,
+      locationAccuracy: "unknown",
+      lastUpdated: d.toISOString().split("T")[0],
     };
     const result = shouldRefresh(point);
     expect(result.needsRefresh).toBe(true);
@@ -238,8 +255,14 @@ describe("shouldRefresh", () => {
     const d = new Date();
     d.setDate(d.getDate() - 10);
     const point: SupplyPoint = {
-      name: "A", type: "shop", description: "", estimatedCost: 10, isRecommended: false,
-      locationAccuracy: "exact", priceConfidence: "api", lastUpdated: d.toISOString().split("T")[0],
+      name: "A",
+      type: "shop",
+      description: "",
+      estimatedCost: 10,
+      isRecommended: false,
+      locationAccuracy: "exact",
+      priceConfidence: "api",
+      lastUpdated: d.toISOString().split("T")[0],
     };
     expect(shouldRefresh(point, 5).needsRefresh).toBe(true);
     expect(shouldRefresh(point, 15).needsRefresh).toBe(false);
@@ -253,12 +276,23 @@ describe("refreshStaleSupplies", () => {
 
   it("应只刷新过期数据，跳过有效数据", async () => {
     const fresh: SupplyPoint = {
-      name: "Fresh", type: "shop", description: "", estimatedCost: 10, isRecommended: false,
-      locationAccuracy: "exact", priceConfidence: "api", lastUpdated: new Date().toISOString().split("T")[0],
+      name: "Fresh",
+      type: "shop",
+      description: "",
+      estimatedCost: 10,
+      isRecommended: false,
+      locationAccuracy: "exact",
+      priceConfidence: "api",
+      lastUpdated: new Date().toISOString().split("T")[0],
     };
     const stale: SupplyPoint = {
-      name: "Stale", type: "shop", description: "", estimatedCost: 10, isRecommended: false,
-      locationAccuracy: "unknown", lastUpdated: "2024-01-01",
+      name: "Stale",
+      type: "shop",
+      description: "",
+      estimatedCost: 10,
+      isRecommended: false,
+      locationAccuracy: "unknown",
+      lastUpdated: "2024-01-01",
     };
 
     const { refreshed, stats } = await refreshStaleSupplies([fresh, stale], "某市");
@@ -275,9 +309,36 @@ describe("computeValidationStats", () => {
     const today = new Date().toISOString().split("T")[0];
     const oldDate = "2024-01-01";
     const points: ValidatedSupplyPoint[] = [
-      { name: "A", locationAccuracy: "exact", estimatedCost: 10, priceConfidence: "api", lastUpdated: today, type: "shop", description: "", isRecommended: false },
-      { name: "B", locationAccuracy: "approximate", estimatedCost: 10, priceConfidence: "estimate", lastUpdated: today, type: "shop", description: "", isRecommended: false },
-      { name: "C", locationAccuracy: "unknown", estimatedCost: 10, priceConfidence: "estimate", lastUpdated: oldDate, type: "shop", description: "", isRecommended: false },
+      {
+        name: "A",
+        locationAccuracy: "exact",
+        estimatedCost: 10,
+        priceConfidence: "api",
+        lastUpdated: today,
+        type: "shop",
+        description: "",
+        isRecommended: false,
+      },
+      {
+        name: "B",
+        locationAccuracy: "approximate",
+        estimatedCost: 10,
+        priceConfidence: "estimate",
+        lastUpdated: today,
+        type: "shop",
+        description: "",
+        isRecommended: false,
+      },
+      {
+        name: "C",
+        locationAccuracy: "unknown",
+        estimatedCost: 10,
+        priceConfidence: "estimate",
+        lastUpdated: oldDate,
+        type: "shop",
+        description: "",
+        isRecommended: false,
+      },
       { name: "D", type: "shop", description: "", estimatedCost: 10, isRecommended: false },
     ];
 

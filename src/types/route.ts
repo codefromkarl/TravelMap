@@ -7,6 +7,9 @@ import type { Location } from "./trip.js";
 /** 补给点类型 */
 export type SupplyPointType = "restaurant" | "cafe" | "shop" | "water" | "rest_area" | "toilet";
 
+/** 地形类型 */
+export type TerrainType = "flat" | "slope" | "stairs" | "trail" | "paved" | "water";
+
 /** 坐标精度等级 */
 export type LocationAccuracy = "exact" | "approximate" | "unknown";
 
@@ -33,6 +36,8 @@ export interface SupplyPoint {
   lastUpdated?: string;
   /** 数据来源说明 */
   dataSource?: string;
+  /** 营业时间（如"09:00-22:00"） */
+  businessHours?: string;
   /** 是否推荐作为休息点 */
   isRecommended: boolean;
 }
@@ -64,6 +69,10 @@ export interface Waypoint {
   name: string;
   /** 经纬度 */
   location: Location;
+  /** 海拔高度（米） */
+  elevation?: number;
+  /** 地形类型 */
+  terrainType?: TerrainType;
   /** 建议停留时间（分钟） */
   visitDuration: number;
   /** 是否可选（用户可跳过） */
@@ -75,6 +84,65 @@ export interface Waypoint {
 }
 
 // ─── 景点内游玩路线 ──────────────────────────────────────
+
+/** 风险因子类型 */
+export type RiskFactorType =
+  | "elevation"
+  | "distance"
+  | "terrain"
+  | "weather"
+  | "exposure"
+  | "isolation"
+  | "steps";
+
+/** 风险等级 */
+export type RiskLevel = "low" | "medium" | "high";
+
+/** 单条风险因子 */
+export interface RiskFactor {
+  /** 风险类型 */
+  type: RiskFactorType;
+  /** 风险等级 */
+  level: RiskLevel;
+  /** 风险描述（面向用户） */
+  description: string;
+  /** 影响的途经点索引 */
+  affectedWaypoints?: number[];
+}
+
+/** 特殊人群适宜性 */
+export interface RouteSuitability {
+  /** 老年人 */
+  seniors: "suitable" | "caution" | "not_recommended";
+  /** 儿童 */
+  children: "suitable" | "caution" | "not_recommended";
+  /** 孕妇 */
+  pregnant: "suitable" | "caution" | "not_recommended";
+  /** 行动不便者 */
+  mobilityImpaired: "suitable" | "caution" | "not_recommended";
+}
+
+/** 路线风险评估报告 */
+export interface RouteRiskAssessment {
+  /** 综合风险等级：1=低风险 2=中风险 3=高风险 */
+  riskLevel: 1 | 2 | 3;
+  /** 累计海拔爬升（米） */
+  totalElevationGain: number;
+  /** 累计海拔下降（米） */
+  totalElevationLoss: number;
+  /** 最高海拔（米） */
+  maxElevation: number;
+  /** 最低海拔（米） */
+  minElevation: number;
+  /** 预估体力消耗（千卡，中等体重成人） */
+  estimatedCalories: number;
+  /** 预估步数 */
+  estimatedSteps: number;
+  /** 具体风险因子列表 */
+  riskFactors: RiskFactor[];
+  /** 特殊人群建议 */
+  suitability: RouteSuitability;
+}
 
 /** 路线数据来源 */
 export type RouteSource = "official" | "xiaohongshu" | "llm_knowledge" | "user_custom";
@@ -106,6 +174,8 @@ export interface AttractionRoute {
   difficulty: 1 | 2 | 3;
   /** 路线补给策略 */
   supplyStrategy?: RouteSupplyStrategy;
+  /** 路线风险评估 */
+  riskAssessment?: RouteRiskAssessment;
 }
 
 // ─── 路线搜索参数 ────────────────────────────────────────
@@ -118,6 +188,8 @@ export interface RouteSearchParams {
   city: string;
   /** 用户偏好关键词（可选） */
   preferences?: string[];
+  /** 出行人群画像（可选，用于路线人群适配过滤） */
+  travelers?: import("./trip.js").TravelerProfile;
 }
 
 /** 路线搜索结果 */

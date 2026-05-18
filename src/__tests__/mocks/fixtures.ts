@@ -274,7 +274,7 @@ export function createMultiCityScenario(
   scenarios: ReturnType<typeof createCityScenario>[];
 } {
   const startDate = options?.startDate ?? "2025-06-01";
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
 
   const scenarios = cities.map(({ city, days }) => {
     const scenario = createCityScenario(city, days, {

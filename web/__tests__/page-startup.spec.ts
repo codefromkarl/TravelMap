@@ -65,9 +65,9 @@ function collectErrors(page: Page) {
 // ─── L0: 静态结构（无网络依赖） ──────────────────────────────
 
 test.describe("L0 — 静态 HTML/CSS 结构", () => {
-  test("页面标题包含「旅途星辰」", async ({ page }) => {
+  test("页面标题包含「旅图」", async ({ page }) => {
     await page.goto("index.html");
-    await expect(page).toHaveTitle(/旅途星辰/);
+    await expect(page).toHaveTitle(/旅图/);
   });
 
   test("核心 DOM 结构完整", async ({ page }) => {

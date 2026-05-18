@@ -24,6 +24,8 @@
     "test:e2e:ui": "playwright test --config playwright.config.ts --ui",
     "test:all": "vitest run --config vitest.config.ts && playwright test --config playwright.config.ts",
     "typecheck": "tsc --noEmit",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:preview": "bash scripts/deploy.sh preview",
     "prepare": "husky"
   },
   "dependencies": {

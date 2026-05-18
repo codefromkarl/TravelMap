@@ -33,7 +33,7 @@ test.describe("刷新中断恢复", () => {
     expect(structure.hasHeader).toBe(true);
     expect(structure.hasChatContainer).toBe(true);
     expect(structure.hasChatPanel).toBe(true);
-    expect(structure.title).toContain("旅途星辰");
+    expect(structure.title).toContain("旅图");
   });
 
   test("刷新后 CSS 变量应保持一致", async ({ page }) => {

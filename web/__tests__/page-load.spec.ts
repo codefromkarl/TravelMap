@@ -17,13 +17,13 @@ test.describe("页面加载验证", () => {
   test("应正确加载页面标题和 header", async ({ page }) => {
     await page.goto("index.html");
 
-    await expect(page).toHaveTitle(/旅途星辰/);
+    await expect(page).toHaveTitle(/旅图/);
 
     const header = page.locator("header");
     await expect(header).toBeVisible();
 
     const h1 = header.locator("h1");
-    await expect(h1).toContainText("旅途星辰");
+    await expect(h1).toContainText("旅图");
 
     const subtitle = header.locator("span[data-i18n='subtitle']");
     await expect(subtitle).toContainText("AI 旅行规划助手");

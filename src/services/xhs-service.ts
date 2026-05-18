@@ -81,9 +81,7 @@ function resolveProviders(): ProviderName[] {
   return env
     .split(",")
     .map((p) => p.trim().toLowerCase())
-    .filter((p): p is ProviderName =>
-      ["rnote", "justoneapi", "tikhub", "crawler"].includes(p),
-    );
+    .filter((p): p is ProviderName => ["rnote", "justoneapi", "tikhub", "crawler"].includes(p));
 }
 
 function getProviderContext(name: ProviderName): ProviderContext | null {
@@ -95,7 +93,8 @@ function getProviderContext(name: ProviderName): ProviderContext | null {
     }
     case "justoneapi": {
       const token = process.env.XHS_JUSTONEAPI_TOKEN ?? process.env.XHS_API_TOKEN;
-      const base = process.env.XHS_JUSTONEAPI_BASE ?? process.env.XHS_API_BASE ?? "https://api.justoneapi.com";
+      const base =
+        process.env.XHS_JUSTONEAPI_BASE ?? process.env.XHS_API_BASE ?? "https://api.justoneapi.com";
       return token ? { token, baseUrl: base } : null;
     }
     case "tikhub": {

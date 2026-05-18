@@ -1,9 +1,15 @@
 export type {
   AttractionRoute,
+  RiskFactor,
+  RiskFactorType,
+  RiskLevel,
   RouteEditIntent,
+  RouteRiskAssessment,
   RouteSearchParams,
   RouteSearchResult,
   RouteSource,
+  RouteSuitability,
+  TerrainType,
   Waypoint,
 } from "./route.js";
 export type {

@@ -117283,12 +117283,30 @@ function convertTools3(tools, compat) {
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: tool.parameters,
-      // TypeBox already generates JSON Schema
+      parameters: compat.requiresSimpleToolSchema ? simplifyToolSchema(tool.parameters) : tool.parameters,
       // Only include strict if provider supports it. Some reject unknown fields.
       ...compat.supportsStrictMode !== false && { strict: false }
     }
   }));
+}
+function simplifyToolSchema(schema4) {
+  const result = {};
+  for (const [key, value] of Object.entries(schema4)) {
+    if (key === "anyOf" || key === "oneOf" || key === "allOf") {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      result[key] = value.map((item) => isRecord(item) ? simplifyToolSchema(item) : item);
+    } else if (isRecord(value)) {
+      result[key] = simplifyToolSchema(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function parseChunkUsage(rawUsage, model) {
   const promptTokens = rawUsage.prompt_tokens || 0;
@@ -117359,6 +117377,7 @@ function detectCompat(model) {
     vercelGatewayRouting: {},
     zaiToolStream: false,
     supportsStrictMode: !isMoonshot && !isTogether && !isCloudflareAiGateway,
+    requiresSimpleToolSchema: isMoonshot || isCloudflareWorkersAI || isCloudflareAiGateway,
     cacheControlFormat,
     sendSessionAffinityHeaders: false,
     supportsLongCacheRetention: !(isTogether || isCloudflareWorkersAI || isCloudflareAiGateway)
@@ -117383,6 +117402,7 @@ function getCompat(model) {
     vercelGatewayRouting: model.compat.vercelGatewayRouting ?? detected.vercelGatewayRouting,
     zaiToolStream: model.compat.zaiToolStream ?? detected.zaiToolStream,
     supportsStrictMode: model.compat.supportsStrictMode ?? detected.supportsStrictMode,
+    requiresSimpleToolSchema: model.compat.requiresSimpleToolSchema ?? detected.requiresSimpleToolSchema,
     cacheControlFormat: model.compat.cacheControlFormat ?? detected.cacheControlFormat,
     sendSessionAffinityHeaders: model.compat.sendSessionAffinityHeaders ?? detected.sendSessionAffinityHeaders,
     supportsLongCacheRetention: model.compat.supportsLongCacheRetention ?? detected.supportsLongCacheRetention
@@ -179872,12 +179892,32 @@ function convertTools6(tools, compat) {
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: tool.parameters,
-      // TypeBox already generates JSON Schema
+      parameters: compat.requiresSimpleToolSchema ? simplifyToolSchema2(tool.parameters) : tool.parameters,
       // Only include strict if provider supports it. Some reject unknown fields.
       ...compat.supportsStrictMode !== false && { strict: false }
     }
   }));
+}
+function simplifyToolSchema2(schema4) {
+  const result = {};
+  for (const [key, value] of Object.entries(schema4)) {
+    if (key === "anyOf" || key === "oneOf" || key === "allOf") {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      result[key] = value.map(
+        (item) => isRecord2(item) ? simplifyToolSchema2(item) : item
+      );
+    } else if (isRecord2(value)) {
+      result[key] = simplifyToolSchema2(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function parseChunkUsage2(rawUsage, model) {
   const promptTokens = rawUsage.prompt_tokens || 0;
@@ -179947,6 +179987,7 @@ function detectCompat2(model) {
     vercelGatewayRouting: {},
     zaiToolStream: false,
     supportsStrictMode: !isMoonshot && !isTogether && !isCloudflareAiGateway,
+    requiresSimpleToolSchema: isMoonshot || isCloudflareWorkersAI || isCloudflareAiGateway,
     cacheControlFormat,
     sendSessionAffinityHeaders: false,
     supportsLongCacheRetention: !(isTogether || isCloudflareWorkersAI || isCloudflareAiGateway)
@@ -179970,6 +180011,7 @@ function getCompat3(model) {
     vercelGatewayRouting: model.compat.vercelGatewayRouting ?? detected.vercelGatewayRouting,
     zaiToolStream: model.compat.zaiToolStream ?? detected.zaiToolStream,
     supportsStrictMode: model.compat.supportsStrictMode ?? detected.supportsStrictMode,
+    requiresSimpleToolSchema: model.compat.requiresSimpleToolSchema ?? detected.requiresSimpleToolSchema,
     cacheControlFormat: model.compat.cacheControlFormat ?? detected.cacheControlFormat,
     sendSessionAffinityHeaders: model.compat.sendSessionAffinityHeaders ?? detected.sendSessionAffinityHeaders,
     supportsLongCacheRetention: model.compat.supportsLongCacheRetention ?? detected.supportsLongCacheRetention
@@ -190747,12 +190789,30 @@ var Input = fc(({ type = "text", size = "md", value = "", placeholder = "", labe
 });
 
 // ../pi/packages/web-ui/dist/storage/app-storage.js
+var AppStorage = class {
+  constructor(settings2, providerKeys, sessions, customProviders, backend) {
+    this.settings = settings2;
+    this.providerKeys = providerKeys;
+    this.sessions = sessions;
+    this.customProviders = customProviders;
+    this.backend = backend;
+  }
+  async getQuotaInfo() {
+    return this.backend.getQuotaInfo();
+  }
+  async requestPersistence() {
+    return this.backend.requestPersistence();
+  }
+};
 var globalAppStorage = null;
 function getAppStorage() {
   if (!globalAppStorage) {
     throw new Error("AppStorage not initialized. Call setAppStorage() first.");
   }
   return globalAppStorage;
+}
+function setAppStorage(storage) {
+  globalAppStorage = storage;
 }
 
 // ../pi/packages/web-ui/dist/utils/format.js
@@ -213332,10 +213392,10 @@ var get2 = async (fetch3, host, options) => {
   return response;
 };
 var post = async (fetch3, host, data, options) => {
-  const isRecord2 = (input) => {
+  const isRecord4 = (input) => {
     return input !== null && typeof input === "object" && !Array.isArray(input);
   };
-  const formattedData = isRecord2(data) ? JSON.stringify(data) : data;
+  const formattedData = isRecord4(data) ? JSON.stringify(data) : data;
   const response = await fetchWithHeaders(fetch3, host, {
     method: "POST",
     body: formattedData,
@@ -300264,14 +300324,14 @@ async function getTypeboxValue() {
 }
 var validatorCache = /* @__PURE__ */ new WeakMap();
 var TYPEBOX_KIND = /* @__PURE__ */ Symbol.for("TypeBox.Kind");
-function isRecord(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null;
 }
 function isJsonSchemaObject(value) {
-  return isRecord(value);
+  return isRecord3(value);
 }
 function hasTypeBoxMetadata(schema4) {
-  return isRecord(schema4) && Object.getOwnPropertySymbols(schema4).includes(TYPEBOX_KIND);
+  return isRecord3(schema4) && Object.getOwnPropertySymbols(schema4).includes(TYPEBOX_KIND);
 }
 function getSchemaTypes(schema4) {
   if (typeof schema4.type === "string") {
@@ -300297,7 +300357,7 @@ function matchesJsonType(value, type) {
     case "array":
       return Array.isArray(value);
     case "object":
-      return isRecord(value) && !Array.isArray(value);
+      return isRecord3(value) && !Array.isArray(value);
     default:
       return false;
   }
@@ -300444,7 +300504,7 @@ function coerceWithJsonSchema(value, schema4) {
       }
     }
   }
-  if (schemaTypes.includes("object") && isRecord(nextValue) && !Array.isArray(nextValue)) {
+  if (schemaTypes.includes("object") && isRecord3(nextValue) && !Array.isArray(nextValue)) {
     applySchemaObjectCoercion(nextValue, schema4);
   }
   if (schemaTypes.includes("array") && Array.isArray(nextValue)) {
@@ -300483,7 +300543,7 @@ async function validateToolArguments(tool, toolCall) {
   if (!hasTypeBoxMetadata(tool.parameters) && isJsonSchemaObject(tool.parameters)) {
     const coerced = coerceWithJsonSchema(args, tool.parameters);
     if (coerced !== args) {
-      if (isRecord(args) && isRecord(coerced)) {
+      if (isRecord3(args) && isRecord3(coerced)) {
         for (const key of Object.keys(args)) {
           delete args[key];
         }
@@ -300792,7 +300852,7 @@ async function prepareToolCall(currentContext, assistantMessage, toolCall, confi
   }
   try {
     const preparedToolCall = prepareToolCallArguments(tool, toolCall);
-    const validatedArgs = validateToolArguments(tool, preparedToolCall);
+    const validatedArgs = await validateToolArguments(tool, preparedToolCall);
     if (config2.beforeToolCall) {
       const beforeResult = await config2.beforeToolCall({
         assistantMessage,
@@ -303585,9 +303645,12 @@ init_node_fs();
 var DEFAULT_MAX_BYTES = 50 * 1024;
 export {
   Agent,
+  AppStorage,
   ChatPanel,
   typebox_exports as Type,
-  getModel
+  getAppStorage,
+  getModel,
+  setAppStorage
 };
 /*! Bundled license information:
 

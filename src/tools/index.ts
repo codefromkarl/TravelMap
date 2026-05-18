@@ -17,6 +17,7 @@ import { companionQATool } from "./companion.js";
 import { geocodeTool } from "./geocode.js";
 import { searchHotelsTool } from "./hotels.js";
 import { planMultiCityTool } from "./multi-city.js";
+import { enrichSupplyDetailsTool } from "./supply-enrich.js";
 import { searchWeatherTool } from "./weather.js";
 
 export { generateActionLinksTool } from "./action-links.js";
@@ -26,6 +27,7 @@ export { companionQATool } from "./companion.js";
 export { geocodeTool } from "./geocode.js";
 export { searchHotelsTool } from "./hotels.js";
 export { planMultiCityTool } from "./multi-city.js";
+export { enrichSupplyDetailsTool } from "./supply-enrich.js";
 export { searchWeatherTool } from "./weather.js";
 
 /** 搜索类工具（当未启用 preSearch 时使用） */
@@ -38,9 +40,15 @@ export function createSearchTools(): AgentTool[] {
   return [searchAttractionsTool, searchWeatherTool, searchHotelsTool, geocodeTool];
 }
 
-/** 编排类工具（行程生成 + 预算 + 链接 + 伴游） */
+/** 编排类工具（行程生成 + 预算 + 链接 + 伴游 + 补给丰富） */
 export function createPlanningTools(): AgentTool[] {
-  return [calculateBudgetTool, generateActionLinksTool, companionQATool, planMultiCityTool];
+  return [
+    calculateBudgetTool,
+    generateActionLinksTool,
+    companionQATool,
+    planMultiCityTool,
+    enrichSupplyDetailsTool,
+  ];
 }
 
 // 伴游工具已合并到 createPlanningTools，保持向后兼容

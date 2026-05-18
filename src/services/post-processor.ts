@@ -8,7 +8,7 @@
  * 核心优化：省掉 2-4 次 LLM 工具调用
  */
 
-import type { TripPlan } from "../types/trip.js";
+import type { TravelerProfile, TripPlan } from "../types/trip.js";
 import { enrichTripWithLiveLinks } from "./action-link-service.js";
 import { calculateBudget } from "./budget-service.js";
 
@@ -23,6 +23,8 @@ export interface PostProcessorConfig {
   budgetLimit?: number;
   /** 是否生成行动链接 */
   enableActionLinks?: boolean;
+  /** 出行人群画像，用于按人数精确计算预算 */
+  travelers?: TravelerProfile;
 }
 
 export interface PostProcessorResult {
@@ -57,18 +59,20 @@ export async function postProcessTripPlan(
     interCityTransportCost = 0,
     budgetLimit,
     enableActionLinks = true,
+    travelers,
   } = config;
 
   let enriched = { ...tripPlan };
   let budgetCalculated = false;
   let linksGenerated = false;
 
-  // 1. 预算计算
+  // 1. 预算计算（含人群画像联动）
   try {
     const budget = calculateBudget({
       days: enriched.days,
       interCityTransportCost,
       dailyTransportBudget,
+      travelers,
     });
     enriched.budget = budget;
     budgetCalculated = true;
@@ -110,11 +114,13 @@ export function calculateBudgetForTrip(
   tripPlan: TripPlan,
   dailyTransportBudget = 50,
   interCityTransportCost = 0,
+  travelers?: TravelerProfile,
 ): TripPlan {
   const budget = calculateBudget({
     days: tripPlan.days,
     interCityTransportCost,
     dailyTransportBudget,
+    travelers,
   });
   return { ...tripPlan, budget };
 }

@@ -149,7 +149,7 @@ test.describe("多轮对话 — 中断场景", () => {
 
     // 应恢复到初始状态
     const title = await page.title();
-    expect(title).toContain("旅途星辰");
+    expect(title).toContain("旅图");
 
     const hasApp = await page.locator("#app").count();
     expect(hasApp).toBe(1);

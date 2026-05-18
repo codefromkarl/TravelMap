@@ -12,10 +12,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  runParallelSearch,
-  type SearchResultsBundle,
-} from "../../services/search-orchestrator.js";
+import { runParallelSearch, type SearchResultsBundle } from "../../services/search-orchestrator.js";
 import { createMockTripRequest } from "../mocks/fixtures.js";
 
 describe("编排契约: runParallelSearch", () => {

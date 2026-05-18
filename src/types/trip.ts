@@ -114,6 +114,22 @@ export interface CityStay {
   days: number;
 }
 
+/** 出行人群画像 */
+export interface TravelerProfile {
+  /** 成人数量（18-59岁） */
+  adults: number;
+  /** 老人数量（≥60岁） */
+  seniors: number;
+  /** 儿童数量（3-12岁） */
+  children: number;
+  /** 婴幼儿数量（<3岁） */
+  infants: number;
+  /** 是否有孕妇 */
+  pregnant: boolean;
+  /** 是否有行动不便者（轮椅/拄拐/推婴儿车） */
+  mobilityImpaired: boolean;
+}
+
 /** 旅行请求 */
 export interface TripRequest {
   city: string;
@@ -126,6 +142,8 @@ export interface TripRequest {
   preferences: string[];
   freeTextInput?: string;
   language?: string;
+  /** 出行人群画像（用于路线风险评估和人群适配） */
+  travelers?: TravelerProfile;
 }
 
 // ─── trvl CLI 数据类型 ────────────────────────────────────
