@@ -1,8 +1,15 @@
 /**
  * Agent 工具集 — 统一导出
+ *
+ * 支持按阶段分组注入，减少每轮 LLM 调用的 input tokens：
+ *   - 搜索阶段: createSearchTools()（当未启用 preSearch 时使用）
+ *   - 编排阶段: createPlanningTools()
+ *   - 伴游阶段: createCompanionTools()
+ *   - 完整版: createTools()（向后兼容）
  */
 
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { registerToolMetadata } from "../services/cost-tracker.js";
 import { generateActionLinksTool } from "./action-links.js";
 import { searchAttractionsTool } from "./attractions.js";
 import { calculateBudgetTool } from "./budget.js";
@@ -21,16 +28,28 @@ export { searchHotelsTool } from "./hotels.js";
 export { planMultiCityTool } from "./multi-city.js";
 export { searchWeatherTool } from "./weather.js";
 
-/** 创建全部工具 */
+/** 搜索类工具（当未启用 preSearch 时使用） */
+export function createSearchTools(): AgentTool[] {
+  registerToolMetadata("search_attractions", "cheap");
+  registerToolMetadata("search_weather", "cheap");
+  registerToolMetadata("search_hotels", "cheap");
+  registerToolMetadata("geocode", "cheap");
+
+  return [searchAttractionsTool, searchWeatherTool, searchHotelsTool, geocodeTool];
+}
+
+/** 编排类工具（行程生成 + 预算 + 链接 + 伴游） */
+export function createPlanningTools(): AgentTool[] {
+  return [calculateBudgetTool, generateActionLinksTool, companionQATool, planMultiCityTool];
+}
+
+// 伴游工具已合并到 createPlanningTools，保持向后兼容
+export function createCompanionTools(): AgentTool[] {
+  registerToolMetadata("query_trip_data", "cheap");
+  return [companionQATool];
+}
+
+/** 创建全部工具并注册 costTier 元数据（向后兼容） */
 export function createTools(): AgentTool[] {
-  return [
-    searchAttractionsTool,
-    searchWeatherTool,
-    searchHotelsTool,
-    geocodeTool,
-    calculateBudgetTool,
-    generateActionLinksTool,
-    companionQATool,
-    planMultiCityTool,
-  ];
+  return [...createSearchTools(), ...createPlanningTools()];
 }

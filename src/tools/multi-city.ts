@@ -39,7 +39,7 @@ export const planMultiCityTool: AgentTool = {
     const lines = [`## 🗺️ 多城市行程框架`, ""];
 
     // 城市概览
-    lines.push("**路线**: " + cities.map((c) => `${c.city}(${c.days}天)`).join(" → "));
+    lines.push(`**路线**: ${cities.map((c) => `${c.city}(${c.days}天)`).join(" → ")}`);
     lines.push(`**总天数**: ${plan.totalDays}天（含 ${plan.transfers.length} 个城际移动日）`);
     lines.push(`**城际交通费用**: ¥${plan.totalTransportCost}`);
     lines.push("");
