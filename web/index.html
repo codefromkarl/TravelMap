@@ -59,6 +59,78 @@
       --accent-color: #6366f1;
     }
 
+    #export-toolbar {
+      display: none;
+      margin-left: auto;
+      gap: 6px;
+      align-items: center;
+    }
+    #export-toolbar.visible { display: flex; }
+
+    .export-btn {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: #e4e4e7;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s;
+    }
+    .export-btn:hover { background: #3f3f46; }
+    .export-btn:active { background: #52525b; }
+
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      color: #e4e4e7;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+      z-index: 100;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* PDF 打印样式 */
+    @media print {
+      body { background: white; color: black; }
+      #app { max-width: 100%; margin: 0; }
+      header { display: none; }
+      #chat-container { overflow: visible; }
+      chat-panel { display: none; }
+      #export-toolbar { display: none !important; }
+      #print-content {
+        display: block !important;
+        padding: 40px;
+        font-size: 12pt;
+        line-height: 1.6;
+        color: #1a1a1a;
+      }
+      #print-content h1 { font-size: 22pt; margin-bottom: 8px; }
+      #print-content h2 { font-size: 16pt; margin-top: 20px; }
+      #print-content h3 { font-size: 13pt; margin-top: 14px; }
+      #print-content table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+      #print-content th, #print-content td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+      #print-content th { background: #f5f5f5; }
+      #print-content hr { border: none; border-top: 1px solid #ddd; margin: 16px 0; }
+      @page { margin: 20mm; }
+    }
+    #print-content { display: none; }
+
     #loading {
       display: flex;
       align-items: center;
@@ -74,7 +146,14 @@
     <header>
       <h1>🌍 旅途星辰</h1>
       <span>AI 旅行规划助手</span>
+      <div id="export-toolbar">
+        <button class="export-btn" id="btn-export-md" title="导出为 Markdown 文件">📄 MD</button>
+        <button class="export-btn" id="btn-export-pdf" title="导出为 PDF">📕 PDF</button>
+        <button class="export-btn" id="btn-share-link" title="复制分享链接">🔗 分享</button>
+      </div>
     </header>
+    <div id="print-content"></div>
+    <div id="toast"></div>
     <div id="chat-container">
       <div id="loading">正在初始化...</div>
       <chat-panel id="chat"></chat-panel>
@@ -101,6 +180,7 @@
 3. **酒店推荐** — 使用 search_hotels 工具，根据预算和位置推荐住宿
 4. **行程编排** — 综合以上信息，规划每日行程（景点顺序、餐饮、交通）
 5. **预算计算** — 使用 calculate_budget 工具，统计所有费用，生成预算明细
+6. **行动链接** — 使用 generate_action_links 工具，为需预约景点生成预约链接、酒店比价链接、城际交通搜索链接
 
 ## 输出格式
 
@@ -233,6 +313,68 @@
       },
     };
 
+    // ─── 行动链接工具 ────────────────────────────────────
+    const generateActionLinksTool = {
+      name: "generate_action_links",
+      label: "行动链接",
+      description: "为旅行计划生成实用行动链接：需预约景点的官方预约链接、酒店比价（Booking/飞猪/去哪儿）、城际交通机票火车票搜索链接。",
+      parameters: Type.Object({
+        tripPlan: Type.Object({
+          city: Type.String({ description: "主城市名" }),
+          cities: Type.Array(Type.String()),
+          startDate: Type.String(),
+          endDate: Type.String(),
+          days: Type.Array(Type.Object({
+            date: Type.String(),
+            dayIndex: Type.Number(),
+            city: Type.String(),
+            isTransferDay: Type.Optional(Type.Boolean()),
+            attractions: Type.Array(Type.Object({
+              name: Type.String(),
+              nameZh: Type.String(),
+              reservationRequired: Type.Optional(Type.Boolean()),
+            })),
+            hotel: Type.Optional(Type.Object({
+              name: Type.String(),
+            })),
+          })),
+        }),
+      }),
+      execute: async (_id, params) => {
+        const { tripPlan } = params;
+        // 简化版：基于行程内容生成搜索链接
+        const lines = ["## 🔗 行动链接"];
+        let linkCount = 0;
+        for (const day of tripPlan.days) {
+          for (const attr of day.attractions || []) {
+            if (attr.reservationRequired) {
+              lines.push(`- 📍 **${attr.nameZh}** 需预约 → [查询预约方式](https://www.google.com/search?q=${encodeURIComponent(attr.nameZh + ' 预约 门票')})`);
+              linkCount++;
+            }
+            lines.push(`- ℹ️ **${attr.nameZh}** → [查看信息](https://www.google.com/search?q=${encodeURIComponent(attr.nameZh)})`);
+            linkCount++;
+          }
+          if (day.hotel) {
+            lines.push(`- 🏨 **${day.hotel.name}** → [Booking.com 比价](https://www.booking.com/searchresults.html?ss=${encodeURIComponent(day.city)})`);
+            linkCount++;
+          }
+        }
+        if (tripPlan.cities?.length > 1) {
+          for (let i = 0; i < tripPlan.cities.length - 1; i++) {
+            const from = tripPlan.cities[i];
+            const to = tripPlan.cities[i + 1];
+            lines.push(`- 🚄 **${from} → ${to}** → [Skyscanner机票](https://www.skyscanner.net/transport/flights/${encodeURIComponent(from)}/${encodeURIComponent(to)}/) [携程](https://flights.ctrip.com/online/search?departure=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)})`);
+            linkCount += 2;
+          }
+        }
+        lines.splice(1, 0, `生成了 **${linkCount}** 个实用链接`);
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+          details: { tripPlan, linkCount },
+        };
+      },
+    };
+
     // ─── 初始化 Agent ─────────────────────────────────────
     const provider = localStorage.getItem("travel-agent-provider") || "openai";
     const modelId = localStorage.getItem("travel-agent-model") || "gpt-4o";
@@ -243,9 +385,189 @@
         systemPrompt: SYSTEM_PROMPT,
         model,
         thinkingLevel: "medium",
-        tools: [searchAttractionsTool, searchWeatherTool, searchHotelsTool, calculateBudgetTool],
+        tools: [searchAttractionsTool, searchWeatherTool, searchHotelsTool, calculateBudgetTool, generateActionLinksTool],
         messages: [],
       },
+    });
+
+    // ─── 导出服务 ─────────────────────────────────────────
+    const EXPORT_STORAGE_KEY = "travel-agent-exported-trips";
+
+    function getLastAssistantContent() {
+      const msgs = agent.state.messages;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === "assistant" && typeof msgs[i].content === "string" && msgs[i].content.length > 100) {
+          return msgs[i].content;
+        }
+      }
+      return null;
+    }
+
+    function showToast(msg, duration = 2500) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(el._hide);
+      el._hide = setTimeout(() => el.classList.remove("show"), duration);
+    }
+
+    function generateMarkdown(content) {
+      // 如果没有 Markdown 标题，添加文档头
+      if (!content.trim().startsWith("#")) {
+        const date = new Date().toLocaleDateString("zh-CN");
+        return `# 🗺️ 旅行计划
+> 由「旅途星辰」AI 旅行规划助手生成 · ${date}
+
+---
+
+${content}
+
+---
+*本计划由 AI 自动生成，仅供参考。*`;
+      }
+      return content;
+    }
+
+    function downloadMarkdown(content) {
+      const md = generateMarkdown(content);
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date().toISOString().split("T")[0];
+      a.href = url;
+      a.download = `旅行计划-${dateStr}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("✅ Markdown 已下载");
+    }
+
+    function exportPDF(content) {
+      const md = generateMarkdown(content);
+      const printEl = document.getElementById("print-content");
+      // 将 Markdown 转为简单 HTML
+      const html = md
+        .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+        .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+        .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/^\d+\.\s+(.+)$/gm, (m, p1) => `<li>${p1}</li>`)
+        .replace(/^-\s+(.+)$/gm, "<li>$1</li>")
+        .replace(/^---$/gm, "<hr>")
+        .replace(/\n\n/g, "</p><p>")
+        .split("\n").map(line => line.startsWith("<") ? line : (line.trim() ? `<p>${line}</p>` : "")).join("\n");
+      printEl.innerHTML = `<h1 style="text-align:center;margin-bottom:4px;">🗺️ 旅行计划</h1>
+<p style="text-align:center;color:#666;font-size:11pt;margin-bottom:20px;">由「旅途星辰」AI 生成 · ${new Date().toLocaleDateString("zh-CN")}</p>
+${html}`;
+      window.print();
+      showToast("🖨️ 请在打印对话框中选择「另存为 PDF」");
+    }
+
+    function createShareLink(content) {
+      const tripId = crypto.randomUUID();
+      const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || "{}");
+      stored[tripId] = {
+        content,
+        title: `旅行计划`,
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem(EXPORT_STORAGE_KEY, JSON.stringify(stored));
+
+      const url = new URL(window.location.href);
+      url.searchParams.set("trip", tripId);
+
+      navigator.clipboard.writeText(url.toString()).then(() => {
+        showToast("🔗 分享链接已复制到剪贴板");
+      }).catch(() => {
+        // fallback: 选择文本
+        const ta = document.createElement("textarea");
+        ta.value = url.toString();
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast("🔗 分享链接已复制到剪贴板");
+      });
+
+      // 更新历史列表
+      renderSharedTrips();
+    }
+
+    // ─── 分享链接加载 ─────────────────────────────────────
+    function loadSharedTrip() {
+      const params = new URLSearchParams(window.location.search);
+      const tripId = params.get("trip");
+      if (!tripId) return;
+
+      const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || "{}");
+      const trip = stored[tripId];
+      if (!trip) {
+        showToast("⚠️ 未找到该分享的行程", 4000);
+        return;
+      }
+
+      // 在聊天中注入分享的行程
+      const msg = {
+        role: "assistant",
+        content: `# 📋 分享的旅行计划
+
+${trip.content}`,
+        timestamp: Date.now(),
+      };
+      // 追加消息并触发重渲染
+      agent.state.messages = [...agent.state.messages, msg];
+      showToast("📋 已加载分享的行程", 3000);
+    }
+
+    function renderSharedTrips() {
+      const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || "{}");
+      // 清理过期（>7天）记录
+      const now = Date.now();
+      const maxAge = 7 * 24 * 60 * 60 * 1000;
+      let changed = false;
+      for (const [id, trip] of Object.entries(stored)) {
+        if (now - new Date(trip.createdAt).getTime() > maxAge) {
+          delete stored[id];
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem(EXPORT_STORAGE_KEY, JSON.stringify(stored));
+      }
+    }
+
+    // ─── 监听 Agent 事件 ──────────────────────────────────
+    let lastTripContent = "";
+    agent.subscribe((event) => {
+      if (event.type === "agent_end") {
+        const content = getLastAssistantContent();
+        if (content && content !== lastTripContent && content.length > 200) {
+          lastTripContent = content;
+          document.getElementById("export-toolbar")?.classList.add("visible");
+        }
+      }
+      if (event.type === "turn_start") {
+        // 新一轮对话开始，隐藏导出按钮
+        document.getElementById("export-toolbar")?.classList.remove("visible");
+      }
+    });
+
+    // ─── 绑定导出按钮 ─────────────────────────────────────
+    document.getElementById("btn-export-md")?.addEventListener("click", () => {
+      const content = getLastAssistantContent();
+      if (!content) { showToast("⚠️ 没有可导出的行程内容"); return; }
+      downloadMarkdown(content);
+    });
+
+    document.getElementById("btn-export-pdf")?.addEventListener("click", () => {
+      const content = getLastAssistantContent();
+      if (!content) { showToast("⚠️ 没有可导出的行程内容"); return; }
+      exportPDF(content);
+    });
+
+    document.getElementById("btn-share-link")?.addEventListener("click", () => {
+      const content = getLastAssistantContent();
+      if (!content) { showToast("⚠️ 没有可导出的行程内容"); return; }
+      createShareLink(content);
     });
 
     // ─── 初始化 ChatPanel ─────────────────────────────────
@@ -261,6 +583,11 @@
         return false;
       },
     });
+
+    // 加载分享的行程
+    loadSharedTrip();
+    // 清理过期分享
+    renderSharedTrips();
   </script>
 </body>
 </html>
