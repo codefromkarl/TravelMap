@@ -41,12 +41,12 @@ interface QueryIntent {
 }
 
 const INTENTS: QueryIntent[] = [
+  { type: "hotel_price", keywords: ["住宿", "酒店价格", "房费", "住一晚"] },
+  { type: "hotel_rating", keywords: ["评分", "评价", "星级", "rating"] },
   { type: "ticket_price", keywords: ["门票", "票价", "多少钱", "费用", "价格", "ticket", "price"] },
   { type: "duration", keywords: ["多久", "多长时间", "几个小时", "游览时间", "duration"] },
   { type: "reservation", keywords: ["预约", "预订", "提前", "买票", "reservation", "book"] },
   { type: "crowd", keywords: ["带孩子", "小孩", "老人", "适合", "亲子", "family", "kid"] },
-  { type: "hotel_price", keywords: ["住宿", "酒店价格", "房费", "住一晚"] },
-  { type: "hotel_rating", keywords: ["评分", "评价", "星级", "rating"] },
   { type: "budget", keywords: ["预算", "总花费", "总费用", "预算多少"] },
   { type: "weather", keywords: ["天气", "下雨", "温度", "穿什么", "冷不冷"] },
   { type: "transfer", keywords: ["交通", "怎么去", "怎么走", "地铁", "公交"] },
@@ -67,9 +67,13 @@ function extractAttractionNames(question: string, trip: TripPlan): Attraction[] 
   const allAttractions = trip.days.flatMap((d) => d.attractions);
   return allAttractions.filter((a) => {
     // 精确匹配
-    if (question.includes(a.nameZh) || question.includes(a.nameEn) || question.includes(a.name)) return true;
+    if (question.includes(a.nameZh) || question.includes(a.nameEn) || question.includes(a.name))
+      return true;
     // 部分匹配：问题中包含景点名核心部分（去掉常见后缀）
-    const coreZh = a.nameZh.replace(/(博物院|博物馆|公园|风景区|景区|乐园|寺院|庙|塔|宫|园|亭|台|楼)$/, "");
+    const coreZh = a.nameZh.replace(
+      /(博物院|博物馆|公园|风景区|景区|乐园|寺院|庙|塔|宫|园|亭|台|楼)$/,
+      "",
+    );
     if (coreZh.length >= 2 && question.includes(coreZh)) return true;
     return false;
   });
