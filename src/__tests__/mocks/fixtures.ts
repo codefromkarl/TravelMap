@@ -11,6 +11,7 @@ import type {
   DayPlan,
   Hotel,
   Meal,
+  TravelerProfile,
   TripPlan,
   TripRequest,
   TrvlFlightSearchResult,
@@ -209,4 +210,87 @@ export function createMockTrvlHotelResult(
     ],
     ...overrides,
   };
+}
+
+// ─── Scenario 工厂（常见业务场景预设）─────────────────────
+
+/** 单城市旅行场景 */
+export function createCityScenario(
+  city: string,
+  days: number,
+  options?: {
+    startDate?: string;
+    attractions?: string[];
+    travelers?: TravelerProfile;
+  },
+): {
+  request: TripRequest;
+  attractions: ReturnType<typeof createMockAttraction>[];
+  weather: ReturnType<typeof createMockWeatherInfo>[];
+  hotel: ReturnType<typeof createMockHotel>;
+} {
+  const startDate = options?.startDate ?? "2025-06-01";
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + days - 1);
+
+  const attractionNames = options?.attractions ?? ["热门景点", "文化古迹", "美食街"];
+  const attractions = attractionNames.map((name, i) =>
+    createMockAttraction({
+      name,
+      nameZh: name,
+      location: createMockLocation({ latitude: 39.9 + i * 0.01, longitude: 116.4 + i * 0.01 }),
+    }),
+  );
+
+  const weather = Array.from({ length: days }, (_, i) =>
+    createMockWeatherInfo({
+      date: new Date(startDate).toISOString().split("T")[0]!,
+      city,
+      dayWeather: ["晴", "多云", "阴"][i % 3]!,
+      dayTemp: 25 + (i % 5),
+    }),
+  );
+
+  const hotel = createMockHotel({ name: `${city}测试酒店`, address: `${city}市中心` });
+
+  const request = createMockTripRequest({
+    city,
+    cities: [{ city, days }],
+    startDate,
+    endDate: endDate.toISOString().split("T")[0]!,
+    travelDays: days,
+    travelers: options?.travelers,
+  });
+
+  return { request, attractions, weather, hotel };
+}
+
+/** 多城市旅行场景 */
+export function createMultiCityScenario(
+  cities: Array<{ city: string; days: number }>,
+  options?: { startDate?: string },
+): {
+  request: TripRequest;
+  scenarios: ReturnType<typeof createCityScenario>[];
+} {
+  const startDate = options?.startDate ?? "2025-06-01";
+  let currentDate = new Date(startDate);
+
+  const scenarios = cities.map(({ city, days }) => {
+    const scenario = createCityScenario(city, days, {
+      startDate: currentDate.toISOString().split("T")[0]!,
+    });
+    currentDate.setDate(currentDate.getDate() + days);
+    return scenario;
+  });
+
+  const request = createMockTripRequest({
+    city: cities[0]!.city,
+    cities,
+    startDate,
+    endDate: currentDate.toISOString().split("T")[0]!,
+    travelDays: cities.reduce((sum, c) => sum + c.days, 0),
+  });
+
+  return { request, scenarios };
 }
