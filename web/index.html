@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>旅途星辰 — AI 旅行规划</title>
+  <title>旅图 — AI 旅行规划</title>
   <script type="importmap">
     {
       "imports": {
-        "@earendil-works/pi-agent-core": "./pi-bundle.js",
-        "@earendil-works/pi-ai": "./pi-bundle.js",
-        "@earendil-works/pi-web-ui": "./pi-bundle.js",
-        "lit": "./pi-bundle.js",
+        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=2",
+        "@earendil-works/pi-ai": "./pi-bundle.js?v=2",
+        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=2",
+        "lit": "./pi-bundle.js?v=2",
         "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
       }
     }
@@ -20,13 +20,95 @@
     html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: #0f0f11; color: #e4e4e7; }
 
-    #app {
+    /* ─── 侧边栏 ─────────────────────────────────────── */
+    #sidebar {
+      width: 56px;
+      height: 100vh;
+      background: #111113;
+      border-right: 1px solid #27272a;
       display: flex;
       flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      flex-shrink: 0;
+      transition: width 0.2s ease;
+      overflow: hidden;
+      z-index: 60;
+    }
+    #sidebar.expanded {
+      width: 200px;
+      align-items: flex-start;
+      padding: 12px 0 12px 0;
+    }
+    #sidebar .sidebar-toggle {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: transparent;
+      border: none;
+      color: #71717a;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    #sidebar.expanded .sidebar-toggle {
+      margin-left: 10px;
+    }
+    #sidebar .sidebar-toggle:hover { background: #27272a; color: #e4e4e7; }
+    #sidebar nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+      flex: 1;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      color: #a1a1aa;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      font-size: 14px;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      min-height: 44px;
+    }
+    .nav-item:hover { background: #1e1e22; color: #e4e4e7; }
+    .nav-item.active { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+    .nav-item .nav-icon { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
+    .nav-item .nav-label { opacity: 0; transition: opacity 0.15s; }
+    #sidebar.expanded .nav-item .nav-label { opacity: 1; }
+    #sidebar.expanded .nav-item { padding-left: 14px; }
+
+    #app {
+      display: flex;
+      flex-direction: row;
       height: 100vh;
+    }
+
+    #main-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
       max-width: 960px;
       margin: 0 auto;
+      width: 100%;
     }
+
+    .page { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+    .page.active { display: flex; }
 
     header {
       padding: 16px 20px;
@@ -34,9 +116,66 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
     }
     header h1 { font-size: 18px; font-weight: 600; }
     header span { font-size: 13px; color: #71717a; }
+    #travelers-btn {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: #a1a1aa;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      margin-left: auto;
+    }
+    #travelers-btn:hover { background: #3f3f46; color: #e4e4e7; }
+    #travelers-btn.active { background: rgba(99, 102, 241, 0.2); border-color: #6366f1; color: #818cf8; }
+    .traveler-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .traveler-row label { font-size: 13px; color: #a1a1aa; }
+    .traveler-row input[type="number"] {
+      width: 60px;
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: #e4e4e7;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .traveler-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #6366f1;
+    }
+    #travelers-save {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #travelers-save:hover { background: #4f46e5; }
+    #travelers-summary {
+      font-size: 12px;
+      color: #71717a;
+      margin-top: 8px;
+      text-align: center;
+    }
 
     #chat-container {
       flex: 1;
@@ -253,6 +392,42 @@
     }
     #map-warnings div { margin-bottom: 4px; }
     #map-warnings div:last-child { margin-bottom: 0; }
+    #map-risk-summary {
+      max-height: 160px;
+      overflow-y: auto;
+      background: rgba(15, 15, 17, 0.85);
+      border-top: 1px solid #27272a;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #a1a1aa;
+      display: none;
+    }
+    #map-risk-summary .risk-item {
+      margin-bottom: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: rgba(39, 39, 42, 0.6);
+    }
+    #map-risk-summary .risk-item:last-child { margin-bottom: 0; }
+    #map-risk-summary .risk-title {
+      font-weight: 600;
+      color: #e4e4e7;
+      margin-bottom: 2px;
+    }
+    #map-risk-summary .risk-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+    #map-risk-summary .risk-badge.low { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+    #map-risk-summary .risk-badge.medium { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    #map-risk-summary .risk-badge.high { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    #map-risk-summary .risk-detail { margin-top: 4px; line-height: 1.5; }
+    #map-risk-summary .risk-suitability { margin-top: 4px; font-size: 11px; }
+    #map-risk-summary .risk-suitability .not-rec { color: #f87171; }
     .supply-marker { background: transparent !important; border: none !important; }
     .map-btn {
       background: #27272a;
@@ -270,6 +445,230 @@
       #map-panel { width: 100vw; }
     }
 
+    /* ─── 欢迎状态 ─────────────────────────────────────── */
+    #welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      padding: 40px 20px;
+      text-align: center;
+      gap: 24px;
+    }
+    #welcome.hidden { display: none; }
+    #welcome h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #e4e4e7;
+    }
+    #welcome p {
+      font-size: 14px;
+      color: #a1a1aa;
+      max-width: 480px;
+      line-height: 1.6;
+    }
+    #welcome .prompts {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 520px;
+    }
+    #welcome .prompt-card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 10px;
+      padding: 14px 18px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 14px;
+      color: #a1a1aa;
+      line-height: 1.5;
+    }
+    #welcome .prompt-card:hover {
+      background: #27272a;
+      border-color: #6366f1;
+      color: #e4e4e7;
+    }
+
+    /* ─── 遮罩层 ───────────────────────────────────────── */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 45;
+      display: none;
+    }
+    #overlay.visible { display: block; }
+
+    /* ─── disabled ghost 按钮 ───────────────────────────── */
+    .export-btn.disabled-ghost {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .export-btn.disabled-ghost:hover {
+      background: #27272a;
+    }
+
+    /* ─── 出行人群抽屉 ─────────────────────────────────── */
+    #travelers-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100vh;
+      background: #18181b;
+      border-left: 1px solid #3f3f46;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      overflow-y: auto;
+      box-shadow: 0 0 32px rgba(0,0,0,0.4);
+    }
+    #travelers-panel.open { transform: translateX(0) !important; }
+    #travelers-panel .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    #travelers-panel .panel-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #e4e4e7;
+    }
+    #travelers-panel .close-btn {
+      background: none;
+      border: none;
+      color: #71717a;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    #travelers-panel .close-btn:hover { color: #e4e4e7; }
+
+    /* ─── 模型配置页面 ─────────────────────────────────── */
+    #page-model {
+      padding: 32px 24px;
+      overflow-y: auto;
+    }
+    #page-model h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 24px;
+      color: #e4e4e7;
+    }
+    .setting-section {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      max-width: 600px;
+    }
+    .setting-section h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e4e4e7;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #27272a;
+    }
+    .setting-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .setting-row:last-child { margin-bottom: 0; }
+    .setting-row label {
+      font-size: 13px;
+      color: #a1a1aa;
+    }
+    .setting-row label .hint {
+      color: #52525b;
+      font-size: 12px;
+      margin-left: 6px;
+    }
+    .setting-row select,
+    .setting-row input[type="text"],
+    .setting-row input[type="password"] {
+      background: #0f0f11;
+      border: 1px solid #3f3f46;
+      color: #e4e4e7;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .setting-row select:focus,
+    .setting-row input:focus {
+      border-color: #6366f1;
+    }
+    .setting-row select { cursor: pointer; }
+    .setting-row input[type="password"] { font-family: monospace; letter-spacing: 2px; }
+    .save-settings-btn {
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 8px;
+    }
+    .save-settings-btn:hover { background: #4f46e5; }
+
+    /* ─── 移动端适配 ───────────────────────────────────── */
+    @media (max-width: 640px) {
+      #sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 56px;
+        height: 100vh;
+        z-index: 70;
+      }
+      #sidebar.expanded {
+        width: 200px;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+      }
+      #main-content {
+        margin-left: 56px;
+        width: calc(100% - 56px);
+      }
+      #map-panel { width: 100vw; }
+      #travelers-panel { width: 100vw; }
+      #history-panel { width: 100vw; }
+      header {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 16px;
+      }
+      header h1 { font-size: 16px; }
+      header span[data-i18n="subtitle"] { display: none; }
+      #lang-switcher { order: 10; margin-left: 0; }
+      .export-btn, #travelers-btn {
+        min-height: 44px;
+        min-width: 44px;
+        justify-content: center;
+      }
+      #welcome .prompts {
+        max-width: 100%;
+      }
+      #welcome {
+        padding: 24px 16px;
+      }
+      #welcome h2 { font-size: 18px; }
+    }
+
     #loading {
       display: flex;
       align-items: center;
@@ -285,8 +684,25 @@
 </head>
 <body>
   <div id="app">
-    <header>
-      <h1>🌍 旅途星辰</h1>
+    <!-- 左侧导航栏 -->
+    <aside id="sidebar">
+      <button class="sidebar-toggle" id="sidebar-toggle" title="展开/收缩">☰</button>
+      <nav>
+        <button class="nav-item active" data-page="page-trip">
+          <span class="nav-icon">✈️</span>
+          <span class="nav-label" data-i18n="navTrip">规划旅程</span>
+        </button>
+        <button class="nav-item" data-page="page-model">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label" data-i18n="navModel">模型配置</span>
+        </button>
+      </nav>
+    </aside>
+
+    <!-- 主内容区 -->
+    <div id="main-content">
+      <header>
+        <h1>🌍 旅图</h1>
       <span data-i18n="subtitle">AI 旅行规划助手</span>
       <div id="lang-switcher">
         <button class="lang-btn active" data-lang="zh">中文</button>
@@ -294,13 +710,46 @@
         <button class="lang-btn" data-lang="ja">日本語</button>
       </div>
       <div id="export-toolbar">
-        <button class="export-btn" id="btn-export-md" title="导出为 Markdown 文件" data-i18n-title="exportMd">📄 MD</button>
-        <button class="export-btn" id="btn-export-pdf" title="导出为 PDF" data-i18n-title="exportPdf">📕 PDF</button>
-        <button class="export-btn" id="btn-share-link" title="复制分享链接" data-i18n-title="share">🔗 <span data-i18n="share">分享</span></button>
+        <button class="export-btn disabled-ghost" id="btn-export-md" title="生成行程后可用" data-i18n-title="exportMd">📄 MD</button>
+        <button class="export-btn disabled-ghost" id="btn-export-pdf" title="生成行程后可用" data-i18n-title="exportPdf">📕 PDF</button>
+        <button class="export-btn disabled-ghost" id="btn-share-link" title="生成行程后可用" data-i18n-title="share">🔗 <span data-i18n="share">分享</span></button>
       </div>
-      <button class="export-btn" id="btn-map" title="行程地图" style="display:none">🗺️ 地图</button>
+      <button class="export-btn disabled-ghost" id="btn-map" title="生成行程后可用">🗺️ 地图</button>
+      <button id="travelers-btn" title="设置出行人群">👥 出行人群</button>
       <button class="export-btn" id="btn-history" title="历史行程">📋 历史</button>
     </header>
+    <div id="travelers-panel">
+      <div class="panel-header">
+        <h3>👥 出行人群设置</h3>
+        <button class="close-btn" id="btn-close-travelers">✕</button>
+      </div>
+      <div class="traveler-row">
+        <label>成人（18-59岁）</label>
+        <input type="number" id="t-adults" min="0" value="2">
+      </div>
+      <div class="traveler-row">
+        <label>老人（≥60岁）</label>
+        <input type="number" id="t-seniors" min="0" value="0">
+      </div>
+      <div class="traveler-row">
+        <label>儿童（3-12岁）</label>
+        <input type="number" id="t-children" min="0" value="0">
+      </div>
+      <div class="traveler-row">
+        <label>婴幼儿（&lt;3岁）</label>
+        <input type="number" id="t-infants" min="0" value="0">
+      </div>
+      <div class="traveler-row">
+        <label>有孕妇</label>
+        <input type="checkbox" id="t-pregnant">
+      </div>
+      <div class="traveler-row">
+        <label>有行动不便者</label>
+        <input type="checkbox" id="t-mobility">
+      </div>
+      <button id="travelers-save">保存设置</button>
+      <div id="travelers-summary"></div>
+    </div>
     <div id="print-content"></div>
     <div id="history-panel">
       <div class="panel-header">
@@ -314,35 +763,186 @@
     <div id="map-panel">
       <div class="panel-header">
         <h2>🗺️ 行程地图</h2>
-        <button class="close-btn" id="btn-close-map">✕</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="map-btn" id="btn-enrich-supplies" title="丰富补给详情" style="display:none">🔄 丰富补给</button>
+          <button class="close-btn" id="btn-close-map">✕</button>
+        </div>
       </div>
       <div id="map-container"></div>
       <div id="map-warnings"></div>
+      <div id="map-risk-summary"></div>
       <div class="map-info">
-        <span><span class="legend-dot" style="background:#ef4444"></span> 景点</span>
-        <span><span class="legend-dot" style="background:#6366f1"></span> 路线</span>
+        <span><span class="legend-dot" style="background:#3b82f6"></span> 景点</span>
+        <span><span class="legend-dot" style="background:#22c55e"></span> 低风险路线</span>
+        <span><span class="legend-dot" style="background:#f59e0b"></span> 中风险路线</span>
+        <span><span class="legend-dot" style="background:#ef4444"></span> 高风险路线</span>
         <span><span class="legend-dot" style="background:#f59e0b"></span> 餐饮</span>
         <span><span class="legend-dot" style="background:#10b981"></span> 商店</span>
         <span><span class="legend-dot" style="background:#ec4899"></span> 休息</span>
         <span id="map-status" style="margin-left:auto"></span>
       </div>
     </div>
+    <div id="overlay"></div>
     <div id="toast"></div>
-    <div id="chat-container">
-      <div id="loading">正在初始化...</div>
-      <pi-chat-panel id="chat"></pi-chat-panel>
+
+    <!-- 页面1: 规划旅程 -->
+    <div id="page-trip" class="page active">
+      <div id="chat-container">
+        <div id="welcome">
+          <h2 data-i18n="welcomeTitle">欢迎使用旅图 ✨</h2>
+          <p data-i18n="welcomeDesc">告诉我你的旅行需求，我会为你规划完美行程。你也可以点击下方示例快速开始：</p>
+          <div class="prompts">
+            <div class="prompt-card" data-prompt="规划一个3天杭州亲子游，带两个老人和一个5岁小朋友">🌊 规划一个 3 天杭州亲子游，带两个老人和一个 5 岁小朋友</div>
+            <div class="prompt-card" data-prompt="北京5日文化之旅，预算5000元，住哪里比较方便">🏛️ 北京 5 日文化之旅，预算 5000 元</div>
+            <div class="prompt-card" data-prompt="成都周边3天自驾游，想去大熊猫基地和都江堰">🐼 成都周边 3 天自驾游，大熊猫基地 + 都江堰</div>
+            <div class="prompt-card" data-prompt="上海出发去黄山2日游，坐高铁，帮我安排详细路线和住宿">⛰️ 上海出发黄山 2 日游，高铁往返</div>
+          </div>
+        </div>
+        <div id="loading">正在初始化...</div>
+        <pi-chat-panel id="chat"></pi-chat-panel>
+      </div>
     </div>
-  </div>
+
+    <!-- 页面2: 模型配置 -->
+    <div id="page-model" class="page">
+      <div id="page-model-content">
+        <h2 data-i18n="modelConfigTitle">⚙️ 模型配置</h2>
+
+        <div class="setting-section">
+          <h3 data-i18n="providerSection">AI 服务商</h3>
+          <div class="setting-row">
+            <label data-i18n="providerLabel">服务商</label>
+            <select id="cfg-provider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="google">Google</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="openrouter">OpenRouter</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label data-i18n="modelLabel">模型</label>
+            <select id="cfg-model">
+              <option value="gpt-4o">GPT-4o</option>
+              <option value="gpt-4o-mini">GPT-4o Mini</option>
+              <option value="gpt-4-turbo">GPT-4 Turbo</option>
+              <option value="o1">o1</option>
+              <option value="o3-mini">o3 Mini</option>
+              <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+              <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="deepseek-chat">DeepSeek Chat</option>
+              <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <h3 data-i18n="apiKeySection">API 密钥</h3>
+          <div class="setting-row">
+            <label data-i18n="apiKeyLabel">API Key <span class="hint" data-i18n="apiKeyHint">（密钥保存在本地浏览器中）</span></label>
+            <input type="password" id="cfg-apikey" placeholder="sk-..." autocomplete="off">
+          </div>
+        </div>
+
+        <button class="save-settings-btn" id="btn-save-model" data-i18n="saveSettings">保存配置</button>
+      </div>
+    </div>
+    </div> <!-- /main-content -->
+  </div> <!-- /app -->
 
   <script type="module">
-    import { ChatPanel } from "@earendil-works/pi-web-ui";
+    import { ChatPanel, setAppStorage, AppStorage, getAppStorage } from "@earendil-works/pi-web-ui";
     // CSS 已通过 <link> 标签加载，无需 import
     import { Agent } from "@earendil-works/pi-agent-core";
     import { getModel } from "@earendil-works/pi-ai";
     import { Type } from "@earendil-works/pi-ai";
 
+    // ─── 初始化 AppStorage（基于 localStorage） ────────────
+    class LocalStorageBackend {
+      async get(storeName, key) {
+        const v = localStorage.getItem(`${storeName}:${key}`);
+        return v ? JSON.parse(v) : null;
+      }
+      async set(storeName, key, value) {
+        localStorage.setItem(`${storeName}:${key}`, JSON.stringify(value));
+      }
+      async delete(storeName, key) {
+        localStorage.removeItem(`${storeName}:${key}`);
+      }
+      async keys(storeName, _prefix) {
+        const prefix = `${storeName}:`;
+        const result = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k.startsWith(prefix)) result.push(k.slice(prefix.length));
+        }
+        return result;
+      }
+      async getAllFromIndex() { return []; }
+      async clear(storeName) {
+        const prefix = `${storeName}:`;
+        const toRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k.startsWith(prefix)) toRemove.push(k);
+        }
+        toRemove.forEach(k => localStorage.removeItem(k));
+      }
+      async has(storeName, key) {
+        return localStorage.getItem(`${storeName}:${key}`) !== null;
+      }
+      async transaction(_stores, _mode, op) { return op(this); }
+      async getQuotaInfo() {
+        try {
+          const est = await navigator.storage?.estimate();
+          return { usage: est?.usage || 0, quota: est?.quota || 0, percent: est?.quota ? ((est.usage || 0) / est.quota * 100) : 0 };
+        } catch { return { usage: 0, quota: 0, percent: 0 }; }
+      }
+      async requestPersistence() {
+        try { return await navigator.storage?.persist() || false; } catch { return false; }
+      }
+    }
+
+    // 创建带 localStorage 后端的 AppStorage
+    // 注意：Store 子类需要 setBackend，但 AppStorage 构造函数会处理
+    // 这里使用简化版：直接构造带 backend 的 AppStorage
+    const _backend = new LocalStorageBackend();
+    const _mkStore = (cfg) => {
+      const store = {
+        getConfig: () => cfg,
+        setBackend: () => {},
+        getBackend: () => _backend,
+      };
+      // 代理所有异步方法到 backend
+      for (const m of ['get', 'set', 'delete', 'keys', 'has', 'clear']) {
+        if (!store[m]) store[m] = (...args) => _backend[m](cfg.name, ...args);
+      }
+      return store;
+    };
+    setAppStorage(new AppStorage(
+      _mkStore({ name: 'settings' }),
+      _mkStore({ name: 'provider-keys' }),
+      _mkStore({ name: 'sessions' }),
+      _mkStore({ name: 'custom-providers' }),
+      _backend,
+    ));
+
+    // 将已有的 localStorage api-key 迁移到 AppStorage
+    (async () => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k.startsWith('api-key-')) {
+          const prov = k.slice('api-key-'.length);
+          const val = localStorage.getItem(k);
+          if (val) await getAppStorage().providerKeys.set(prov, val);
+        }
+      }
+    })();
+
     // ─── System Prompt ────────────────────────────────────
-    const SYSTEM_PROMPT = `你是「旅途星辰」，一位专业且贴心的私人旅行管家。
+    const SYSTEM_PROMPT = `你是「旅图」，一位专业且贴心的私人旅行管家。
 
 你的职责是根据用户的需求，利用工具搜索景点、天气、酒店信息，
 然后统筹规划出一份完整的旅行行程。
@@ -354,7 +954,33 @@
 3. **酒店推荐** — 使用 search_hotels 工具，根据预算和位置推荐住宿
 4. **行程编排** — 综合以上信息，规划每日行程（景点顺序、餐饮、交通）
 5. **预算计算** — 使用 calculate_budget 工具，统计所有费用，生成预算明细
-6. **行动链接** — 使用 generate_action_links 工具，为需预约景点生成预约链接、酒店比价链接、城际交通搜索链接
+6. **风险评估** — 对包含多条可选路线的景点（如西湖、黄山），根据用户人群（老人/儿童/孕妇/行动不便者）筛选合适路线，并在输出中标注风险提示
+7. **行动链接** — 使用 generate_action_links 工具，为需预约景点生成预约链接、酒店比价链接、城际交通搜索链接
+8. **补给详情**（可选）— 当用户询问"哪里有吃的""哪里能休息""景区内有补给吗"时，使用 enrich_supply_details 工具丰富景点内部的补给点详情
+
+## 路线风险评估规则
+
+每个景点若有可选路线（routes 字段），请遵循以下规则：
+- **主动提示风险**：若路线 riskLevel ≥ 2，在景点说明中追加风险提示
+- **人群适配**：若用户提到带老人/小孩/孕妇，优先推荐 riskLevel = 1 的路线
+- **高海拔预警**：若路线 maxElevation > 1500 米，提醒用户注意高原反应和气温变化
+- **补给提醒**：若路线 supplyStrategy.warnings 非空，在行程中引用这些警告
+
+## 酒店适配规则
+
+根据出行人群画像调整酒店推荐策略：
+- **带老人** — 优先推荐有电梯、近景区入口/地铁口、楼层较低（≤3楼）的酒店
+- **带婴幼儿** — 优先推荐提供婴儿床、亲子房、独立卫浴的酒店
+- **有孕妇** — 优先推荐安静、通风好、近医院的酒店
+- **行动不便者** — 优先推荐无障碍设施齐全的酒店
+- **人数较多** — 若总人数 ≥ 5 人，推荐家庭套房或多间房
+
+## 人群画像追问规则
+
+如果用户没有提供出行人群信息，请在第一轮追问中了解：
+- 出行人数构成（成人/老人/儿童/婴幼儿各几人）
+- 是否有孕妇
+- 是否有行动不便者（推婴儿车、坐轮椅、拄拐等）
 
 ## 输出格式
 
@@ -380,6 +1006,8 @@
 - 门票价格、费用必须是纯数字，不带单位
 - 如果某个信息无法获取，基于常识给出保守建议，不要说"无法查询"
 - 支持多城市行程规划，城际移动日要标注交通建议
+
+{{TRAVELERS}}
 
 {{LANGUAGE_INSTRUCTION}}`;
 
@@ -494,6 +1122,81 @@
     };
 
     // ─── 行动链接工具 ────────────────────────────────────
+    // ─── 补给详情丰富工具 ──────────────────────────────────
+    const enrichSupplyDetailsTool = {
+      name: "enrich_supply_details",
+      label: "补给详情",
+      description: "为已生成的行程丰富景点内部补给点详情：验证每个途经点附近的餐厅/商店/休息区的精确坐标、人均消费、营业时间。在粗略行程生成后调用。",
+      parameters: Type.Object({
+        tripPlan: Type.Object({
+          city: Type.String(),
+          days: Type.Array(Type.Object({
+            date: Type.String(),
+            city: Type.String(),
+            attractions: Type.Array(Type.Object({
+              name: Type.String(),
+              nameZh: Type.String(),
+              location: Type.Object({ latitude: Type.Number(), longitude: Type.Number() }),
+              routes: Type.Optional(Type.Array(Type.Object({
+                id: Type.String(),
+                name: Type.String(),
+                waypoints: Type.Array(Type.Object({
+                  name: Type.String(),
+                  location: Type.Object({ latitude: Type.Number(), longitude: Type.Number() }),
+                  supplyPoints: Type.Optional(Type.Array(Type.Object({
+                    name: Type.String(),
+                    type: Type.String(),
+                    description: Type.String(),
+                    estimatedCost: Type.Number(),
+                    isRecommended: Type.Boolean(),
+                  }))),
+                })),
+              }))),
+            })),
+          })),
+        }),
+      }),
+      execute: async (_id, params) => {
+        const { tripPlan } = params;
+        // 前端简化版：汇总静态补给数据，标记为待验证
+        const lines = ["## 🍴 补给详情", ""];
+        let totalSupplyPoints = 0;
+        let exactCount = 0;
+
+        for (const day of tripPlan.days) {
+          for (const attr of day.attractions) {
+            if (!attr.routes?.some(r => r.waypoints.some(wp => wp.supplyPoints?.length))) continue;
+            lines.push(`### ${attr.nameZh || attr.name}`);
+            for (const route of attr.routes) {
+              if (!route.waypoints.some(wp => wp.supplyPoints?.length)) continue;
+              lines.push(`**${route.name}**`);
+              for (const wp of route.waypoints) {
+                if (!wp.supplyPoints?.length) continue;
+                totalSupplyPoints += wp.supplyPoints.length;
+                const exactSp = wp.supplyPoints.filter(sp => sp.locationAccuracy === "exact");
+                exactCount += exactSp.length;
+                const summary = wp.supplyPoints.map(sp =>
+                  `${sp.name}(¥${sp.estimatedCost}${sp.locationAccuracy === "exact" ? "✓" : "?"})`
+                ).join(", ");
+                lines.push(`- ${wp.name}: ${summary}`);
+              }
+            }
+            lines.push("");
+          }
+        }
+
+        lines.push(`---`);
+        lines.push(`共 **${totalSupplyPoints}** 个补给点，其中 **${exactCount}** 个已验证精确坐标。`);
+        lines.push(`> 💡 提示：精确坐标和实时价格需要配置高德/Google API Key 后自动获取。`);
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+          details: { tripPlan, totalSupplyPoints, exactCount },
+        };
+      },
+    };
+
+    // ─── 行动链接工具 ────────────────────────────────────
     const generateActionLinksTool = {
       name: "generate_action_links",
       label: "行动链接",
@@ -550,7 +1253,18 @@
         lines.splice(1, 0, `生成了 **${linkCount}** 个实用链接`);
         // 保存行程数据供地图渲染
         window._lastTripPlan = tripPlan;
-        document.getElementById("btn-map")?.style.setProperty("display", "flex");
+        // 启用地图按钮
+        document.getElementById("btn-map")?.classList.remove("disabled-ghost");
+
+        // 检查是否有需要丰富的补给点
+        const hasSupplies = tripPlan.days?.some(d =>
+          d.attractions?.some(a =>
+            a.routes?.some(r => r.waypoints?.some(wp => wp.supplyPoints?.length > 0))
+          )
+        );
+        if (hasSupplies) {
+          document.getElementById("btn-enrich-supplies")?.style.setProperty("display", "inline-block");
+        }
         return {
           content: [{ type: "text", text: lines.join("\n") }],
           details: { tripPlan, linkCount },
@@ -692,7 +1406,7 @@
         systemPrompt: SYSTEM_PROMPT,
         model,
         thinkingLevel: "medium",
-        tools: [searchAttractionsTool, searchWeatherTool, searchHotelsTool, calculateBudgetTool, generateActionLinksTool, companionQATool, planMultiCityTool],
+        tools: [searchAttractionsTool, searchWeatherTool, searchHotelsTool, calculateBudgetTool, generateActionLinksTool, companionQATool, planMultiCityTool, enrichSupplyDetailsTool],
         messages: [],
       },
       // 从 localStorage 读取 API Key，供给 LLM 请求使用
@@ -727,7 +1441,7 @@
       if (!content.trim().startsWith("#")) {
         const date = new Date().toLocaleDateString("zh-CN");
         return `# 🗺️ 旅行计划
-> 由「旅途星辰」AI 旅行规划助手生成 · ${date}
+> 由「旅图」AI 旅行规划助手生成 · ${date}
 
 ---
 
@@ -767,7 +1481,7 @@ ${content}
         .replace(/\n\n/g, "</p><p>")
         .split("\n").map(line => line.startsWith("<") ? line : (line.trim() ? `<p>${line}</p>` : "")).join("\n");
       printEl.innerHTML = `<h1 style="text-align:center;margin-bottom:4px;">🗺️ 旅行计划</h1>
-<p style="text-align:center;color:#666;font-size:11pt;margin-bottom:20px;">由「旅途星辰」AI 生成 · ${new Date().toLocaleDateString("zh-CN")}</p>
+<p style="text-align:center;color:#666;font-size:11pt;margin-bottom:20px;">由「旅图」AI 生成 · ${new Date().toLocaleDateString("zh-CN")}</p>
 ${html}`;
       window.print();
       showToast("🖨️ 请在打印对话框中选择「另存为 PDF」");
@@ -854,11 +1568,19 @@ ${trip.content}`,
         if (content && content !== lastTripContent && content.length > 200) {
           lastTripContent = content;
           document.getElementById("export-toolbar")?.classList.add("visible");
+          // 启用导出和地图按钮
+          ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-map"].forEach(id => {
+            document.getElementById(id)?.classList.remove("disabled-ghost");
+          });
         }
       }
       if (event.type === "turn_start") {
         // 新一轮对话开始，隐藏导出按钮
         document.getElementById("export-toolbar")?.classList.remove("visible");
+        // 禁用导出和地图按钮
+        ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-map"].forEach(id => {
+          document.getElementById(id)?.classList.add("disabled-ghost");
+        });
       }
     });
 
@@ -889,18 +1611,15 @@ ${trip.content}`,
         const key = prompt(`请输入 ${prov} API Key:`);
         if (key) {
           localStorage.setItem(`api-key-${prov}`, key);
+          // 同步到 AppStorage (AgentInterface 也通过 getAppStorage 读取)
+          await getAppStorage().providerKeys.set(prov, key);
           return true;
         }
         return false;
       },
     });
 
-    // 加载分享的行程
-    loadSharedTrip();
-    // 清理过期分享
-    renderSharedTrips();
-
-    // ─── i18n 多语言 ────────────────────────────────────
+    // ─── i18n 多语言（需在 initTravelersPanel 之前） ──────
     const I18N = {
       zh: {
         subtitle: "AI 旅行规划助手",
@@ -916,6 +1635,22 @@ ${trip.content}`,
         tripNotFound: "⚠️ 未找到该分享的行程",
         tripLoaded: "📋 已加载分享的行程",
         langSet: "语言已切换为中文",
+        welcomeTitle: "欢迎使用旅图 ✨",
+        welcomeDesc: "告诉我你的旅行需求，我会为你规划完美行程。你也可以点击下方示例快速开始：",
+        promptPlaceholder: "描述你的旅行计划...",
+        exportDisabled: "生成行程后可用",
+        closePanel: "关闭",
+        navTrip: "规划旅程",
+        navModel: "模型配置",
+        modelConfigTitle: "⚙️ 模型配置",
+        providerSection: "AI 服务商",
+        providerLabel: "服务商",
+        modelLabel: "模型",
+        apiKeySection: "API 密钥",
+        apiKeyLabel: "API Key",
+        apiKeyHint: "（密钥保存在本地浏览器中）",
+        saveSettings: "保存配置",
+        settingsSaved: "✅ 配置已保存",
       },
       en: {
         subtitle: "AI Travel Planner",
@@ -931,6 +1666,22 @@ ${trip.content}`,
         tripNotFound: "⚠️ Shared trip not found",
         tripLoaded: "📋 Shared trip loaded",
         langSet: "Language switched to English",
+        welcomeTitle: "Welcome to TravelStar ✨",
+        welcomeDesc: "Tell me your travel needs and I'll plan the perfect trip. Click an example below to get started:",
+        promptPlaceholder: "Describe your travel plan...",
+        exportDisabled: "Available after generating itinerary",
+        closePanel: "Close",
+        navTrip: "Trip Planner",
+        navModel: "Model Config",
+        modelConfigTitle: "⚙️ Model Configuration",
+        providerSection: "AI Provider",
+        providerLabel: "Provider",
+        modelLabel: "Model",
+        apiKeySection: "API Key",
+        apiKeyLabel: "API Key",
+        apiKeyHint: "(Key is stored locally in your browser)",
+        saveSettings: "Save Settings",
+        settingsSaved: "✅ Settings saved",
       },
       ja: {
         subtitle: "AI旅行プランナー",
@@ -946,6 +1697,22 @@ ${trip.content}`,
         tripNotFound: "⚠️ 共有された旅程が見つかりません",
         tripLoaded: "📋 共有された旅程を読み込みました",
         langSet: "言語を日本語に切り替えました",
+        welcomeTitle: "TravelStarへようこそ ✨",
+        welcomeDesc: "旅行のニーズを教えてください。完璧なプランを提案します。下の例をクリックしてすぐ始められます：",
+        promptPlaceholder: "旅行計画を入力...",
+        exportDisabled: "旅程生成後に利用可能",
+        closePanel: "閉じる",
+        navTrip: "旅行プラン",
+        navModel: "モデル設定",
+        modelConfigTitle: "⚙️ モデル設定",
+        providerSection: "AIプロバイダー",
+        providerLabel: "プロバイダー",
+        modelLabel: "モデル",
+        apiKeySection: "APIキー",
+        apiKeyLabel: "APIキー",
+        apiKeyHint: "（キーはローカルブラウザに保存されます）",
+        saveSettings: "設定を保存",
+        settingsSaved: "✅ 設定を保存しました",
       },
     };
 
@@ -957,6 +1724,14 @@ ${trip.content}`,
 
     let currentLang = localStorage.getItem("travel-agent-lang") || "zh";
 
+    function buildSystemPrompt(lang) {
+      const instruction = LANG_PROMPTS[lang] || "";
+      const travelersText = buildTravelersPrompt(currentTravelers);
+      return SYSTEM_PROMPT
+        .replace("{{TRAVELERS}}", travelersText)
+        .replace("{{LANGUAGE_INSTRUCTION}}", instruction);
+    }
+
     function applyI18n(lang) {
       const dict = I18N[lang] || I18N.zh;
       document.querySelectorAll("[data-i18n]").forEach(el => {
@@ -966,6 +1741,13 @@ ${trip.content}`,
       document.querySelectorAll("[data-i18n-title]").forEach(el => {
         const key = el.getAttribute("data-i18n-title");
         if (dict[key]) el.title = dict[key];
+      });
+      // 更新 textarea placeholder
+      const ta = document.querySelector("message-editor textarea");
+      if (ta) ta.placeholder = dict.promptPlaceholder || "描述你的旅行计划...";
+      // 更新 disabled-ghost 按钮 title
+      document.querySelectorAll(".disabled-ghost").forEach(el => {
+        el.title = dict.exportDisabled || "生成行程后可用";
       });
       // 更新语言按钮状态
       document.querySelectorAll(".lang-btn").forEach(btn => {
@@ -977,11 +1759,165 @@ ${trip.content}`,
     }
 
     function updateAgentLanguage(lang) {
-      const instruction = LANG_PROMPTS[lang] || "";
-      // 替换 system prompt 中的语言占位符
-      const basePrompt = SYSTEM_PROMPT.replace("{{LANGUAGE_INSTRUCTION}}", instruction);
-      agent.state.systemPrompt = basePrompt;
+      agent.state.systemPrompt = buildSystemPrompt(lang);
     }
+
+    // ─── 出行人群设置面板 ─────────────────────────────────
+    const TRAVELERS_KEY = "travel-agent-travelers";
+    let currentTravelers = null;
+
+    function loadTravelersFromStorage() {
+      try {
+        const raw = localStorage.getItem(TRAVELERS_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return null;
+    }
+
+    function saveTravelersToStorage(t) {
+      localStorage.setItem(TRAVELERS_KEY, JSON.stringify(t));
+    }
+
+    function formatTravelersText(t) {
+      if (!t) return "";
+      const parts = [];
+      if (t.adults > 0) parts.push(`${t.adults}成人`);
+      if (t.seniors > 0) parts.push(`${t.seniors}老人`);
+      if (t.children > 0) parts.push(`${t.children}儿童`);
+      if (t.infants > 0) parts.push(`${t.infants}婴幼儿`);
+      if (t.pregnant) parts.push("孕妇");
+      if (t.mobilityImpaired) parts.push("行动不便");
+      return parts.length > 0 ? `👥 ${parts.join(" · ")}` : "👥 未设置";
+    }
+
+    function buildTravelersPrompt(t) {
+      if (!t) return "";
+      const parts = [
+        "## 出行人群画像",
+        `成人: ${t.adults}人 | 老人: ${t.seniors}人 | 儿童: ${t.children}人 | 婴幼儿: ${t.infants}人`,
+      ];
+      if (t.pregnant) parts.push("⚠️ 有孕妇随行");
+      if (t.mobilityImpaired) parts.push("⚠️ 有行动不便者随行");
+      parts.push("");
+      parts.push("请根据以上人群画像，在推荐景点和路线时排除高风险、高体力消耗的项目。");
+      return parts.join("\n");
+    }
+
+    function updateSystemPromptWithTravelers() {
+      agent.state.systemPrompt = buildSystemPrompt(currentLang);
+    }
+
+    function initTravelersPanel() {
+      currentTravelers = loadTravelersFromStorage();
+      if (currentTravelers) {
+        document.getElementById("t-adults").value = currentTravelers.adults;
+        document.getElementById("t-seniors").value = currentTravelers.seniors;
+        document.getElementById("t-children").value = currentTravelers.children;
+        document.getElementById("t-infants").value = currentTravelers.infants;
+        document.getElementById("t-pregnant").checked = currentTravelers.pregnant;
+        document.getElementById("t-mobility").checked = currentTravelers.mobilityImpaired;
+        document.getElementById("travelers-summary").textContent = formatTravelersText(currentTravelers);
+        document.getElementById("travelers-btn").classList.add("active");
+      }
+      // 统一通过 buildSystemPrompt 设置
+      agent.state.systemPrompt = buildSystemPrompt(currentLang);
+    }
+
+    // ─── 面板互斥管理 ──────────────────────────────────────
+    const overlay = document.getElementById("overlay");
+    let activePanel = null;
+
+    function openPanel(panelId) {
+      // 如果点击的面板已打开，则关闭
+      if (activePanel === panelId) {
+        closePanel(panelId);
+        return;
+      }
+      // 关闭当前打开的面板
+      if (activePanel) {
+        closePanel(activePanel);
+      }
+      const panel = document.getElementById(panelId);
+      if (panel) {
+        panel.classList.add("open");
+        activePanel = panelId;
+        overlay?.classList.add("visible");
+      }
+      // 特殊处理：打开历史面板时渲染历史
+      if (panelId === "history-panel") renderHistory();
+    }
+
+    function closePanel(panelId) {
+      const panel = document.getElementById(panelId);
+      if (panel) {
+        panel.classList.remove("open");
+      }
+      if (activePanel === panelId) {
+        activePanel = null;
+        overlay?.classList.remove("visible");
+      }
+    }
+
+    function closeAllPanels() {
+      ["travelers-panel", "history-panel", "map-panel"].forEach(id => {
+        document.getElementById(id)?.classList.remove("open");
+      });
+      activePanel = null;
+      overlay?.classList.remove("visible");
+    }
+
+    // 遮罩层点击关闭
+    overlay?.addEventListener("click", closeAllPanels);
+
+    // Esc 键关闭面板
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && activePanel) {
+        closeAllPanels();
+      }
+    });
+
+    // 出行人群按钮
+    document.getElementById("travelers-btn")?.addEventListener("click", () => {
+      if (activePanel === "travelers-panel") {
+        closePanel("travelers-panel");
+      } else {
+        openPanel("travelers-panel");
+      }
+    });
+
+    // 出行人群关闭按钮
+    document.getElementById("btn-close-travelers")?.addEventListener("click", () => {
+      closePanel("travelers-panel");
+    });
+
+    document.getElementById("travelers-save")?.addEventListener("click", () => {
+      const t = {
+        adults: Math.max(0, parseInt(document.getElementById("t-adults").value) || 0),
+        seniors: Math.max(0, parseInt(document.getElementById("t-seniors").value) || 0),
+        children: Math.max(0, parseInt(document.getElementById("t-children").value) || 0),
+        infants: Math.max(0, parseInt(document.getElementById("t-infants").value) || 0),
+        pregnant: document.getElementById("t-pregnant").checked,
+        mobilityImpaired: document.getElementById("t-mobility").checked,
+      };
+      currentTravelers = t;
+      saveTravelersToStorage(t);
+      document.getElementById("travelers-summary").textContent = formatTravelersText(t);
+      document.getElementById("travelers-btn").classList.add("active");
+      updateSystemPromptWithTravelers();
+      document.getElementById("travelers-panel").classList.remove("open");
+      activePanel = null;
+      overlay?.classList.remove("visible");
+      showToast(`👥 已保存：${formatTravelersText(t)}`);
+    });
+
+
+
+    initTravelersPanel();
+
+    // 加载分享的行程
+    loadSharedTrip();
+    // 清理过期分享
+    renderSharedTrips();
 
     // 语言切换按钮
     document.querySelectorAll(".lang-btn").forEach(btn => {
@@ -1003,8 +1939,9 @@ ${trip.content}`,
 
     // ─── IndexedDB 会话持久化 ──────────────────────────────
     const DB_NAME = "TravelAgentDB";
-    const DB_VERSION = 1;
+    const DB_VERSION = 2; // 升级到 v2 添加 supplyPoints store
     const STORE_NAME = "trips";
+    const SUPPLY_STORE_NAME = "supplyPoints";
 
     function openDB() {
       return new Promise((resolve, reject) => {
@@ -1015,10 +1952,87 @@ ${trip.content}`,
             const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
             store.createIndex("updatedAt", "updatedAt");
           }
+          if (!db.objectStoreNames.contains(SUPPLY_STORE_NAME)) {
+            const supplyStore = db.createObjectStore(SUPPLY_STORE_NAME, { keyPath: "cacheKey" });
+            supplyStore.createIndex("updatedAt", "updatedAt");
+            supplyStore.createIndex("city", "city");
+          }
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
+    }
+
+    // ─── 补给点 IndexedDB 缓存 ─────────────────────────────
+    async function saveSupplyPointsToCache(city, points) {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(SUPPLY_STORE_NAME, "readwrite");
+        const store = tx.objectStore(SUPPLY_STORE_NAME);
+        const now = new Date().toISOString();
+        for (const p of points) {
+          const cacheKey = `${city}:${p.name}`;
+          const record = {
+            cacheKey,
+            city,
+            name: p.name,
+            point: p,
+            updatedAt: now,
+          };
+          store.put(record);
+        }
+      } catch (err) {
+        console.warn("[SupplyCache] 保存到 IndexedDB 失败:", err);
+      }
+    }
+
+    async function loadSupplyPointsFromCache(city, names) {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(SUPPLY_STORE_NAME, "readonly");
+        const store = tx.objectStore(SUPPLY_STORE_NAME);
+        const results = [];
+        for (const name of names) {
+          const cacheKey = `${city}:${name}`;
+          const record = await new Promise((resolve) => {
+            const req = store.get(cacheKey);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+          });
+          if (record) results.push(record.point);
+        }
+        return results;
+      } catch (err) {
+        console.warn("[SupplyCache] 从 IndexedDB 读取失败:", err);
+        return [];
+      }
+    }
+
+    async function clearExpiredSupplyCache(maxAgeDays = 30) {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(SUPPLY_STORE_NAME, "readwrite");
+        const store = tx.objectStore(SUPPLY_STORE_NAME);
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - maxAgeDays);
+        const cutoffStr = cutoff.toISOString();
+        let deleted = 0;
+        const req = store.openCursor();
+        req.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            if (cursor.value.updatedAt < cutoffStr) {
+              store.delete(cursor.primaryKey);
+              deleted++;
+            }
+            cursor.continue();
+          }
+        };
+        return deleted;
+      } catch (err) {
+        console.warn("[SupplyCache] 清理过期缓存失败:", err);
+        return 0;
+      }
     }
 
     async function saveTrip(id, title, summary, content, messages) {
@@ -1172,11 +2186,14 @@ ${trip.content}`,
     }
 
     document.getElementById("btn-history")?.addEventListener("click", () => {
-      historyPanel.classList.toggle("open");
-      renderHistory();
+      if (activePanel === "history-panel") {
+        closePanel("history-panel");
+      } else {
+        openPanel("history-panel");
+      }
     });
     document.getElementById("btn-close-history")?.addEventListener("click", () => {
-      historyPanel.classList.remove("open");
+      closePanel("history-panel");
     });
 
     // ─── Agent 事件监听 + 自动保存 ──────────────────────────
@@ -1245,6 +2262,14 @@ ${trip.content}`,
       let routeCount = 0;
       let supplyPointCount = 0;
       const warnings = [];
+      const riskSummary = []; // 收集所有路线的风险摘要
+
+      // 风险等级颜色映射
+      const RISK_COLORS = {
+        1: { stroke: "#22c55e", fill: "#4ade80", label: "🟢 低风险" },
+        2: { stroke: "#f59e0b", fill: "#fbbf24", label: "🟡 中风险" },
+        3: { stroke: "#ef4444", fill: "#f87171", label: "🔴 高风险" },
+      };
 
       for (const day of tripPlan.days) {
         const dayCity = day.city || tripPlan.city;
@@ -1267,10 +2292,39 @@ ${trip.content}`,
                 .filter(wp => wp.location && (wp.location.latitude !== 0 || wp.location.longitude !== 0))
                 .map(wp => [wp.location.latitude, wp.location.longitude]);
               if (path.length > 1) {
-                const polyline = L.polyline(path, { color: "#6366f1", weight: 4, opacity: 0.85, lineJoin: "round" });
+                const riskLevel = route.riskAssessment?.riskLevel || 1;
+                const riskColor = RISK_COLORS[riskLevel] || RISK_COLORS[1];
+                const polyline = L.polyline(path, {
+                  color: riskColor.stroke,
+                  weight: riskLevel === 3 ? 5 : 4,
+                  opacity: 0.9,
+                  lineJoin: "round",
+                  dashArray: riskLevel === 3 ? "8,6" : null, // 高风险路线用虚线警示
+                });
                 polyline.addTo(leafletMap);
                 leafletLayers.push(polyline);
                 routeCount++;
+
+                // 收集风险摘要
+                if (route.riskAssessment) {
+                  const ra = route.riskAssessment;
+                  const gain = ra.totalElevationGain > 0 ? ` ↑${ra.totalElevationGain}m` : "";
+                  const loss = ra.totalElevationLoss > 0 ? ` ↓${ra.totalElevationLoss}m` : "";
+                  const maxEl = ra.maxElevation > 0 ? ` 最高${ra.maxElevation}m` : "";
+                  riskSummary.push({
+                    name: attr.nameZh || attr.name,
+                    routeName: route.name,
+                    level: riskLevel,
+                    label: riskColor.label,
+                    gain,
+                    loss,
+                    maxEl,
+                    calories: ra.estimatedCalories,
+                    steps: ra.estimatedSteps,
+                    factors: ra.riskFactors || [],
+                    suitability: ra.suitability,
+                  });
+                }
 
                 // 收集补给警告
                 if (route.supplyStrategy?.warnings?.length) {
@@ -1280,7 +2334,15 @@ ${trip.content}`,
                 // 途经点标记
                 route.waypoints.forEach((wp, i) => {
                   if (wp.location && (wp.location.latitude !== 0 || wp.location.longitude !== 0)) {
-                    let popupHtml = `<b>${i + 1}. ${wp.name}</b><br>${wp.visitDuration || ""}分钟`;
+                    let popupHtml = `<b>${i + 1}. ${wp.name}</b>`;
+                    if (wp.elevation !== undefined && wp.elevation !== 0) {
+                      popupHtml += ` <span style="color:#a1a1aa;font-size:12px">⛰ ${wp.elevation}m</span>`;
+                    }
+                    popupHtml += `<br>${wp.visitDuration || ""}分钟`;
+                    if (wp.terrainType) {
+                      const terrainLabels = { flat: "平地", slope: "缓坡", stairs: "台阶", trail: "山路", paved: "铺装", water: "水域" };
+                      popupHtml += ` · ${terrainLabels[wp.terrainType] || wp.terrainType}`;
+                    }
                     if (wp.supplyPoints && wp.supplyPoints.length > 0) {
                       popupHtml += "<br><b>🍴 补给:</b>";
                       for (const sp of wp.supplyPoints) {
@@ -1289,7 +2351,7 @@ ${trip.content}`,
                       }
                     }
                     const dot = L.circleMarker([wp.location.latitude, wp.location.longitude], {
-                      radius: 5, color: "#6366f1", fillColor: "#818cf8", fillOpacity: 0.9, weight: 2
+                      radius: 5, color: riskColor.stroke, fillColor: riskColor.fill, fillOpacity: 0.9, weight: 2
                     }).bindPopup(popupHtml);
                     dot.addTo(leafletMap);
                     leafletLayers.push(dot);
@@ -1300,14 +2362,38 @@ ${trip.content}`,
                       for (const sp of wp.supplyPoints) {
                         if (!sp.location) continue;
                         const color = SUPPLY_COLORS[sp.type] || "#6b7280";
+                        const accuracy = sp.locationAccuracy || "unknown";
+                        const priceConf = sp.priceConfidence || "estimate";
+
+                        // 精度决定样式：精确=实色不透明，估算=半透明，未知=不渲染
+                        if (accuracy === "unknown") continue;
+                        const opacity = accuracy === "exact" ? "1" : "0.6";
+                        const borderStyle = accuracy === "exact" ? "2px solid white" : "2px dashed rgba(255,255,255,0.6)";
+
                         const spIcon = L.divIcon({
                           className: "supply-marker",
-                          html: `<div style="width:10px;height:10px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+                          html: `<div style="width:10px;height:10px;border-radius:50%;background:${color};opacity:${opacity};border:${borderStyle};box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
                           iconSize: [14, 14],
                           iconAnchor: [7, 7],
                         });
+
+                        const accuracyLabel = accuracy === "exact" ? "📍 精确坐标" : "📍 估算坐标";
+                        const priceLabel = priceConf === "api" ? "💰 实时价格" : "💰 估算价格";
+                        const updateLabel = sp.lastUpdated ? `（${sp.lastUpdated}）` : "";
+
+                        // 检查数据是否过期（>90天）
+                        let staleLabel = "";
+                        if (sp.lastUpdated) {
+                          const days = Math.floor((Date.now() - new Date(sp.lastUpdated).getTime()) / (1000 * 60 * 60 * 24));
+                          if (days > 90) staleLabel = `<br><span style="color:#fbbf24">⏰ 数据已过期（${days}天前）</span>`;
+                          else if (days > 30) staleLabel = `<br><span style="color:#a1a1aa">📅 ${days}天前更新</span>`;
+                        }
+
+                        // 营业时间
+                        const hoursLabel = sp.businessHours ? `<br>🕐 营业: ${sp.businessHours}` : "";
+
                         const spMarker = L.marker([sp.location.latitude, sp.location.longitude], { icon: spIcon })
-                          .bindPopup(`<b>${sp.name}</b><br>类型: ${sp.type}<br>${sp.description}<br>人均: ${sp.estimatedCost > 0 ? "¥" + sp.estimatedCost : "免费"}${sp.isRecommended ? "<br>⭐ 推荐休息点" : ""}`);
+                          .bindPopup(`<b>${sp.name}</b><br>类型: ${sp.type}<br>${sp.description}<br>${accuracyLabel} · ${priceLabel}${updateLabel}${staleLabel}${hoursLabel}<br>人均: ${sp.estimatedCost > 0 ? "¥" + sp.estimatedCost : "免费"}${sp.isRecommended ? "<br>⭐ 推荐休息点" : ""}`);
                         spMarker.addTo(leafletMap);
                         leafletLayers.push(spMarker);
                         allCoords.push([sp.location.latitude, sp.location.longitude]);
@@ -1344,6 +2430,41 @@ ${trip.content}`,
         mapStatus.textContent = "未获取到景点坐标，显示城市中心";
       }
 
+      // 显示风险摘要
+      const riskEl = document.getElementById("map-risk-summary");
+      if (riskEl) {
+        if (riskSummary.length > 0) {
+          const riskHtml = riskSummary.map(r => {
+            const badgeClass = r.level === 3 ? "high" : r.level === 2 ? "medium" : "low";
+            const factors = r.factors.length > 0
+              ? `<div class="risk-detail">⚠️ ${r.factors.map(f => f.description).join("；")}</div>`
+              : "";
+            const suit = r.suitability;
+            const suitParts = [];
+            if (suit?.seniors === "not_recommended") suitParts.push("老人❌");
+            else if (suit?.seniors === "caution") suitParts.push("老人⚠️");
+            if (suit?.children === "not_recommended") suitParts.push("儿童❌");
+            else if (suit?.children === "caution") suitParts.push("儿童⚠️");
+            if (suit?.pregnant === "not_recommended") suitParts.push("孕妇❌");
+            else if (suit?.pregnant === "caution") suitParts.push("孕妇⚠️");
+            if (suit?.mobilityImpaired === "not_recommended") suitParts.push("行动不便❌");
+            else if (suit?.mobilityImpaired === "caution") suitParts.push("行动不便⚠️");
+            const suitHtml = suitParts.length > 0
+              ? `<div class="risk-suitability">👥 不适宜人群: ${suitParts.map(s => `<span class="not-rec">${s}</span>`).join(" ")}</div>`
+              : "";
+            return `<div class="risk-item">
+              <div class="risk-title"><span class="risk-badge ${badgeClass}">${r.label}</span>${r.name} · ${r.routeName}</div>
+              <div class="risk-detail">${r.gain}${r.loss}${r.maxEl} · 🔥 ${r.calories}千卡 · 👣 ${r.steps}步</div>
+              ${factors}${suitHtml}
+            </div>`;
+          }).join("");
+          riskEl.innerHTML = riskHtml;
+          riskEl.style.display = "block";
+        } else {
+          riskEl.style.display = "none";
+        }
+      }
+
       // 显示补给警告（如果有）
       if (warnings.length > 0) {
         const warnEl = document.getElementById("map-warnings");
@@ -1358,18 +2479,272 @@ ${trip.content}`,
     }
 
     document.getElementById("btn-map")?.addEventListener("click", () => {
-      mapPanel.classList.toggle("open");
-      // 如果打开且有保存的行程，立即渲染
-      if (mapPanel.classList.contains("open") && window._lastTripPlan) {
-        // 延迟确保面板已展开
-        setTimeout(() => renderTripOnMap(window._lastTripPlan), 300);
+      if (activePanel === "map-panel") {
+        closePanel("map-panel");
+      } else {
+        openPanel("map-panel");
+        // 如果有保存的行程，立即渲染
+        if (window._lastTripPlan) {
+          setTimeout(() => renderTripOnMap(window._lastTripPlan), 300);
+        }
       }
-      // 关闭历史面板避免重叠
-      historyPanel.classList.remove("open");
     });
     document.getElementById("btn-close-map")?.addEventListener("click", () => {
-      mapPanel.classList.remove("open");
+      closePanel("map-panel");
     });
+
+    // ─── 一键丰富补给详情 ───────────────────────────────────
+    document.getElementById("btn-enrich-supplies")?.addEventListener("click", async () => {
+      if (!window._lastTripPlan) {
+        showToast("⚠️ 暂无行程数据可丰富");
+        return;
+      }
+
+      const btn = document.getElementById("btn-enrich-supplies");
+      btn.disabled = true;
+      btn.textContent = "⏳ 丰富中...";
+      showToast("🍴 正在丰富补给点详情...");
+
+      try {
+        let enrichedCount = 0;
+        let cachedCount = 0;
+        const tripPlan = window._lastTripPlan;
+
+        for (const day of tripPlan.days) {
+          for (const attr of day.attractions) {
+            if (!attr.routes) continue;
+            for (const route of attr.routes) {
+              for (const wp of route.waypoints) {
+                if (!wp.supplyPoints || wp.supplyPoints.length === 0) continue;
+
+                // 优先从 IndexedDB 缓存读取
+                const names = wp.supplyPoints.map(sp => sp.name);
+                const cached = await loadSupplyPointsFromCache(day.city, names);
+                const cachedNames = new Set(cached.map(c => c.name));
+
+                const merged = wp.supplyPoints.map(sp => {
+                  if (cachedNames.has(sp.name)) {
+                    cachedCount++;
+                    return cached.find(c => c.name === sp.name);
+                  }
+                  return sp;
+                });
+
+                // 未缓存的标记为需要丰富（实际应由后端 API 处理）
+                const needEnrich = merged.filter(sp => !sp.locationAccuracy || sp.locationAccuracy === "unknown");
+                enrichedCount += needEnrich.length;
+
+                wp.supplyPoints = merged;
+              }
+            }
+          }
+        }
+
+        // 保存到 IndexedDB
+        for (const day of tripPlan.days) {
+          for (const attr of day.attractions) {
+            if (!attr.routes) continue;
+            for (const route of attr.routes) {
+              for (const wp of route.waypoints) {
+                if (wp.supplyPoints) {
+                  await saveSupplyPointsToCache(day.city, wp.supplyPoints);
+                }
+              }
+            }
+          }
+        }
+
+        // 重新渲染地图
+        renderTripOnMap(tripPlan);
+
+        if (cachedCount > 0) {
+          showToast(`✅ 丰富完成：${cachedCount} 个来自缓存${enrichedCount > 0 ? "，" + enrichedCount + " 个待后端验证" : ""}`);
+        } else if (enrichedCount > 0) {
+          showToast(`💡 已标记 ${enrichedCount} 个补给点待验证（需配置 API Key 获取精确数据）`);
+        } else {
+          showToast("✅ 所有补给点已是最新状态");
+        }
+      } catch (err) {
+        console.error("Enrich supplies failed:", err);
+        showToast("⚠️ 丰富补给点失败");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "🔄 丰富补给";
+      }
+    });
+
+    // ─── 欢迎状态 + 示例卡片 ──────────────────────────────
+    function initWelcome() {
+      const welcomeEl = document.getElementById("welcome");
+      if (!welcomeEl) return;
+
+      // 示例卡片点击 → 填入输入框并发送
+      welcomeEl.querySelectorAll(".prompt-card").forEach(card => {
+        card.addEventListener("click", () => {
+          const prompt = card.dataset.prompt;
+          if (!prompt) return;
+          // 查找 pi-chat-panel 内的 textarea
+          const ta = document.querySelector("message-editor textarea");
+          if (ta) {
+            ta.value = prompt;
+            ta.dispatchEvent(new Event("input", { bubbles: true }));
+            // 触发发送（点击发送按钮或按 Enter）
+            setTimeout(() => {
+              const sendBtn = document.querySelector("message-editor input[type=submit]");
+              if (sendBtn) {
+                sendBtn.click();
+              } else {
+                // 备用：Enter 键
+                ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+              }
+            }, 100);
+          }
+          // 隐藏欢迎状态
+          welcomeEl.classList.add("hidden");
+        });
+      });
+
+      // 监听 agent 消息，首条消息后隐藏 welcome
+      agent.subscribe((event) => {
+        if (event.type === "user_message" || event.type === "turn_start") {
+          welcomeEl.classList.add("hidden");
+        }
+      });
+    }
+    initWelcome();
+
+    // ─── 侧边栏 + 页面路由 ────────────────────────────────
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    let sidebarExpanded = false;
+
+    sidebarToggle?.addEventListener('click', () => {
+      sidebarExpanded = !sidebarExpanded;
+      sidebar.classList.toggle('expanded', sidebarExpanded);
+      sidebarToggle.textContent = sidebarExpanded ? '✕' : '☰';
+    });
+
+    // 页面路由
+    const navItems = document.querySelectorAll('.nav-item[data-page]');
+    const pages = document.querySelectorAll('.page');
+    let currentPage = 'page-trip';
+
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const targetPage = item.dataset.page;
+        if (targetPage === currentPage) return;
+
+        // 切换导航高亮
+        navItems.forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+
+        // 切换页面
+        pages.forEach(p => p.classList.remove('active'));
+        document.getElementById(targetPage)?.classList.add('active');
+        currentPage = targetPage;
+
+        // 切换到模型配置页时加载当前配置
+        if (targetPage === 'page-model') loadModelConfig();
+
+        // 移动端自动收起侧边栏
+        if (window.innerWidth <= 640 && sidebarExpanded) {
+          sidebarExpanded = false;
+          sidebar.classList.remove('expanded');
+          sidebarToggle.textContent = '☰';
+        }
+      });
+    });
+
+    // 模型配置页面逻辑
+    const PROVIDER_MODELS = {
+      openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o3-mini'],
+      anthropic: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022'],
+      google: ['gemini-2.5-pro', 'gemini-2.5-flash'],
+      deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+      openrouter: ['openai/gpt-4o', 'anthropic/claude-sonnet-4-20250514', 'google/gemini-2.5-pro'],
+    };
+
+    function loadModelConfig() {
+      const provider = localStorage.getItem('travel-agent-provider') || 'openai';
+      const modelId = localStorage.getItem('travel-agent-model') || 'gpt-4o';
+      const apiKey = localStorage.getItem(`api-key-${provider}`) || '';
+
+      const provSelect = document.getElementById('cfg-provider');
+      if (provSelect) provSelect.value = provider;
+
+      updateModelOptions(provider);
+      const modelSelect = document.getElementById('cfg-model');
+      if (modelSelect) modelSelect.value = modelId;
+
+      const keyInput = document.getElementById('cfg-apikey');
+      if (keyInput) keyInput.value = apiKey;
+    }
+
+    function updateModelOptions(provider) {
+      const modelSelect = document.getElementById('cfg-model');
+      if (!modelSelect) return;
+      const models = PROVIDER_MODELS[provider] || [];
+      modelSelect.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
+    }
+
+    document.getElementById('cfg-provider')?.addEventListener('change', (e) => {
+      updateModelOptions(e.target.value);
+      // 同时更新 API Key 显示
+      const keyInput = document.getElementById('cfg-apikey');
+      if (keyInput) keyInput.value = localStorage.getItem(`api-key-${e.target.value}`) || '';
+    });
+
+    document.getElementById('btn-save-model')?.addEventListener('click', () => {
+      const provider = document.getElementById('cfg-provider')?.value;
+      const modelId = document.getElementById('cfg-model')?.value;
+      const apiKey = document.getElementById('cfg-apikey')?.value;
+
+      if (provider) localStorage.setItem('travel-agent-provider', provider);
+      if (modelId) localStorage.setItem('travel-agent-model', modelId);
+      if (provider && apiKey) localStorage.setItem(`api-key-${provider}`, apiKey);
+
+      // 更新 agent 的模型
+      try {
+        const newModel = getModel(provider, modelId);
+        agent.state.model = newModel;
+        agent.state.systemPrompt = buildSystemPrompt(currentLang);
+      } catch (err) {
+        console.warn('Failed to update model:', err);
+      }
+
+      const dict = I18N[currentLang] || I18N.zh;
+      showToast(dict.settingsSaved || '✅ 配置已保存');
+    });
+
+    // 点击侧边栏外部收起（移动端）
+    document.getElementById('main-content')?.addEventListener('click', () => {
+      if (window.innerWidth <= 640 && sidebarExpanded) {
+        sidebarExpanded = false;
+        sidebar.classList.remove('expanded');
+        sidebarToggle.textContent = '☰';
+      }
+    });
+
+    // 初始化 textarea placeholder 为当前语言
+    function initPlaceholder() {
+      const ta = document.querySelector("message-editor textarea");
+      if (ta) {
+        const dict = I18N[currentLang] || I18N.zh;
+        ta.placeholder = dict.promptPlaceholder || "描述你的旅行计划...";
+      }
+    }
+    // pi-chat-panel 可能在后续帧才渲染 textarea，使用 MutationObserver
+    const chatContainer = document.getElementById("chat-container");
+    if (chatContainer) {
+      const observer = new MutationObserver(() => {
+        const ta = document.querySelector("message-editor textarea");
+        if (ta) {
+          initPlaceholder();
+          observer.disconnect();
+        }
+      });
+      observer.observe(chatContainer, { childList: true, subtree: true });
+    }
 
     // ─── 页面加载时恢复会话 ──────────────────────────────────
     async function tryRestoreSession() {
