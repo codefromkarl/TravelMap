@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>旅途星辰 — AI 旅行规划</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "@earendil-works/pi-agent-core": "https://esm.sh/@earendil-works/pi-agent-core@0.75.1",
+        "@earendil-works/pi-ai": "https://esm.sh/@earendil-works/pi-ai@0.75.1",
+        "@earendil-works/pi-web-ui": "https://esm.sh/@earendil-works/pi-web-ui@0.75.1",
+        "lit": "https://esm.sh/lit@3",
+        "typebox": "https://esm.sh/typebox@1.1.24"
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #0f0f11; color: #e4e4e7; }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header span { font-size: 13px; color: #71717a; }
+
+    #chat-container {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    chat-panel {
+      display: block;
+      height: 100%;
+    }
+
+    /* pi-web-ui 主题覆盖 */
+    chat-panel {
+      --bg-primary: #0f0f11;
+      --bg-secondary: #18181b;
+      --bg-tertiary: #27272a;
+      --text-primary: #e4e4e7;
+      --text-secondary: #a1a1aa;
+      --border-color: #3f3f46;
+      --accent-color: #6366f1;
+    }
+
+    #loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #71717a;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>🌍 旅途星辰</h1>
+      <span>AI 旅行规划助手</span>
+    </header>
+    <div id="chat-container">
+      <div id="loading">正在初始化...</div>
+      <chat-panel id="chat"></chat-panel>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ChatPanel } from "@earendil-works/pi-web-ui";
+    import "@earendil-works/pi-web-ui/app.css";
+    import { Agent } from "@earendil-works/pi-agent-core";
+    import { getModel } from "@earendil-works/pi-ai";
+    import { Type } from "@earendil-works/pi-ai";
+
+    // ─── System Prompt ────────────────────────────────────
+    const SYSTEM_PROMPT = `你是「旅途星辰」，一位专业且贴心的私人旅行管家。
+
+你的职责是根据用户的需求，利用工具搜索景点、天气、酒店信息，
+然后统筹规划出一份完整的旅行行程。
+
+## 工作流程
+
+1. **景点搜索** — 使用 search_attractions 工具，根据目的地和偏好搜索景点
+2. **天气查询** — 使用 search_weather 工具，获取目标日期的天气预报
+3. **酒店推荐** — 使用 search_hotels 工具，根据预算和位置推荐住宿
+4. **行程编排** — 综合以上信息，规划每日行程（景点顺序、餐饮、交通）
+5. **预算计算** — 使用 calculate_budget 工具，统计所有费用，生成预算明细
+
+## 输出格式
+
+请以结构化格式输出完整的旅行计划，包含：
+- 每日行程（景点、餐饮、交通、住宿）
+- 天气信息
+- 预算明细
+- 总体建议
+
+## 局部修改
+
+当用户要求修改某一天的行程时：
+1. 理解"只改第X天"的语义
+2. 不重新生成完整行程
+3. 只重算受影响天数的景点安排
+4. 预算自动重算
+
+## 重要规则
+
+- 景点安排要考虑地理位置，避免来回折返
+- 每天安排 2-3 个景点，城际移动日可减少为 1-2 个
+- 每天必须包含早中晚三餐推荐
+- 门票价格、费用必须是纯数字，不带单位
+- 如果某个信息无法获取，基于常识给出保守建议，不要说"无法查询"
+- 支持多城市行程规划，城际移动日要标注交通建议`;
+
+    // ─── 工具定义 ──────────────────────────────────────────
+    // 景点搜索（浏览器端 → 调用后端 API，这里用 mock）
+    const searchAttractionsTool = {
+      name: "search_attractions",
+      label: "景点搜索",
+      description: "搜索指定城市的景点信息",
+      parameters: Type.Object({
+        city: Type.String({ description: "城市名称" }),
+        preferences: Type.Optional(Type.Array(Type.String())),
+        keywords: Type.Optional(Type.String()),
+      }),
+      execute: async (_id, params) => {
+        const { city } = params;
+        // 浏览器端 mock — 后续接入 API
+        const mockData = {
+          "北京": [
+            { name: "故宫博物院", address: "东城区景山前街4号", ticketPrice: 60, visitDuration: 180, description: "明清皇家宫殿" },
+            { name: "天坛公园", address: "东城区天坛内东里7号", ticketPrice: 34, visitDuration: 120, description: "明清帝王祭天场所" },
+            { name: "颐和园", address: "海淀区新建宫门路19号", ticketPrice: 30, visitDuration: 180, description: "清代皇家园林" },
+          ],
+          "上海": [
+            { name: "外滩", address: "黄浦区中山东一路", ticketPrice: 0, visitDuration: 90, description: "上海地标" },
+            { name: "豫园", address: "黄浦区安仁街137号", ticketPrice: 40, visitDuration: 120, description: "明代私家园林" },
+            { name: "东方明珠", address: "浦东新区世纪大道1号", ticketPrice: 199, visitDuration: 90, description: "上海标志性建筑" },
+          ],
+        };
+        const attractions = mockData[city] || [
+          { name: `${city}中心公园`, address: `${city}市中心`, ticketPrice: 0, visitDuration: 120, description: `${city}主要城市公园` },
+        ];
+        return {
+          content: [{ type: "text", text: `## ${city}景点搜索结果\n\n${attractions.map((a, i) => `${i+1}. **${a.name}** — ¥${a.ticketPrice}\n   ${a.description} | 建议${a.visitDuration}分钟`).join("\n\n")}` }],
+          details: { city, attractions },
+        };
+      },
+    };
+
+    const searchWeatherTool = {
+      name: "search_weather",
+      label: "天气查询",
+      description: "查询城市天气预报",
+      parameters: Type.Object({
+        city: Type.String(),
+        days: Type.Optional(Type.Number({ default: 7 })),
+      }),
+      execute: async (_id, params) => {
+        const { city, days = 7 } = params;
+        const weathers = ["晴", "多云", "小雨", "阴"];
+        const result = Array.from({ length: days }, (_, i) => {
+          const d = new Date(); d.setDate(d.getDate() + i);
+          return `${d.toISOString().split("T")[0]}: ${weathers[i % weathers.length]} ${18+Math.floor(Math.random()*8)}°C`;
+        });
+        return {
+          content: [{ type: "text", text: `## ${city} ${days}天天气预报\n\n${result.join("\n")}` }],
+          details: { city, weather: result },
+        };
+      },
+    };
+
+    const searchHotelsTool = {
+      name: "search_hotels",
+      label: "酒店搜索",
+      description: "搜索城市酒店",
+      parameters: Type.Object({
+        city: Type.String(),
+        budget: Type.Optional(Type.String()),
+      }),
+      execute: async (_id, params) => {
+        const { city } = params;
+        return {
+          content: [{ type: "text", text: `## ${city}酒店推荐\n\n1. **经济型** ¥200-400/晚\n2. **舒适型** ¥400-800/晚\n3. **高端型** ¥800+/晚` }],
+          details: { city },
+        };
+      },
+    };
+
+    const calculateBudgetTool = {
+      name: "calculate_budget",
+      label: "预算计算",
+      description: "自动计算旅行预算明细",
+      parameters: Type.Object({
+        totalAttractions: Type.Number({ description: "门票总费用" }),
+        totalHotels: Type.Number({ description: "住宿总费用" }),
+        totalMeals: Type.Number({ description: "餐饮总费用" }),
+        totalTransportation: Type.Number({ description: "交通总费用" }),
+        budgetLimit: Type.Optional(Type.Number({ description: "预算上限" })),
+      }),
+      execute: async (_id, params) => {
+        const { totalAttractions, totalHotels, totalMeals, totalTransportation, budgetLimit } = params;
+        const total = totalAttractions + totalHotels + totalMeals + totalTransportation;
+        const lines = [
+          "## 💰 预算明细",
+          `🎫 门票: ¥${totalAttractions}`,
+          `🏨 住宿: ¥${totalHotels}`,
+          `🍜 餐饮: ¥${totalMeals}`,
+          `🚌 交通: ¥${totalTransportation}`,
+          `**总计: ¥${total}**`,
+        ];
+        if (budgetLimit) {
+          lines.push(total > budgetLimit
+            ? `\n⚠️ 超出预算上限 ¥${budgetLimit}，超出 ¥${total - budgetLimit}`
+            : `\n✅ 在预算 ¥${budgetLimit} 以内，剩余 ¥${budgetLimit - total}`);
+        }
+        return { content: [{ type: "text", text: lines.join("\n") }], details: { total, budgetLimit } };
+      },
+    };
+
+    // ─── 初始化 Agent ─────────────────────────────────────
+    const provider = localStorage.getItem("travel-agent-provider") || "openai";
+    const modelId = localStorage.getItem("travel-agent-model") || "gpt-4o";
+    const model = getModel(provider, modelId);
+
+    const agent = new Agent({
+      initialState: {
+        systemPrompt: SYSTEM_PROMPT,
+        model,
+        thinkingLevel: "medium",
+        tools: [searchAttractionsTool, searchWeatherTool, searchHotelsTool, calculateBudgetTool],
+        messages: [],
+      },
+    });
+
+    // ─── 初始化 ChatPanel ─────────────────────────────────
+    document.getElementById("loading")?.remove();
+    const chatPanel = document.getElementById("chat");
+    await chatPanel.setAgent(agent, {
+      onApiKeyRequired: async (prov) => {
+        const key = prompt(`请输入 ${prov} API Key:`);
+        if (key) {
+          localStorage.setItem(`api-key-${prov}`, key);
+          return true;
+        }
+        return false;
+      },
+    });
+  </script>
+</body>
+</html>
