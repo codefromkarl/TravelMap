@@ -157,6 +157,7 @@ describe("测试质量守卫", () => {
         "handlers.ts",
         "fixtures.ts",
         "mock-llm.ts",
+        "env.ts", // helpers/env.ts — 测试环境工具
       ]);
       const violations = testFiles.filter((f) => !allowed.has(path.basename(f)));
 
@@ -239,7 +240,7 @@ describe("测试质量守卫", () => {
       }
 
       if (warnings.length > 0) {
-        console.warn("[测试守卫] 以下服务的 catch 块缺少对应错误路径测试:\n" + warnings.join("\n"));
+        console.warn(`[测试守卫] 以下服务的 catch 块缺少对应错误路径测试:\n${warnings.join("\n")}`);
       }
     });
   });

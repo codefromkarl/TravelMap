@@ -28,10 +28,11 @@ interface EvaluationResult {
   passed: boolean;
 }
 
-interface Evaluator {
-  name: string;
-  evaluate(input: string, output: string): Promise<EvaluationResult>;
-}
+// Evaluator 接口定义 — 供后续迭代使用，暂不在测试中直接引用
+// interface Evaluator {
+//   name: string;
+//   evaluate(input: string, output: string): Promise<EvaluationResult>;
+// }
 
 // ─── 结构化断言评估器 ──────────────────────────────────────
 

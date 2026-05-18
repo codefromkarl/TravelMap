@@ -5,8 +5,7 @@
  * 支持自定义响应内容，用于测试 Agent 的工具调用链。
  */
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
-import type { StreamFn } from "@earendil-works/pi-agent-core/dist/types.js";
+import type { AgentTool, StreamFn } from "@earendil-works/pi-agent-core";
 
 export interface MockLlmResponse {
   /** 助手回复文本 */
@@ -17,7 +16,7 @@ export interface MockLlmResponse {
     args: Record<string, unknown>;
   }>;
   /** 是否标记结束 */
-  stopReason?: "end_turn" | "tool_use" | "error";
+  stopReason?: "stop" | "toolUse" | "error";
 }
 
 /**
@@ -26,8 +25,8 @@ export interface MockLlmResponse {
  * 用法：
  * ```ts
  * const mockStream = createMockStreamFn([
- *   { toolCalls: [{ name: "search_attractions", args: { city: "北京" } }], stopReason: "tool_use" },
- *   { text: "已为您规划好行程", stopReason: "end_turn" },
+ *   { toolCalls: [{ name: "search_attractions", args: { city: "北京" } }], stopReason: "toolUse" },
+ *   { text: "已为您规划好行程", stopReason: "stop" },
  * ]);
  * ```
  */
@@ -43,7 +42,7 @@ export function createMockStreamFn(responses: MockLlmResponse[]): StreamFn {
         type: "toolCall" as const,
         id: `mock_tc_${i}`,
         name: tc.name,
-        args: tc.args,
+        arguments: tc.args,
       })) ?? [];
 
     const textContent = response?.text ? [{ type: "text" as const, text: response.text }] : [];
@@ -53,11 +52,11 @@ export function createMockStreamFn(responses: MockLlmResponse[]): StreamFn {
     const assistantMessage = {
       role: "assistant" as const,
       content,
-      stopReason: response?.stopReason ?? (toolCalls.length > 0 ? "tool_use" : "end_turn"),
+      stopReason: response?.stopReason ?? (toolCalls.length > 0 ? "toolUse" : "stop"),
       timestamp: Date.now(),
     };
 
-    // 模拟 stream 事件序列
+    // 模拟 stream 事件序列 — 使用 pi-ai 的 AssistantMessageEvent 协议
     return {
       [Symbol.asyncIterator]() {
         let step = 0;
@@ -67,14 +66,14 @@ export function createMockStreamFn(responses: MockLlmResponse[]): StreamFn {
               step++;
               return {
                 done: false,
-                value: { type: "message_start", message: assistantMessage },
+                value: { type: "start", partial: assistantMessage },
               };
             }
             if (step === 1) {
               step++;
               return {
                 done: false,
-                value: { type: "message_update", message: assistantMessage },
+                value: { type: "done", reason: "stop", message: assistantMessage },
               };
             }
             return { done: true, value: undefined };
@@ -90,7 +89,7 @@ export function createMockStreamFn(responses: MockLlmResponse[]): StreamFn {
  */
 export function createMockTool(
   name: string,
-  executeOverride?: (params: Record<string, unknown>) => unknown,
+  executeOverride?: (params: unknown) => unknown,
 ): AgentTool {
   return {
     name,
@@ -100,10 +99,13 @@ export function createMockTool(
       type: "object",
       properties: {},
     },
-    execute: async (_id: string, params: Record<string, unknown>) => {
+    execute: async (_id: string, params: unknown) => {
       const result = executeOverride
         ? executeOverride(params)
-        : { content: [{ type: "text" as const, text: `Mock ${name} executed` }], details: params };
+        : {
+            content: [{ type: "text" as const, text: `Mock ${name} executed` }],
+            details: params,
+          };
       return result as Awaited<ReturnType<AgentTool["execute"]>>;
     },
   };

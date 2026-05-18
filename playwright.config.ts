@@ -12,7 +12,16 @@ export default defineConfig({
     // 使用系统 Chrome
     launchOptions: {
       executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--ignore-certificate-errors"],
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--ignore-certificate-errors",
+        "--disable-features=NetworkService",
+      ],
+      proxy: {
+        server: "http://127.0.0.1:7897",
+        bypass: "localhost,127.0.0.1",
+      },
     },
     baseURL: process.env.BASE_URL || "file://" + process.cwd() + "/web/",
     actionTimeout: 10_000,
