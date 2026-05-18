@@ -1,5 +1,12 @@
 /** 旅行规划核心类型 */
 
+/** 比价/行动链接 */
+export interface ActionLink {
+  platform: string;
+  url: string;
+  label: string;
+}
+
 /** 地理坐标 */
 export interface Location {
   longitude: number;
@@ -19,6 +26,7 @@ export interface Attraction {
   ticketPrice: number;
   reservationRequired: boolean;
   reservationTips: string;
+  bookingUrl?: string;
 }
 
 /** 餐饮 */
@@ -37,6 +45,7 @@ export interface Hotel {
   priceRange: string;
   rating: number;
   estimatedCost: number;
+  comparisonLinks?: ActionLink[];
 }
 
 /** 单日行程 */
@@ -86,6 +95,7 @@ export interface TripPlan {
   weatherInfo: WeatherInfo[];
   overallSuggestions: string;
   budget?: Budget;
+  flightLinks?: ActionLink[];
 }
 
 /** 城市停留配置 */

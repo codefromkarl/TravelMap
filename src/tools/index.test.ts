@@ -4,13 +4,15 @@ import { createTools } from "./index.js";
 describe("tools", () => {
   it("should create all tools", () => {
     const tools = createTools();
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(7);
     expect(tools.map((t) => t.name)).toEqual([
       "search_attractions",
       "search_weather",
       "search_hotels",
       "geocode",
       "calculate_budget",
+      "generate_action_links",
+      "query_trip_data",
     ]);
   });
 

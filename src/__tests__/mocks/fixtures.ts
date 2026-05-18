@@ -6,6 +6,7 @@
  */
 
 import type {
+  ActionLink,
   Attraction,
   DayPlan,
   Hotel,
@@ -16,6 +17,15 @@ import type {
 } from "../../types/trip.js";
 
 // ─── 基础工厂 ──────────────────────────────────────────────
+
+export function createMockActionLink(overrides?: Partial<ActionLink>): ActionLink {
+  return {
+    platform: "Booking.com",
+    url: "https://www.booking.com/searchresults.html?ss=test",
+    label: "测试比价链接",
+    ...overrides,
+  };
+}
 
 export function createMockLocation(overrides?: Partial<{ latitude: number; longitude: number }>) {
   return { latitude: 39.9163, longitude: 116.3972, ...overrides };

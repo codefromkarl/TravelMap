@@ -132,7 +132,7 @@ describe("geocodeTool (真实实现)", () => {
     expect(text).toContain("坐标");
   });
 
-  it("details 应包含 location 和 source", async () => {
+  it("details 应包含 location 和 engine", async () => {
     const result = await geocodeTool.execute("tc_1", {
       address: "天安门",
       city: "北京",
@@ -141,13 +141,13 @@ describe("geocodeTool (真实实现)", () => {
       address: string;
       city: string;
       location: { latitude: number };
-      source: string;
+      engine: string;
     };
 
     expect(details.address).toBe("天安门");
     expect(details.city).toBe("北京");
     expect(details.location.latitude).toBeDefined();
-    expect(details.source).toBeDefined();
+    expect(details.engine).toBeDefined();
   });
 });
 
