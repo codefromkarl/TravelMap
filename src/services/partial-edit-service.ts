@@ -7,9 +7,10 @@
  *   3. 预算自动重算
  */
 
-import type { DayPlan, TripPlan } from "../types/trip.js";
+import type { Attraction, DayPlan, TripPlan } from "../types/trip.js";
 import { searchAttractions } from "./attraction-service.js";
 import { calculateBudget } from "./budget-service.js";
+import { parseRouteEditIntent, switchAttractionRoute } from "./route-service.js";
 
 export interface PartialEditRequest {
   /** 原始行程 */
@@ -83,6 +84,10 @@ async function regenerateDay(day: DayPlan, instruction: string): Promise<DayPlan
 export async function applyPartialEdit(request: PartialEditRequest): Promise<TripPlan> {
   const { tripPlan, targetDays, instruction } = request;
 
+  // 先检测是否为路线级修改意图（如"西湖换成西线"）
+  const routeEdit = await tryRouteEdit(tripPlan, targetDays, instruction);
+  if (routeEdit) return routeEdit;
+
   // 深拷贝 days
   const newDays: DayPlan[] = tripPlan.days.map((d) => ({ ...d }));
 
@@ -101,6 +106,72 @@ export async function applyPartialEdit(request: PartialEditRequest): Promise<Tri
     days: newDays,
     budget,
   };
+}
+
+/**
+ * 尝试路线级修改：当用户指令针对某个景点的内部路线时
+ * 只切换路线，不重新搜索景点，不重算预算（同一景区门票不变）
+ *
+ * 返回 null 表示不是路线级修改，需要走天级别替换
+ */
+async function tryRouteEdit(
+  tripPlan: TripPlan,
+  targetDays: number[],
+  instruction: string,
+): Promise<TripPlan | null> {
+  // 收集目标天的所有景点名
+  const targetAttractions = targetDays.flatMap((idx) =>
+    (tripPlan.days[idx]?.attractions ?? []).map((a) => a.nameZh || a.name),
+  );
+
+  // 解析路线修改意图
+  const intent = parseRouteEditIntent(instruction, targetAttractions);
+  if (!intent) return null;
+
+  // 在目标天中找到对应景点并尝试切换路线
+  const newDays = tripPlan.days.map((day, idx) => {
+    if (!targetDays.includes(idx)) return day;
+
+    const newAttractions: Attraction[] = [];
+    let modified = false;
+
+    for (const attraction of day.attractions) {
+      const name = attraction.nameZh || attraction.name;
+      if (
+        name === intent.attractionName ||
+        name.includes(intent.attractionName) ||
+        intent.attractionName.includes(name)
+      ) {
+        // 如果已有路线，尝试切换
+        if (attraction.routes?.length) {
+          const matchById =
+            intent.preferenceTags.length === 0
+              ? attraction.routes[0]
+              : (attraction.routes.find((r) =>
+                  intent.preferenceTags.some((tag) => r.tags.includes(tag) || r.name.includes(tag)),
+                ) ?? attraction.routes[0]);
+
+          const updated = switchAttractionRoute(attraction, matchById.id);
+          newAttractions.push(updated);
+          modified = true;
+        } else {
+          // 没有路线数据，搜索后附加
+          // 注意：这里不 await，保持同步。路线数据会在后续 enrich 阶段补全
+          newAttractions.push(attraction);
+        }
+      } else {
+        newAttractions.push(attraction);
+      }
+    }
+
+    return modified ? { ...day, attractions: newAttractions } : day;
+  });
+
+  // 检查是否真的做了修改
+  const changed = newDays.some((d, i) => d !== tripPlan.days[i]);
+  if (!changed) return null;
+
+  return { ...tripPlan, days: newDays };
 }
 
 /** 从自然语言中提取目标天数 */

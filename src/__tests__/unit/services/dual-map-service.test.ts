@@ -69,9 +69,12 @@ describe("dualGeocode", () => {
     expect(result).toHaveProperty("location");
   });
 
-  it("resetEngineState 应清除失败标记", () => {
+  it("resetEngineState 后应能重新调用引擎", async () => {
     resetEngineState();
-    // 无断言，只验证不抛错
-    expect(true).toBe(true);
+    // 验证重置后引擎状态清洁，能正常返回结果
+    const result = await dualGeocode("天安门", "北京");
+    expect(result).toHaveProperty("location");
+    expect(result).toHaveProperty("engine");
+    expect(result.engine).not.toBeUndefined();
   });
 });

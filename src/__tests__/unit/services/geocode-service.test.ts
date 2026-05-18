@@ -5,27 +5,19 @@
  */
 
 import { HttpResponse, http } from "msw";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { geocodeAddress } from "../../../services/geocode-service.js";
+import { createEnvStub } from "../../helpers/env.js";
 import { server } from "../../mocks/server.js";
 
+const env = createEnvStub();
+
 describe("geocodeAddress", () => {
-  const originalEnv = process.env;
-
-  beforeEach(() => {
-    process.env = { ...originalEnv };
-  });
-
-  afterAll(() => {
-    process.env = originalEnv;
-  });
-
   // ─── 优先级链 ────────────────────────────────────────────
 
   describe("降级链: Amap → Google → Nominatim → default", () => {
     it("有 Amap Key 时应优先使用高德", async () => {
-      process.env.AMAP_WEB_KEY = "test-amap";
-      process.env.GOOGLE_MAPS_API_KEY = "test-google";
+      env.set("AMAP_WEB_KEY", "test-amap").set("GOOGLE_MAPS_API_KEY", "test-google");
 
       const { location, source } = await geocodeAddress({
         address: "天安门",
@@ -38,8 +30,7 @@ describe("geocodeAddress", () => {
     });
 
     it("Amap 失败时应降级到 Google", async () => {
-      process.env.AMAP_WEB_KEY = "test-amap";
-      process.env.GOOGLE_MAPS_API_KEY = "test-google";
+      env.set("AMAP_WEB_KEY", "test-amap").set("GOOGLE_MAPS_API_KEY", "test-google");
 
       server.use(
         http.get("https://restapi.amap.com/v3/geocode/geo", () => {
@@ -48,12 +39,12 @@ describe("geocodeAddress", () => {
       );
 
       const { source } = await geocodeAddress({ address: "测试", city: "北京" });
-      // Google handler 在 handlers.ts 中未定义 Google Geocode,
-      // 但 Nominatim 会兜底
       expect(["google", "nominatim", "default"]).toContain(source);
     });
 
     it("无任何 Key 时应使用 Nominatim（免费）", async () => {
+      env.unset("AMAP_WEB_KEY").unset("GOOGLE_MAPS_API_KEY");
+
       const { source, location } = await geocodeAddress({
         address: "天安门",
         city: "北京",
@@ -64,6 +55,8 @@ describe("geocodeAddress", () => {
     });
 
     it("所有服务都失败时应返回默认坐标", async () => {
+      env.unset("AMAP_WEB_KEY").unset("GOOGLE_MAPS_API_KEY");
+
       server.use(
         http.get("https://nominatim.openstreetmap.org/search", () => {
           return HttpResponse.json([]);
@@ -94,6 +87,8 @@ describe("geocodeAddress", () => {
 
     for (const { city, lat, lng } of cities) {
       it(`${city} 默认坐标应为 (${lat}, ${lng})`, async () => {
+        env.unset("AMAP_WEB_KEY").unset("GOOGLE_MAPS_API_KEY");
+
         server.use(
           http.get("https://nominatim.openstreetmap.org/search", () => {
             return HttpResponse.json([]);

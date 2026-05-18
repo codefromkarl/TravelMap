@@ -3,7 +3,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { CostTracker, isToolCallTool } from "../../../services/cost-tracker.js";
+import {
+  CostTracker,
+  isToolCallTool,
+  registerToolMetadata,
+} from "../../../services/cost-tracker.js";
 
 describe("CostTracker", () => {
   it("记录单次调用并计算费用", () => {
@@ -130,6 +134,13 @@ describe("CostTracker", () => {
 });
 
 describe("isToolCallTool", () => {
+  // 注册元数据 — isToolCallTool 现在从注册表查询
+  registerToolMetadata("search_attractions", "cheap");
+  registerToolMetadata("search_weather", "cheap");
+  registerToolMetadata("search_hotels", "cheap");
+  registerToolMetadata("geocode", "cheap");
+  registerToolMetadata("query_trip_data", "cheap");
+
   it("搜索类工具属于便宜模型", () => {
     expect(isToolCallTool("search_attractions")).toBe(true);
     expect(isToolCallTool("search_weather")).toBe(true);

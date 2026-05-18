@@ -169,16 +169,20 @@ export const DEFAULT_HANDOFF_CONFIG: HandoffConfig = {
   strongModel: { provider: "anthropic", model: "claude-sonnet-4" },
 };
 
-/** 判断工具名是否属于"搜索/查询"类（应使用便宜模型） */
+/** Tool 成本层级元数据 — 定义在 Tool 侧，而非硬编码列表 */
+export type CostTier = "cheap" | "strong";
+
+/** 全局 Tool 元数据注册表 */
+const toolMetadata = new Map<string, { costTier: CostTier }>();
+
+/** 注册 Tool 元数据（由 createTools 调用） */
+export function registerToolMetadata(name: string, tier: CostTier): void {
+  toolMetadata.set(name, { costTier: tier });
+}
+
+/** 判断工具名是否属于 "便宜" 层级（应使用便宜模型） */
 export function isToolCallTool(toolName: string): boolean {
-  const cheapTools = [
-    "search_attractions",
-    "search_weather",
-    "search_hotels",
-    "geocode",
-    "query_trip_data",
-  ];
-  return cheapTools.includes(toolName);
+  return toolMetadata.get(toolName)?.costTier === "cheap";
 }
 
 /** 全局费用追踪器实例 */

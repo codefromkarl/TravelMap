@@ -105,6 +105,7 @@ describe("calculateBudget", () => {
 
   it("无酒店时住宿费用应为零", () => {
     const day = createMockDayPlan();
+    // biome-ignore lint/suspicious/noExplicitAny: test mock - delete optional property
     delete (day as any).hotel;
 
     const budget = calculateBudget({ days: [day] });
