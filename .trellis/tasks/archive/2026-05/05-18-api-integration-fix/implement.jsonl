@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Testing framework, lint rules, code quality standards for backend services"}
+{"file":".trellis/spec/backend/testing-roadmap.md","reason":"Testing strategy, coverage requirements, fixture patterns"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Data flow across service boundaries, validation points, common cross-layer mistakes"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Error types and propagation conventions (to be established in this task)"}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Logging conventions and sensitive data handling (to be established in this task)"}

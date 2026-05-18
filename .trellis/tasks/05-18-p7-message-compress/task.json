@@ -1,0 +1,29 @@
+{
+  "id": "p7-message-compress",
+  "name": "p7-message-compress",
+  "title": "消息历史压缩 — 长对话 input token 优化",
+  "description": "P2: 超过 N 轮后将旧消息摘要压缩，减少 steer/followUp 累积的 input tokens",
+  "status": "completed",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/agent/travel-agent.ts",
+    "src/services/message-compressor.ts"
+  ],
+  "notes": "当前: 每轮 steer 都携带完整历史消息\n优化: 超过阈值后摘要化旧消息\n预估节省: 长对话场景 ~90% input tokens",
+  "meta": {}
+}

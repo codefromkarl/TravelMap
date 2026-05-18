@@ -1,0 +1,28 @@
+{
+  "id": "p7-compact-search",
+  "name": "p7-compact-search",
+  "title": "搜索结果紧凑化 — 减少注入 prompt 的 token 数",
+  "description": "P2: 将搜索结果从 markdown 格式改为紧凑 JSON，减少 input tokens",
+  "status": "completed",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/services/search-orchestrator.ts"
+  ],
+  "notes": "当前: formatSearchResultsForAgent 输出大量 markdown 冗余\n优化: JSON/CSV 紧凑格式\n预估节省: ~50% input tokens",
+  "meta": {}
+}

@@ -50,6 +50,8 @@ export class AuthError extends Error {
 /** 请求配置 */
 export interface FetchOptions extends RequestInit {
   timeout?: number;
+  maxRetries?: number;
+  baseDelayMs?: number;
 }
 
 /** 敏感 query key 列表 — 这些参数在日志中会被脱敏 */
@@ -108,29 +110,47 @@ export async function fetchWithTimeout(url: string, options: FetchOptions = {}):
 export async function fetchWithRetry(url: string, options: FetchOptions = {}): Promise<Response> {
   const method = (options.method ?? "GET").toUpperCase();
   const isIdempotent = method === "GET" || method === "HEAD" || method === "OPTIONS";
-  const maxRetries = isIdempotent ? 3 : 0;
-  const baseDelay = 500;
+  const maxRetries = options.maxRetries ?? (isIdempotent ? 3 : 0);
+  const baseDelay = options.baseDelayMs ?? 500;
 
   let lastError: Error | undefined;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetchWithTimeout(url, options);
-      // 5xx 时也触发重试
+
+      // 认证错误 — 不重试
+      if (res.status === 401 || res.status === 403) {
+        throw new AuthError(`Authentication failed (${res.status}): ${sanitizeUrl(url)}`);
+      }
+
+      // 客户端错误 — 不重试
+      if (res.status >= 400 && res.status < 500) {
+        throw new ApiError(`Client error ${res.status}: ${sanitizeUrl(url)}`, res.status);
+      }
+
+      // 5xx 服务器错误 — 重试
       if (res.status >= 500 && res.status < 600) {
         if (attempt < maxRetries) {
-          const delay = baseDelay * 2 ** attempt;
+          const delay = Math.min(baseDelay * 2 ** attempt, 8000);
+          console.warn(
+            `[HTTPClient] Server ${res.status} retry ${attempt + 1}/${maxRetries} for ${sanitizeUrl(url)} in ${delay}ms`,
+          );
           await new Promise((r) => setTimeout(r, delay));
           continue;
         }
         throw new ApiError(`Server error ${res.status}: ${sanitizeUrl(url)}`, res.status);
       }
+
       return res;
     } catch (err) {
-      if (err instanceof ApiError) throw err;
+      if (err instanceof AuthError || err instanceof ApiError) throw err;
       lastError = err instanceof Error ? err : new Error(String(err));
       if (attempt < maxRetries) {
-        const delay = baseDelay * 2 ** attempt;
+        const delay = Math.min(baseDelay * 2 ** attempt, 8000);
+        console.warn(
+          `[HTTPClient] ${lastError.name} retry ${attempt + 1}/${maxRetries} for ${sanitizeUrl(url)} in ${delay}ms`,
+        );
         await new Promise((r) => setTimeout(r, delay));
       }
     }

@@ -1,0 +1,29 @@
+{
+  "id": "p8-steering-diff",
+  "name": "p8-steering-diff",
+  "title": "Steering 增量输出 — 只输出变更部分",
+  "description": "P3: steer 时 LLM 只输出变更天数，代码层合并，减少 output tokens",
+  "status": "pending",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P3",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/agent/prompts.ts",
+    "src/agent/travel-agent.ts"
+  ],
+  "notes": "当前: steer 输出完整 TripPlan JSON (~5000 tokens)\n优化: 只输出变更天数 (~500 tokens)\n预估节省: ~90% output tokens",
+  "meta": {}
+}

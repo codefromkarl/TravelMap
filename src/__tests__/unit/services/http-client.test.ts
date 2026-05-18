@@ -17,7 +17,7 @@ import {
   fetchWithRetry,
   fetchWithTimeout,
   NetworkError,
-  redactUrl,
+  sanitizeUrl,
   TimeoutError,
 } from "../../../services/http-client.js";
 
@@ -30,31 +30,31 @@ describe("http-client", () => {
     vi.clearAllMocks();
   });
 
-  // ─── redactUrl ──────────────────────────────────────────
+  // ─── sanitizeUrl ──────────────────────────────────────────
 
-  describe("redactUrl", () => {
+  describe("sanitizeUrl", () => {
     it("应脱敏 URL 中的 key", () => {
       const url = "https://api.example.com?key=secret123&other=value";
-      expect(redactUrl(url)).toBe("https://api.example.com/?key=***&other=value");
+      expect(sanitizeUrl(url)).toBe("https://api.example.com/?key=***&other=value");
     });
 
     it("应脱敏 appid", () => {
       const url = "https://api.example.com?appid=abc&lat=1";
-      expect(redactUrl(url)).toBe("https://api.example.com/?appid=***&lat=1");
+      expect(sanitizeUrl(url)).toBe("https://api.example.com/?appid=***&lat=1");
     });
 
     it("应脱敏 token", () => {
       const url = "https://api.example.com?token=xyz";
-      expect(redactUrl(url)).toBe("https://api.example.com/?token=***");
+      expect(sanitizeUrl(url)).toBe("https://api.example.com/?token=***");
     });
 
     it("无敏感参数时返回原 URL", () => {
       const url = "https://api.example.com?lat=1&lon=2";
-      expect(redactUrl(url)).toBe("https://api.example.com/?lat=1&lon=2");
+      expect(sanitizeUrl(url)).toBe("https://api.example.com/?lat=1&lon=2");
     });
 
     it("非法 URL 返回原字符串", () => {
-      expect(redactUrl("not-a-url")).toBe("not-a-url");
+      expect(sanitizeUrl("not-a-url")).toBe("not-a-url");
     });
   });
 

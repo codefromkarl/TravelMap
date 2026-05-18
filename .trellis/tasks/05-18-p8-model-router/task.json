@@ -1,0 +1,29 @@
+{
+  "id": "p8-model-router",
+  "name": "p8-model-router",
+  "title": "两层模型智能路由",
+  "description": "P3: 根据请求复杂度自动选择模型（L1 mini / L2 strong），优化成本",
+  "status": "active",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P3",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/agent/travel-agent.ts",
+    "src/services/cost-tracker.ts"
+  ],
+  "notes": "L1: gpt-4o-mini（简单场景）\nL2: claude-sonnet-4（复杂场景）\n选择依据: 城市数、天数、偏好复杂度",
+  "meta": {}
+}

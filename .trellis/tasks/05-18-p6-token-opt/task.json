@@ -1,0 +1,44 @@
+{
+  "id": "p6-token-opt",
+  "name": "p6-token-opt",
+  "title": "Token 消耗优化 — 全方位减少 LLM 调用次数与 Token 消耗",
+  "description": "",
+  "status": "completed",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [
+    "p6-search-pre-orch",
+    "p6-post-process",
+    "p6-split-prompt",
+    "p6-on-demand-schema"
+  ],
+  "children": [
+    "05-18-p6-search-pre-orch",
+    "05-18-p6-post-process",
+    "05-18-p6-split-prompt",
+    "05-18-p6-on-demand-schema"
+  ],
+  "parent": null,
+  "relatedFiles": [
+    "src/agent/travel-agent.ts",
+    "src/agent/prompts.ts",
+    "src/services/cost-tracker.ts",
+    "src/tools/index.ts",
+    "src/tools/action-links.ts",
+    "src/tools/budget.ts",
+    "src/services/action-link-service.ts"
+  ],
+  "notes": "优先级: P0(P0a + P0b) → P1(P1a + P1b) → P2",
+  "meta": {}
+}

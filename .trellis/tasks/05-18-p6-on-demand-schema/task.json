@@ -1,0 +1,29 @@
+{
+  "id": "p6-on-demand-schema",
+  "name": "p6-on-demand-schema",
+  "title": "工具 schema 按需注入",
+  "description": "P1: 每个阶段只注入当前需要的工具 schema，减少 input tokens",
+  "status": "completed",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P1",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-18-p6-token-opt",
+  "relatedFiles": [
+    "src/agent/travel-agent.ts",
+    "src/tools/index.ts"
+  ],
+  "notes": "当前: 每次 LLM 调用都注入全部 8 个工具的 schema\n优化: 搜索阶段只带搜索工具，编排阶段只带编排工具\n预估节省: ~20% input tokens",
+  "meta": {}
+}

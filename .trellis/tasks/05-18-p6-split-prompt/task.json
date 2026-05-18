@@ -1,0 +1,29 @@
+{
+  "id": "p6-split-prompt",
+  "name": "p6-split-prompt",
+  "title": "分阶段精简 System Prompt",
+  "description": "P1: 不同阶段使用不同的精简 prompt，降低每轮 input tokens",
+  "status": "completed",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P1",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-18-p6-token-opt",
+  "relatedFiles": [
+    "src/agent/prompts.ts",
+    "src/agent/travel-agent.ts"
+  ],
+  "notes": "当前: 一个 ~1.5KB 的 SYSTEM_PROMPT 每轮全量注入\n优化: 搜索阶段用 300 字精简 prompt，编排阶段用完整 prompt\n预估节省: ~40% input tokens",
+  "meta": {}
+}

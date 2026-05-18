@@ -1,0 +1,33 @@
+{
+  "id": "p6-search-pre-orch",
+  "name": "p6-search-pre-orch",
+  "title": "搜索工具预编排 — 并行直接调用搜索服务",
+  "description": "P0 最高优先级：将 search_attractions / weather / hotels 从 LLM 逐个决策改为入参时直接并行调用",
+  "status": "completed",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P0",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-18-p6-token-opt",
+  "relatedFiles": [
+    "src/agent/travel-agent.ts",
+    "src/agent/prompts.ts",
+    "src/tools/index.ts",
+    "src/services/attraction-service.ts",
+    "src/services/weather-service.ts",
+    "src/services/multi-source-service.ts"
+  ],
+  "notes": "当前架构: LLM 每轮决定调用一个工具，需要 3-4 轮+继续轮\n优化后: planTrip() 入口直接并行调用所有搜索服务，搜索结果注入给 LLM 一次性编排\n预估节省: 6-8 次 LLM 调用",
+  "meta": {}
+}

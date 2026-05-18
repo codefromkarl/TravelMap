@@ -1,0 +1,32 @@
+{
+  "id": "p6-post-process",
+  "name": "p6-post-process",
+  "title": "确定性计算移出 LLM — budget/links 后处理",
+  "description": "P0 最高优先级：将预算计算和行动链接生成从 LLM 工具调用改为纯代码层计算",
+  "status": "completed",
+  "dev_type": "optimization",
+  "scope": "backend",
+  "package": null,
+  "priority": "P0",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-18",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-18-p6-token-opt",
+  "relatedFiles": [
+    "src/tools/budget.ts",
+    "src/tools/action-links.ts",
+    "src/services/budget-service.ts",
+    "src/services/action-link-service.ts",
+    "src/agent/travel-agent.ts"
+  ],
+  "notes": "当前架构: calculate_budget / generate_action_links 通过 LLM 工具调用执行\n优化后: 编排完成后在代码层直接调用 service\n预估节省: 2-4 次 LLM 调用",
+  "meta": {}
+}
