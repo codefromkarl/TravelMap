@@ -13,6 +13,8 @@ import type {
   Meal,
   TripPlan,
   TripRequest,
+  TrvlFlightSearchResult,
+  TrvlHotelSearchResult,
   WeatherInfo,
 } from "../../types/trip.js";
 
@@ -139,6 +141,72 @@ export function createMockTripRequest(overrides?: Partial<TripRequest>): TripReq
     accommodation: "经济型酒店",
     preferences: ["历史文化", "美食"],
     freeTextInput: "",
+    ...overrides,
+  };
+}
+
+// ─── trvl mock 工厂 ────────────────────────────────────────
+
+export function createMockTrvlFlightResult(
+  overrides?: Partial<TrvlFlightSearchResult>,
+): TrvlFlightSearchResult {
+  return {
+    success: true,
+    count: 2,
+    trip_type: "one_way",
+    flights: [
+      {
+        price: 580,
+        currency: "CNY",
+        duration: 120,
+        stops: 0,
+        booking_url: "https://example.com/flight/CA1234",
+        legs: [
+          {
+            departure_airport: { code: "PEK", name: "北京首都" },
+            arrival_airport: { code: "SHA", name: "上海虹桥" },
+            departure_time: "08:00",
+            arrival_time: "10:00",
+            airline: "中国国航",
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function createMockTrvlHotelResult(
+  overrides?: Partial<TrvlHotelSearchResult>,
+): TrvlHotelSearchResult {
+  return {
+    success: true,
+    count: 3,
+    hotels: [
+      {
+        name: "测试酒店",
+        hotel_id: "htl_001",
+        rating: 4.5,
+        stars: 4,
+        price: 398,
+        currency: "CNY",
+        booking_url: "https://example.com/hotel/test-hotel",
+        sources: [
+          {
+            provider: "google_hotels",
+            price: 398,
+            currency: "CNY",
+            booking_url: "https://example.com/hotel/google",
+          },
+          {
+            provider: "trivago",
+            price: 420,
+            currency: "CNY",
+            booking_url: "https://example.com/hotel/trivago",
+          },
+        ],
+      },
+    ],
     ...overrides,
   };
 }

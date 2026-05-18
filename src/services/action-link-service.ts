@@ -1,10 +1,13 @@
 /**
  * 行动链接服务 — 为行程生成景点预约、酒店比价、机票比价链接
  *
- * 当前使用 URL 模版生成搜索/预约链接，后续可接入 affiliate API。
+ * 双层策略：
+ *   1. trvl 可用时：获取实时价格 + 预订链接
+ *   2. fallback：URL 模板生成搜索链接
  */
 
 import type { ActionLink, Attraction, Hotel, TripPlan } from "../types/trip.js";
+import { isTrvlAvailable, searchFlights, searchHotels } from "./trvl-service.js";
 
 // ─── 景点预约链接 ──────────────────────────────────────────
 
@@ -26,50 +29,9 @@ function getInfoUrl(attraction: Attraction): string {
   return `https://www.google.com/search?q=${query}`;
 }
 
-/** 为景点生成预约/信息链接 */
-function _generateAttractionLinks(attraction: Attraction): ActionLink[] {
-  const links: ActionLink[] = [];
+// ─── 酒店比价链接（URL 模板 fallback）──────────────────────
 
-  if (attraction.reservationRequired) {
-    const officialUrl = RESERVATION_URLS[attraction.nameZh];
-    if (officialUrl) {
-      links.push({
-        platform: "官方预约",
-        url: officialUrl,
-        label: `预约 ${attraction.nameZh}`,
-      });
-    } else {
-      // 通用预约搜索
-      const query = encodeURIComponent(`${attraction.nameZh} 预约 门票`);
-      links.push({
-        platform: "搜索",
-        url: `https://www.google.com/search?q=${query}`,
-        label: `查询 ${attraction.nameZh} 预约方式`,
-      });
-    }
-  } else {
-    links.push({
-      platform: "信息查询",
-      url: getInfoUrl(attraction),
-      label: `查看 ${attraction.nameZh} 开放信息`,
-    });
-  }
-
-  // 大众点评/美团链接（中国景区）
-  const dianpingQuery = encodeURIComponent(attraction.nameZh);
-  links.push({
-    platform: "大众点评",
-    url: `https://www.dianping.com/search/keyword/${dianpingQuery}`,
-    label: `${attraction.nameZh} 评价`,
-  });
-
-  return links;
-}
-
-// ─── 酒店比价链接 ──────────────────────────────────────────
-
-/** 为酒店生成比价链接 */
-function generateHotelLinks(hotel: Hotel, city: string): ActionLink[] {
+function generateTemplateHotelLinks(hotel: Hotel, city: string): ActionLink[] {
   const hotelName = encodeURIComponent(hotel.name);
   const cityName = encodeURIComponent(city);
 
@@ -78,24 +40,74 @@ function generateHotelLinks(hotel: Hotel, city: string): ActionLink[] {
       platform: "Booking.com",
       url: `https://www.booking.com/searchresults.html?ss=${cityName}&q=${hotelName}`,
       label: `Booking.com 查看 ${hotel.name}`,
+      source: "template",
     },
     {
       platform: "飞猪",
       url: `https://www.fliggy.com/search.htm?keyword=${cityName}${hotelName}`,
       label: `飞猪 查看 ${hotel.name}`,
+      source: "template",
     },
     {
       platform: "去哪儿",
       url: `https://hotel.qunar.com/city/${cityName}/?q=${hotelName}`,
       label: `去哪儿 查看 ${hotel.name}`,
+      source: "template",
     },
   ];
 }
 
-// ─── 机票比价链接 ──────────────────────────────────────────
+/** 通过 trvl 获取酒店实时比价链接 */
+async function generateTrvlHotelLinks(
+  hotel: Hotel,
+  city: string,
+  checkin: string,
+  checkout: string,
+): Promise<ActionLink[]> {
+  const result = await searchHotels(city, checkin, checkout);
+  const links: ActionLink[] = [];
 
-/** 为跨城市行程生成机票/火车票搜索链接 */
-function generateFlightLinks(trip: TripPlan): ActionLink[] {
+  // 找到与酒店名匹配的结果
+  const matched = result.hotels.find(
+    (h) => h.name.includes(hotel.name) || hotel.name.includes(h.name),
+  );
+
+  if (matched && matched.sources.length > 0) {
+    // 使用 trvl 多平台比价数据
+    for (const src of matched.sources) {
+      if (src.booking_url) {
+        links.push({
+          platform: src.provider,
+          url: src.booking_url,
+          label: `${src.provider} ${hotel.name} ¥${src.price}`,
+          price: src.price,
+          currency: src.currency,
+          source: "trvl",
+        });
+      }
+    }
+  } else if (result.hotels.length > 0) {
+    // 没精确匹配，取前 3 个最便宜酒店的预订链接
+    for (const h of result.hotels.slice(0, 3)) {
+      if (h.booking_url) {
+        links.push({
+          platform: "Google Hotels",
+          url: h.booking_url,
+          label: `${h.name} ¥${h.price}/晚`,
+          price: h.price,
+          currency: h.currency,
+          source: "trvl",
+        });
+      }
+    }
+  }
+
+  return links;
+}
+
+// ─── 航班比价链接（URL 模板 fallback）──────────────────────
+
+function generateTemplateFlightLinks(trip: TripPlan): ActionLink[] {
   if (trip.cities.length < 2) return [];
 
   const links: ActionLink[] = [];
@@ -103,8 +115,6 @@ function generateFlightLinks(trip: TripPlan): ActionLink[] {
   for (let i = 0; i < trip.cities.length - 1; i++) {
     const fromCity = trip.cities[i];
     const toCity = trip.cities[i + 1];
-
-    // 查找对应的移动日日期
     const transferDay = trip.days.find((d) => d.isTransferDay && d.city === toCity);
     const date = transferDay?.date ?? trip.startDate;
 
@@ -115,17 +125,57 @@ function generateFlightLinks(trip: TripPlan): ActionLink[] {
       platform: "Skyscanner",
       url: `https://www.skyscanner.net/transport/flights/${from}/${to}/${date}/`,
       label: `${fromCity} → ${toCity} 机票搜索`,
+      source: "template",
     });
     links.push({
       platform: "携程",
       url: `https://flights.ctrip.com/online/search?departure=${from}&destination=${to}&date=${date}`,
       label: `${fromCity} → ${toCity} 携程查票`,
+      source: "template",
     });
     links.push({
       platform: "12306",
       url: `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${from}&ts=${to}&date=${date}`,
       label: `${fromCity} → ${toCity} 火车票查询`,
+      source: "template",
     });
+  }
+
+  return links;
+}
+
+/** 通过 trvl 获取航班实时比价链接 */
+async function generateTrvlFlightLinks(trip: TripPlan): Promise<ActionLink[]> {
+  if (trip.cities.length < 2) return [];
+
+  const links: ActionLink[] = [];
+
+  for (let i = 0; i < trip.cities.length - 1; i++) {
+    const fromCity = trip.cities[i];
+    const toCity = trip.cities[i + 1];
+    const transferDay = trip.days.find((d) => d.isTransferDay && d.city === toCity);
+    const date = transferDay?.date ?? trip.startDate;
+
+    try {
+      const result = await searchFlights(fromCity, toCity, date);
+
+      // 取最便宜的航班
+      if (result.flights.length > 0) {
+        const cheapest = result.flights[0];
+        if (cheapest.booking_url) {
+          links.push({
+            platform: "实时航班",
+            url: cheapest.booking_url,
+            label: `${fromCity} → ${toCity} ¥${cheapest.price}`,
+            price: cheapest.price,
+            currency: cheapest.currency,
+            source: "trvl",
+          });
+        }
+      }
+    } catch {
+      // 单段失败不阻塞其他段，fallback 在外层处理
+    }
   }
 
   return links;
@@ -134,33 +184,98 @@ function generateFlightLinks(trip: TripPlan): ActionLink[] {
 // ─── 主入口 ───────────────────────────────────────────────
 
 /**
- * 为完整行程注入行动链接
- * - 需预约景点 → 预约链接
- * - 酒店 → 比价链接（Booking/飞猪/去哪儿）
- * - 跨城市 → 交通搜索链接（Skyscanner/携程/12306）
+ * 为完整行程注入行动链接（同步版本，仅使用 URL 模板）
+ * 保留用于不需要异步的场景和向后兼容
  */
 export function enrichTripWithLinks(trip: TripPlan): TripPlan {
   const enriched: TripPlan = { ...trip, days: [...trip.days] };
 
-  // 1. 酒店比价链接
   for (const day of enriched.days) {
     if (day.hotel) {
       day.hotel = {
         ...day.hotel,
-        comparisonLinks: generateHotelLinks(day.hotel, day.city),
+        comparisonLinks: generateTemplateHotelLinks(day.hotel, day.city),
       };
     }
 
-    // 2. 景点预约/信息链接
     day.attractions = day.attractions.map((a) => ({
       ...a,
       bookingUrl: a.reservationRequired ? (RESERVATION_URLS[a.nameZh] ?? getInfoUrl(a)) : undefined,
     }));
   }
 
-  // 3. 城际交通链接
-  const flightLinks = generateFlightLinks(trip);
+  const flightLinks = generateTemplateFlightLinks(trip);
   if (flightLinks.length > 0) {
+    enriched.flightLinks = flightLinks;
+  }
+
+  return enriched;
+}
+
+/**
+ * 为完整行程注入行动链接（增强版，优先使用 trvl 实时数据）
+ *
+ * 双层策略：
+ *   1. trvl 可用 → 获取实时价格 + 预订链接
+ *   2. trvl 不可用/失败 → fallback 到 URL 模板
+ */
+export async function enrichTripWithLiveLinks(trip: TripPlan): Promise<TripPlan> {
+  const enriched: TripPlan = { ...trip, days: [...trip.days] };
+
+  // 景点预约（不依赖 trvl，始终使用本地数据）
+  for (const day of enriched.days) {
+    day.attractions = day.attractions.map((a) => ({
+      ...a,
+      bookingUrl: a.reservationRequired ? (RESERVATION_URLS[a.nameZh] ?? getInfoUrl(a)) : undefined,
+    }));
+  }
+
+  // 检测 trvl 是否可用
+  const trvlAvailable = await isTrvlAvailable();
+
+  // 酒店比价链接
+  for (const day of enriched.days) {
+    if (day.hotel) {
+      let links: ActionLink[];
+
+      if (trvlAvailable) {
+        try {
+          // 计算入住/退房日期
+          const checkin = day.date;
+          const nextDay = enriched.days.find((d) => d.dayIndex === day.dayIndex + 1);
+          const checkout = nextDay?.date ?? day.date;
+
+          links = await generateTrvlHotelLinks(day.hotel, day.city, checkin, checkout);
+          // trvl 没返回有效链接时 fallback
+          if (links.length === 0) {
+            links = generateTemplateHotelLinks(day.hotel, day.city);
+          }
+        } catch {
+          links = generateTemplateHotelLinks(day.hotel, day.city);
+        }
+      } else {
+        links = generateTemplateHotelLinks(day.hotel, day.city);
+      }
+
+      day.hotel = { ...day.hotel, comparisonLinks: links };
+    }
+  }
+
+  // 城际交通链接
+  if (trip.cities.length >= 2) {
+    let flightLinks: ActionLink[];
+
+    if (trvlAvailable) {
+      try {
+        const liveLinks = await generateTrvlFlightLinks(trip);
+        flightLinks = liveLinks.length > 0 ? liveLinks : generateTemplateFlightLinks(trip);
+      } catch {
+        flightLinks = generateTemplateFlightLinks(trip);
+      }
+    } else {
+      flightLinks = generateTemplateFlightLinks(trip);
+    }
+
     enriched.flightLinks = flightLinks;
   }
 

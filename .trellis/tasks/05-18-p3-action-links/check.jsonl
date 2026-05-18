@@ -1,1 +1,3 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "质量检查 - 验证 fallback 逻辑、测试覆盖、类型正确性"}
+{"file": ".trellis/spec/backend/testing-roadmap.md", "reason": "测试规范 - 验证 mock 覆盖、新 fixture 工厂"}
+{"file": ".trellis/tasks/05-18-p3-action-links/research/trvl-cli-integration.md", "reason": "trvl 数据结构 - 验证类型定义与 trvl JSON 输出匹配"}
