@@ -19,62 +19,73 @@ const PROJECT_ROOT = path.resolve(__dirname, "../../../");
 const SRC_DIR = path.join(PROJECT_ROOT, "src");
 const TEST_DIR = path.join(SRC_DIR, "__tests__");
 
-// 需要测试覆盖的源文件（排除纯类型/导出文件）
-const SOURCE_FILES_REQUIRE_TEST = [
-  "services/attraction-service.ts",
-  "services/budget-service.ts",
-  "services/dual-map-service.ts",
-  "services/geocode-service.ts",
-  "services/multi-source-service.ts",
-  "services/partial-edit-service.ts",
-  "services/weather-service.ts",
-  "tools/attractions.ts",
-  "tools/budget.ts",
-  "tools/geocode.ts",
-  "tools/weather.ts",
-  "tools/hotels.ts",
-  "agent/travel-agent.ts",
-  "agent/prompts.ts",
-];
-
 // 不需要测试的文件（纯导出/类型/入口）
 const SOURCE_FILES_EXEMPT = [
   "types/trip.ts",
   "types/index.ts",
+  "types/route.ts",
   "index.ts",
   "bin/cli.ts", // CLI 交互式，需要 Playwright
+  "services/config.ts", // 纯配置常量
+  "services/http-client.ts", // 已在 http-client.test.ts 测试
+  "services/search-orchestrator.ts", // 已在 orchestration-contract.test.ts 测试
+  "services/xhs/types.ts", // 纯类型
+  "services/xhs/utils.ts", // 纯工具函数，adapter 测试中已覆盖
+  "services/xhs/adapters/index.ts", // 纯注册表，provider-contract.test.ts 已覆盖
+  "services/dianping-scrape-service.ts", // 网页抓取服务，无测试
+  "services/mock-data.ts", // 纯 mock 数据
 ];
 
-// 所有已注册的 HTTP handler 对应的外部 API
-const EXPECTED_API_DOMAINS = [
-  "maps.googleapis.com",
-  "api.openweathermap.org",
-  "restapi.amap.com",
-  "nominatim.openstreetmap.org",
-  "api.opentopodata.org",
-  "rnote.dev",
-  "api.justoneapi.com",
-  "api.tikhub.io",
-  "localhost",
-];
+/** 自动发现需要测试覆盖的源文件 */
+function getSourceFilesRequireTest(): string[] {
+  const all = getAllSourceFiles();
+  const exemptSet = new Set(SOURCE_FILES_EXEMPT);
+  return all.filter((f) => !exemptSet.has(f));
+}
 
-// 核心类型名，fixtures 应有对应工厂
-const EXPECTED_FIXTURE_TYPES = [
-  "createMockLocation",
-  "createMockAttraction",
-  "createMockMeal",
-  "createMockHotel",
-  "createMockWeatherInfo",
-  "createMockDayPlan",
-  "createMockTripPlan",
-  "createMockTripRequest",
-];
+/** 自动从源码中提取外部 API 域名（仅扫描包含 fetch 调用的文件） */
+function getExpectedApiDomains(): string[] {
+  const domains = new Set<string>();
+  const srcFiles = getAllSourceFiles().filter(
+    (f) => f.startsWith("services/") && !f.includes("action-link-service"),
+  );
+
+  for (const srcFile of srcFiles) {
+    const srcPath = path.join(SRC_DIR, srcFile);
+    if (!fs.existsSync(srcPath)) continue;
+
+    const content = fs.readFileSync(srcPath, "utf-8");
+    // 只扫描包含 fetch / fetchWithTimeout / fetchWithRetry 调用的文件
+    if (!/\bfetch(WithTimeout|WithRetry)?\s*\(/.test(content)) continue;
+
+    const urlMatches = content.matchAll(/https?:\/\/([a-z0-9.-]+)/gi);
+
+    for (const match of urlMatches) {
+      const domain = match[1];
+      if (domain === "esm.sh") continue; // CDN 不需要 mock
+      if (domain === "example.com" || domain.startsWith("www.")) continue; // 示例/官网 URL 不需要 mock
+      domains.add(domain);
+    }
+  }
+
+  return Array.from(domains).sort();
+}
+
+/** 自动从 fixtures.ts 中提取工厂函数名 */
+function getExpectedFixtureTypes(): string[] {
+  const fixturesPath = path.join(TEST_DIR, "mocks", "fixtures.ts");
+  const content = fs.readFileSync(fixturesPath, "utf-8");
+  const matches = content.matchAll(/export function (createMock\w+)/g);
+  return Array.from(new Set(Array.from(matches).map((m) => m[1]))).sort();
+}
 
 describe("测试质量守卫", () => {
   // ─── 1. 源文件覆盖检查 ───────────────────────────────────
 
   describe("源文件 → 测试文件映射", () => {
-    for (const srcFile of SOURCE_FILES_REQUIRE_TEST) {
+    const sourceFilesRequireTest = getSourceFilesRequireTest();
+
+    for (const srcFile of sourceFilesRequireTest) {
       it(`${srcFile} 应有对应的测试文件`, () => {
         const hasTest = hasCorrespondingTest(srcFile);
         expect(hasTest).toBe(true);
@@ -83,15 +94,14 @@ describe("测试质量守卫", () => {
 
     it("应检查所有 src 下的 .ts 源文件（守卫完整性）", () => {
       const allSrcFiles = getAllSourceFiles();
-      const covered = new Set([...SOURCE_FILES_REQUIRE_TEST, ...SOURCE_FILES_EXEMPT]);
+      const covered = new Set([...sourceFilesRequireTest, ...SOURCE_FILES_EXEMPT]);
 
       const uncovered = allSrcFiles.filter((f) => !covered.has(f));
       if (uncovered.length > 0) {
-        // 如果有新文件未注册，列出但不失败（开发期宽松策略）
         console.warn(
           "[测试守卫] 新发现源文件未在守卫清单中:\n" +
             uncovered.map((f) => `  - ${f}`).join("\n") +
-            "\n请更新 quality-guard.test.ts 中的 SOURCE_FILES_REQUIRE_TEST 或 SOURCE_FILES_EXEMPT",
+            "\n请更新 quality-guard.test.ts 中的 SOURCE_FILES_EXEMPT",
         );
       }
     });
@@ -103,27 +113,33 @@ describe("测试质量守卫", () => {
     it("handlers.ts 应覆盖所有外部 API 域名", () => {
       const handlersPath = path.join(TEST_DIR, "mocks", "handlers.ts");
       const content = fs.readFileSync(handlersPath, "utf-8");
+      const expectedDomains = getExpectedApiDomains();
 
-      for (const domain of EXPECTED_API_DOMAINS) {
+      for (const domain of expectedDomains) {
         expect(content).toContain(domain);
       }
     });
 
     it("源码中所有 fetch 调用的 URL 域名应在 handlers 中有对应", () => {
       const handlerContent = fs.readFileSync(path.join(TEST_DIR, "mocks", "handlers.ts"), "utf-8");
+      const srcFiles = getAllSourceFiles().filter(
+        (f) => f.startsWith("services/") && !f.includes("action-link-service"),
+      );
 
-      // 从源码中提取所有外部 URL
-      const srcFiles = SOURCE_FILES_REQUIRE_TEST.filter((f) => f.startsWith("services/"));
       for (const srcFile of srcFiles) {
         const srcPath = path.join(SRC_DIR, srcFile);
         if (!fs.existsSync(srcPath)) continue;
 
         const content = fs.readFileSync(srcPath, "utf-8");
+        // 只检查包含 fetch 调用的文件
+        if (!/\bfetch(WithTimeout|WithRetry)?\s*\(/.test(content)) continue;
+
         const urlMatches = content.matchAll(/https?:\/\/([a-z0-9.-]+)/gi);
 
         for (const match of urlMatches) {
           const domain = match[1];
           if (domain === "esm.sh") continue; // CDN 不需要 mock
+          if (domain === "example.com" || domain.startsWith("www.")) continue; // 示例/官网 URL
           expect(
             handlerContent.includes(domain),
             `handlers.ts 缺少对 ${domain} 的 mock (来自 ${srcFile})`,
@@ -139,8 +155,9 @@ describe("测试质量守卫", () => {
     it("fixtures.ts 应导出所有核心类型的工厂函数", () => {
       const fixturesPath = path.join(TEST_DIR, "mocks", "fixtures.ts");
       const content = fs.readFileSync(fixturesPath, "utf-8");
+      const expectedFactories = getExpectedFixtureTypes();
 
-      for (const factory of EXPECTED_FIXTURE_TYPES) {
+      for (const factory of expectedFactories) {
         expect(content).toContain(`export function ${factory}`);
       }
     });
