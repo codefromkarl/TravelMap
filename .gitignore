@@ -9,3 +9,5 @@ coverage/
 .trellis/.runtime/
 .trellis/workspace/
 .ace-tool/
+test-results/
+.wrangler/
