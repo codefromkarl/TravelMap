@@ -66,31 +66,6 @@ ${html}`;
   showToast("请选择「另存为 PDF」", 2500, 'warning');
 }
 
-export function createShareLink(content) {
-  const tripId = crypto.randomUUID();
-  const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || "{}");
-  stored[tripId] = {
-    content,
-    title: `旅行计划`,
-    createdAt: new Date().toISOString(),
-  };
-  localStorage.setItem(EXPORT_STORAGE_KEY, JSON.stringify(stored));
-  const url = new URL(window.location.href);
-  url.searchParams.set("trip", tripId);
-  navigator.clipboard.writeText(url.toString()).then(() => {
-    showToast("分享链接已复制", 2500, 'success');
-  }).catch(() => {
-    const ta = document.createElement("textarea");
-    ta.value = url.toString();
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-    showToast("分享链接已复制", 2500, 'success');
-  });
-  renderSharedTrips();
-}
-
 // ─── 分享链接加载 ─────────────────────────────────────
 export function loadSharedTrip() {
   const params = new URLSearchParams(window.location.search);

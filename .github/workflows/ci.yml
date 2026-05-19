@@ -74,10 +74,40 @@ jobs:
           path: coverage/
           retention-days: 7
 
-  e2e:
-    name: E2E Tests
+  e2e-page-map:
+    name: E2E — Page Map
     runs-on: ubuntu-latest
-    # 仅 push main 时运行，PR 跳过（需要构建产物）
+    # push 和 PR 都运行页面地图测试（轻量级，不需要构建产物）
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Page Map E2E tests
+        run: npx playwright test web/__tests__/page-map.spec.ts --project=desktop --reporter=list
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-page-map
+          path: playwright-report/
+          retention-days: 7
+
+  e2e:
+    name: E2E Tests (Full)
+    runs-on: ubuntu-latest
+    # 仅 push main 时运行完整 E2E，PR 跳过（较耗时）
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4

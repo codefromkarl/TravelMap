@@ -15,6 +15,7 @@ import { initPlaceholder, applyI18n } from './i18n.js';
 import { tryRestoreSession } from './session.js';
 import { initTravelersPanel } from './travelers.js';
 import { loadSharedTrip, renderSharedTrips } from './export.js';
+import { loadSharedTripFromHash } from './share.js';
 import { saveTrip, listTrips } from './db.js';
 
 export async function initApp() {
@@ -72,7 +73,7 @@ export async function initApp() {
   function resetToolbarAfterError() {
     window._hidePlanningIndicator?.();
     document.getElementById("export-toolbar")?.classList.add("visible");
-    ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+    ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
       document.getElementById(id)?.classList.remove("disabled-ghost");
     });
   }
@@ -87,7 +88,7 @@ export async function initApp() {
             lastTripContentInner = msgs[i].content;
             setLastTripContent(msgs[i].content);
             document.getElementById("export-toolbar")?.classList.add("visible");
-            ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+            ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
               document.getElementById(id)?.classList.remove("disabled-ghost");
             });
           }
@@ -99,7 +100,7 @@ export async function initApp() {
     if (event.type === "turn_start") {
       window._showPlanningIndicator?.('正在规划行程...');
       document.getElementById("export-toolbar")?.classList.remove("visible");
-      ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+      ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
         document.getElementById(id)?.classList.add("disabled-ghost");
       });
       setCurrentTripId(null);
@@ -216,6 +217,17 @@ export async function initApp() {
   // ─── 分享加载 + 过期清理 ───────────────────────────────
   loadSharedTrip();
   renderSharedTrips();
+  // 新版 hash 分享链接加载
+  const hashTrip = loadSharedTripFromHash();
+  if (hashTrip && agent) {
+    const msg = {
+      role: "assistant",
+      content: `# 📋 分享的旅行计划\n\n来自分享链接的行程数据`,
+      timestamp: Date.now(),
+    };
+    agent.state.messages = [...agent.state.messages, msg];
+    showToast("已加载分享的行程", 3000, 'success');
+  }
 
   // ─── 欢迎状态 ─────────────────────────────────────────
   initWelcome();

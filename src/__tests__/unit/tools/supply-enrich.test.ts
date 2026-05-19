@@ -10,9 +10,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import type { TripPlan } from "../../../types/trip.js";
-
 import { enrichSupplyDetailsTool } from "../../../tools/supply-enrich.js";
+import type { TripPlan } from "../../../types/trip.js";
 
 // Mock supply-enrich-service
 vi.mock("../../../services/supply-enrich-service.js", () => ({
@@ -205,7 +204,10 @@ describe("enrichSupplyDetailsTool execute", () => {
       tripPlan: plan,
     });
 
-    const details = result.details as unknown as { tripPlan: TripPlan; stats: Record<string, unknown> };
+    const details = result.details as unknown as {
+      tripPlan: TripPlan;
+      stats: Record<string, unknown>;
+    };
     expect(details).toHaveProperty("tripPlan");
     expect(details.stats.attractionsProcessed).toBe(2);
     expect(details.stats.routesProcessed).toBe(3);
