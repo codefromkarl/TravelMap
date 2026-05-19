@@ -2,14 +2,37 @@
  * search_restaurants Tool 单元测试
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { searchRestaurantsTool } from "../../../tools/restaurants.js";
 import { createEnvStub } from "../../helpers/env.js";
 
 const env = createEnvStub();
 
+vi.mock("../../../services/restaurant-service.js", () => ({
+  searchNearbyRestaurants: vi.fn(async () => ({
+    restaurants: [
+      {
+        name: "Mock餐厅",
+        rating: 4,
+        averageCost: 50,
+        distance: 100,
+        walkMinutes: 5,
+        cuisine: "中餐",
+        location: { latitude: 30, longitude: 120 },
+        source: "mock",
+      },
+    ],
+    source: "mock",
+  })),
+}));
+
+import { searchNearbyRestaurants } from "../../../services/restaurant-service.js";
+
+const mockedSearch = vi.mocked(searchNearbyRestaurants);
+
 afterEach(() => {
   env.reset();
+  vi.clearAllMocks();
 });
 
 describe("search_restaurants tool", () => {
@@ -156,6 +179,110 @@ describe("search_restaurants tool", () => {
       expect(r).toHaveProperty("cuisine");
       expect(r).toHaveProperty("location");
       expect(r).toHaveProperty("source");
+    });
+
+    it("有 warning 时应在结果中包含警告提示", async () => {
+      mockedSearch.mockResolvedValue({
+        restaurants: [
+          {
+            name: "Test",
+            rating: 4,
+            averageCost: 50,
+            distance: 100,
+            walkMinutes: 5,
+            cuisine: "Test",
+            location: { latitude: 30, longitude: 120 },
+            source: "mock",
+            address: "Test地址",
+          },
+        ],
+        source: "mock",
+        warning: "部分餐厅信息不可用",
+      });
+
+      const result = await searchRestaurantsTool.execute("tc_1", {
+        city: "杭州",
+        latitude: 30,
+        longitude: 120,
+      });
+      const text = (result.content[0] as { text: string }).text;
+
+      expect(text).toContain("⚠️");
+      expect(text).toContain("部分餐厅信息不可用");
+      expect(result.details.warning).toBe("部分餐厅信息不可用");
+    });
+
+    it("真实数据应标注真实来源", async () => {
+      mockedSearch.mockResolvedValue({
+        restaurants: [
+          {
+            name: "Real",
+            rating: 4.5,
+            averageCost: 80,
+            distance: 200,
+            walkMinutes: 10,
+            cuisine: "川菜",
+            location: { latitude: 30, longitude: 120 },
+            source: "amap",
+            address: "Real地址",
+          },
+        ],
+        source: "amap",
+      });
+
+      const result = await searchRestaurantsTool.execute("tc_1", {
+        city: "杭州",
+        latitude: 30,
+        longitude: 120,
+      });
+      const text = (result.content[0] as { text: string }).text;
+
+      expect(text).toContain("真实数据");
+      expect(result.details.source).toBe("amap");
+    });
+
+    it("营业时间存在时应包含在结果中", async () => {
+      mockedSearch.mockResolvedValue({
+        restaurants: [
+          {
+            name: "Open",
+            rating: 4,
+            averageCost: 60,
+            distance: 150,
+            walkMinutes: 8,
+            cuisine: "日料",
+            location: { latitude: 30, longitude: 120 },
+            source: "mock",
+            address: "Open地址",
+            businessHours: "09:00-22:00",
+          },
+        ],
+        source: "mock",
+      });
+
+      const result = await searchRestaurantsTool.execute("tc_1", {
+        city: "杭州",
+        latitude: 30,
+        longitude: 120,
+      });
+      const text = (result.content[0] as { text: string }).text;
+
+      expect(text).toContain("营业: 09:00-22:00");
+    });
+
+    it("服务层抛错时应降级返回错误信息", async () => {
+      mockedSearch.mockRejectedValue(new Error("服务超时"));
+
+      const result = await searchRestaurantsTool.execute("tc_1", {
+        city: "杭州",
+        latitude: 30,
+        longitude: 120,
+      });
+      const text = (result.content[0] as { text: string }).text;
+
+      expect(text).toContain("餐厅搜索遇到问题");
+      expect(text).toContain("服务超时");
+      expect(result.details.error).toBe("服务超时");
     });
   });
 });
