@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { calculateBudget, checkBudgetOverrun } from "../../../services/budget-service.js";
-import { createMockDayPlan } from "../../mocks/fixtures.js";
+import { createMockDayPlan, createMockTravelerProfile } from "../../mocks/fixtures.js";
 
 describe("calculateBudget", () => {
   it("应正确汇总所有费用", () => {
@@ -118,6 +118,165 @@ describe("calculateBudget", () => {
     const budget = calculateBudget({ days: [day] });
     expect(budget.totalAttractions).toBe(0);
     expect(budget.totalMeals).toBe(0);
+  });
+
+  // ─── travelers 人群画像测试 ──────────────────────────────
+
+  describe("travelers 人群画像", () => {
+    const baseDay = createMockDayPlan({
+      attractions: [
+        {
+          name: "故宫",
+          ticketPrice: 60,
+          nameZh: "故宫",
+          nameEn: "Forbidden City",
+          address: "",
+          location: { latitude: 0, longitude: 0 },
+          visitDuration: 180,
+          description: "",
+          category: "",
+          reservationRequired: false,
+          reservationTips: "",
+        },
+      ],
+      meals: [
+        { type: "breakfast" as const, name: "早", description: "", estimatedCost: 20 },
+        { type: "lunch" as const, name: "午", description: "", estimatedCost: 60 },
+        { type: "dinner" as const, name: "晚", description: "", estimatedCost: 80 },
+      ],
+      hotel: { name: "H", address: "", priceRange: "", rating: 0, estimatedCost: 300 },
+    });
+
+    it("2成人+1老人+1儿童+1婴儿：门票按系数打折", () => {
+      const travelers = createMockTravelerProfile({
+        adults: 2,
+        seniors: 1,
+        children: 1,
+        infants: 1,
+      });
+      // 门票系数 = 2 + 1*0.5 + 1*0.5 + 1*0 = 3
+      const budget = calculateBudget({ days: [baseDay], travelers });
+      expect(budget.totalAttractions).toBe(Math.round(60 * 3));
+    });
+
+    it("仅成人时按原价计算", () => {
+      const travelers = createMockTravelerProfile({
+        adults: 2,
+        seniors: 0,
+        children: 0,
+        infants: 0,
+      });
+      const budget = calculateBudget({ days: [baseDay], travelers });
+      expect(budget.totalAttractions).toBe(60 * 2);
+      expect(budget.totalMeals).toBe((20 + 60 + 80) * 2);
+    });
+
+    it("老人门票半价、餐饮全价", () => {
+      const travelers = createMockTravelerProfile({
+        adults: 0,
+        seniors: 2,
+        children: 0,
+        infants: 0,
+      });
+      // 门票系数 = 0 + 2*0.5 = 1；餐饮系数 = 0 + 2 = 2
+      const budget = calculateBudget({ days: [baseDay], travelers });
+      expect(budget.totalAttractions).toBe(Math.round(60 * 1));
+      expect(budget.totalMeals).toBe((20 + 60 + 80) * 2);
+    });
+
+    it("儿童门票半价、餐饮半价", () => {
+      const travelers = createMockTravelerProfile({
+        adults: 0,
+        seniors: 0,
+        children: 2,
+        infants: 0,
+      });
+      // 门票系数 = 0 + 0 + 2*0.5 = 1；餐饮系数 = 0 + 0 + 2*0.5 = 1
+      const budget = calculateBudget({ days: [baseDay], travelers });
+      expect(budget.totalAttractions).toBe(Math.round(60 * 1));
+      expect(budget.totalMeals).toBe(Math.round((20 + 60 + 80) * 1));
+    });
+
+    it("婴幼儿门票和餐饮均免费", () => {
+      const travelers = createMockTravelerProfile({
+        adults: 0,
+        seniors: 0,
+        children: 0,
+        infants: 2,
+      });
+      const budget = calculateBudget({ days: [baseDay], travelers });
+      expect(budget.totalAttractions).toBe(0);
+      expect(budget.totalMeals).toBe(0);
+    });
+
+    it("2人住1间房，3人住2间房", () => {
+      const travelers2 = createMockTravelerProfile({
+        adults: 2,
+        seniors: 0,
+        children: 0,
+        infants: 0,
+      });
+      const budget2 = calculateBudget({ days: [baseDay], travelers: travelers2 });
+      expect(budget2.totalHotels).toBe(300 * 1);
+
+      const travelers3 = createMockTravelerProfile({
+        adults: 3,
+        seniors: 0,
+        children: 0,
+        infants: 0,
+      });
+      const budget3 = calculateBudget({ days: [baseDay], travelers: travelers3 });
+      expect(budget3.totalHotels).toBe(300 * 2);
+    });
+
+    it("4成人+2儿童=6人→3间房", () => {
+      const travelers = createMockTravelerProfile({
+        adults: 4,
+        seniors: 0,
+        children: 2,
+        infants: 0,
+      });
+      const budget = calculateBudget({ days: [baseDay], travelers });
+      // 总人数6，Math.ceil(6/2)=3间房
+      expect(budget.totalHotels).toBe(300 * 3);
+    });
+
+    it("交通费用随人数增加", () => {
+      const travelers1 = createMockTravelerProfile({
+        adults: 1,
+        seniors: 0,
+        children: 0,
+        infants: 0,
+      });
+      const budget1 = calculateBudget({
+        days: [baseDay],
+        travelers: travelers1,
+        dailyTransportBudget: 50,
+      });
+      // 系数 = 1 + (1-1)/2 = 1
+      expect(budget1.totalTransportation).toBe(50 * 1);
+
+      const travelers3 = createMockTravelerProfile({
+        adults: 3,
+        seniors: 0,
+        children: 0,
+        infants: 0,
+      });
+      const budget3 = calculateBudget({
+        days: [baseDay],
+        travelers: travelers3,
+        dailyTransportBudget: 50,
+      });
+      // 系数 = 1 + (3-1)/2 = 2
+      expect(budget3.totalTransportation).toBe(50 * 2);
+    });
+
+    it("未提供 travelers 时按单人默认计算", () => {
+      const budget = calculateBudget({ days: [baseDay] });
+      expect(budget.totalAttractions).toBe(60);
+      expect(budget.totalMeals).toBe(20 + 60 + 80);
+      expect(budget.totalHotels).toBe(300);
+    });
   });
 });
 
