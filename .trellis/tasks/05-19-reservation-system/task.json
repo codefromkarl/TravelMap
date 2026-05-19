@@ -1,0 +1,39 @@
+{
+  "id": "reservation-system",
+  "name": "reservation-system",
+  "title": "P1: 景点预约通道系统性接入",
+  "description": "将预约信息从硬编码8条映射扩展为可扩展知识库+数据源动态提取+Agent主动引导的完整闭环",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [
+    "reservation-db",
+    "reservation-qunar-extract",
+    "reservation-prompt",
+    "reservation-qa"
+  ],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/services/action-link-service.ts",
+    "src/services/companion-service.ts",
+    "src/services/free-sources/qunar-adapter.ts",
+    "src/services/free-sources/fusion-engine.ts",
+    "src/services/multi-source-service.ts",
+    "src/types/trip.ts",
+    "src/agent/prompts.ts"
+  ],
+  "notes": "4层架构：知识库(P0) → 数据源提取(P1) → Prompt强化(P2) → 问答增强(P3)",
+  "meta": {}
+}
