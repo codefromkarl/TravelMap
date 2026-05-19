@@ -9,7 +9,7 @@
  * 此文件保留原有公共 API 的向后兼容入口。
  */
 
-import type { TripPlan, TravelerProfile } from "../types/trip.js";
+import type { TravelerProfile, TripPlan } from "../types/trip.js";
 import { enrichTripWithLiveLinks } from "./action-link-service.js";
 import { calculateBudget } from "./budget-service.js";
 import {

@@ -64,7 +64,9 @@ export const owmForecastHandler = http.get(
 export const amapGeocodeHandler = http.get("https://restapi.amap.com/v3/geocode/geo", () => {
   return HttpResponse.json({
     status: "1",
-    geocodes: [{ formatted_address: "测试地址", location: "116.397428,39.90923" }],
+    geocodes: [
+      { formatted_address: "测试地址", location: "116.397428,39.90923", adcode: "110000" },
+    ],
   });
 });
 
@@ -344,6 +346,55 @@ export const amapTransitHandler = http.get(
   },
 );
 
+// ─── 和风天气 7 天预报 ──────────────────────────────────
+export const qweatherHandler = http.get("https://devapi.qweather.com/v7/weather/7d", () => {
+  const now = new Date();
+  const daily = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + i);
+    daily.push({
+      fxDate: date.toISOString().split("T")[0],
+      textDay: i % 2 === 0 ? "晴" : "多云",
+      textNight: i % 3 === 0 ? "晴" : "多云",
+      tempMax: String(25 + (i % 3)),
+      tempMin: String(15 + (i % 3)),
+      windDirDay: "东南风",
+      windScaleDay: "3",
+    });
+  }
+  return HttpResponse.json({ code: "200", daily });
+});
+
+// ─── 高德天气 3 天预报 ──────────────────────────────────
+export const amapWeatherHandler = http.get(
+  "https://restapi.amap.com/v3/weather/weatherInfo",
+  () => {
+    const now = new Date();
+    const casts = [];
+    for (let i = 0; i < 4; i++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() + i);
+      casts.push({
+        date: date.toISOString().split("T")[0],
+        dayweather: i % 2 === 0 ? "晴" : "多云",
+        nightweather: "晴",
+        daytemp: String(26 + (i % 3)),
+        nighttemp: String(16 + (i % 3)),
+        daywind: "东南风",
+        nightwind: "东南风",
+        daypower: "3",
+        nightpower: "2",
+        week: "",
+      });
+    }
+    return HttpResponse.json({
+      status: "1",
+      forecasts: [{ city: "北京市", casts }],
+    });
+  },
+);
+
 // ─── 汇总导出 ──────────────────────────────────────────────
 export const handlers = [
   googlePlacesHandler,
@@ -355,6 +406,8 @@ export const handlers = [
   amapPoiHandler,
   amapNearbySearchHandler,
   amapTransitHandler,
+  amapWeatherHandler,
+  qweatherHandler,
   nominatimHandler,
   opentopodataHandler,
   rnoteHandler,

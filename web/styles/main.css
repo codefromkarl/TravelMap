@@ -10,12 +10,12 @@
       --color-bg-overlay: rgba(0, 0, 0, 0.4);
       --color-text-primary: #0f172a;
       --color-text-secondary: #475569;
-      --color-text-muted: #94a3b8;
+      --color-text-muted: #64748b;
       --color-border-subtle: #e2e8f0;
       --color-border-default: #cbd5e1;
-      --color-accent-primary: #6366f1;
-      --color-accent-hover: #4f46e5;
-      --color-accent-subtle: #818cf8;
+      --color-accent-primary: #4f8ef7;
+      --color-accent-hover: #3b7ae6;
+      --color-accent-subtle: #6fa3ff;
       --color-success: #22c55e;
       --color-warning: #f59e0b;
       --color-danger: #ef4444;
@@ -76,9 +76,7 @@
     .page { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
     .page.active { display: flex; }
 
-    header {
-      display: none; /* 地图主页已隐藏，功能移到 map-chat-header */
-    }
+    /* header 已从 DOM 移除，样式不再需要 */
     header h1 { font-size: var(--text-xl); font-weight: 600; }
     header span { font-size: var(--text-sm); color: var(--color-text-muted); }
     #travelers-btn {
@@ -88,7 +86,7 @@
       font-size: var(--text-xs);
     }
     #travelers-btn:hover { background: var(--color-bg-elevated); color: var(--color-text-primary); }
-    #travelers-btn.active { background: rgba(99, 102, 241, 0.1); border-color: var(--color-accent-primary); color: var(--color-accent-primary); }
+    #travelers-btn.active { background: rgba(79, 142, 247, 0.1); border-color: var(--color-accent-primary); color: var(--color-accent-primary); }
     .traveler-row {
       display: flex;
       align-items: center;
@@ -287,7 +285,7 @@
       color: var(--color-text-primary);
     }
     .header-action-btn.active {
-      background: rgba(99, 102, 241, 0.1);
+      background: rgba(79, 142, 247, 0.1);
       color: var(--color-accent-hover);
     }
     .header-divider {
@@ -337,7 +335,7 @@
     }
     #welcome .prompt-card:first-of-type {
       border-color: var(--color-accent-primary);
-      background: rgba(99, 102, 241, 0.04);
+      background: rgba(79, 142, 247, 0.04);
     }
     #welcome .prompt-card:first-of-type::before {
       background: var(--color-accent-primary);
@@ -452,6 +450,23 @@
     .map-btn:hover { background: var(--color-bg-elevated); }
     .map-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     @media (max-width: 640px) {
+    }
+
+    /* ─── 平板适配（768px） ─────────────────────────── */
+    @media (max-width: 768px) {
+      #map-chat-panel {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+      #panel-resizer { display: none; }
+      #page-map {
+        flex-direction: column;
+      }
+      #page-map.mobile-chat-focused #map-right-area { display: none; }
+      #page-map.mobile-map-focused #map-chat-panel { display: none; }
+      .map-search-box { max-width: 240px; }
+      #page-map-routes { width: calc(100vw - 24px); }
     }
 
     /* ─── 地图页面（左右分栏：对话+地图） ──────────── */
@@ -650,7 +665,7 @@
       transition: background 0.15s;
     }
     .map-tool-btn:hover { background: #f0f0f0; }
-    .map-tool-btn.active { background: #6366f1; color: white; }
+    .map-tool-btn.active { background: var(--color-accent-primary); color: white; }
 
     /* 地图图层切换控件 */
     .map-layer-switcher {
@@ -680,13 +695,13 @@
       white-space: nowrap;
     }
     .map-layer-option:hover { background: #f5f5f5; }
-    .map-layer-option.active { background: #eef2ff; color: #6366f1; font-weight: 600; }
+    .map-layer-option.active { background: rgba(79,142,247,0.08); color: var(--color-accent-primary); font-weight: 600; }
     .map-layer-option img {
       width: 32px; height: 32px;
       border-radius: 4px;
       border: 2px solid transparent;
     }
-    .map-layer-option.active img { border-color: #6366f1; }
+    .map-layer-option.active img { border-color: var(--color-accent-primary); }
 
     /* 地图容器 - 关键：必须100%高度 */
     #page-map-container {
@@ -723,9 +738,23 @@
       font-size: 14px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 6px;
       flex-shrink: 0;
     }
+    .route-panel-minimize {
+      background: none;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .route-panel-minimize:hover { color: #333; background: #f5f5f5; }
     .route-panel-body {
       flex: 1;
       overflow-y: auto;
@@ -738,7 +767,7 @@
     .route-day-label {
       font-size: 12px;
       font-weight: 600;
-      color: #6366f1;
+      color: var(--color-accent-primary);
       padding: 6px 4px;
       display: flex;
       align-items: center;
@@ -747,7 +776,7 @@
     .route-day-label::before {
       content: '';
       width: 8px; height: 8px;
-      background: #6366f1;
+      background: var(--color-accent-primary);
       border-radius: 50%;
       flex-shrink: 0;
     }
@@ -795,12 +824,14 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      font-weight: 500;
     }
     .status-dot::before {
       content: '';
-      width: 6px; height: 6px;
+      width: 8px; height: 8px;
       border-radius: 50%;
       display: inline-block;
+      flex-shrink: 0;
     }
     .status-dot.blue::before { background: #3b82f6; }
     .status-dot.green::before { background: #22c55e; }
@@ -855,7 +886,7 @@
     .map-empty-overlay .empty-desc { font-size: 14px; color: #888; max-width: 320px; text-align: center; line-height: 1.6; }
     .map-empty-overlay .empty-action {
       margin-top: 8px;
-      background: #6366f1;
+      background: var(--color-accent-primary);
       color: white;
       border: none;
       border-radius: 20px;
@@ -863,9 +894,9 @@
       font-size: 14px;
       cursor: pointer;
       transition: background 0.15s;
-      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+      box-shadow: 0 4px 12px rgba(79,142,247,0.3);
     }
-    .map-empty-overlay .empty-action:hover { background: #4f46e5; }
+    .map-empty-overlay .empty-action:hover { background: var(--color-accent-hover); }
 
     /* 自定义 Marker 样式 */
     .custom-marker {
@@ -875,9 +906,9 @@
     }
     /* ── Marker & Route 动画 ── */
     @keyframes planningPulse {
-      0% { transform: scale(0.5); opacity: 1; box-shadow: 0 0 0 0 rgba(99,102,241,0.7); }
-      70% { transform: scale(1); opacity: 0.7; box-shadow: 0 0 0 20px rgba(99,102,241,0); }
-      100% { transform: scale(0.5); opacity: 1; box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+      0% { transform: scale(0.5); opacity: 1; box-shadow: 0 0 0 0 rgba(79,142,247,0.7); }
+      70% { transform: scale(1); opacity: 0.7; box-shadow: 0 0 0 20px rgba(79,142,247,0); }
+      100% { transform: scale(0.5); opacity: 1; box-shadow: 0 0 0 0 rgba(79,142,247,0); }
     }
     .planning-indicator { pointer-events: none !important; }
     .planning-pulse {
@@ -899,8 +930,50 @@
       backdrop-filter: blur(4px);
       white-space: nowrap;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      border: 1px solid rgba(99,102,241,0.15);
+      border: 1px solid rgba(79,142,247,0.15);
     }
+    /* ── Skeleton/Shimmer 加载效果 ── */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton-line {
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-surface) 50%, var(--color-bg-elevated) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      margin-bottom: 8px;
+    }
+    .skeleton-line.w-75 { width: 75%; }
+    .skeleton-line.w-50 { width: 50%; }
+    .skeleton-line.w-90 { width: 90%; }
+    .skeleton-circle {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-surface) 50%, var(--color-bg-elevated) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    .planning-skeleton {
+      pointer-events: none !important;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+    }
+    .planning-skeleton .skeleton-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+    .planning-skeleton .skeleton-row .skeleton-line { flex: 1; }
+    .planning-skeleton .planning-text {
+      margin-top: 4px;
+    }
+
     @keyframes markerPopIn {
       0% { transform: scale(0) translateY(10px); opacity: 0; }
       70% { transform: scale(1.15) translateY(-4px); opacity: 1; }
@@ -932,14 +1005,14 @@
     }
     .attraction-marker:hover { transform: scale(1.15); }
     .city-marker {
-      background: #6366f1;
+      background: var(--color-accent-primary);
       color: white;
       border-radius: 16px;
       padding: 4px 12px;
       font-size: 12px;
       font-weight: 600;
       white-space: nowrap;
-      box-shadow: 0 3px 12px rgba(99,102,241,0.4);
+      box-shadow: 0 3px 12px rgba(79,142,247,0.4);
       border: 2px solid white;
       animation: cityMarkerSlide 0.4s ease-out both;
     }
@@ -987,7 +1060,7 @@
     }
     .map-popup .popup-city {
       font-size: 12px;
-      color: #6366f1;
+      color: var(--color-accent-primary);
       margin-bottom: 8px;
     }
     .map-popup .popup-meta {
@@ -1317,7 +1390,7 @@
     }
     .auth-card .auth-subtitle .tier-badge {
       display: inline-block;
-      background: rgba(99, 102, 241, 0.15);
+      background: rgba(79, 142, 247, 0.15);
       color: var(--color-accent-subtle);
       padding: 4px 12px;
       border-radius: 20px;
@@ -1346,7 +1419,7 @@
     .oauth-btn.google { background: #1a1a2e; }
     .oauth-btn.google:hover { background: #252540; }
     .oauth-btn .oauth-icon { font-size: 18px; }
-    .oauth-btn.blog-sso:hover { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+    .oauth-btn.blog-sso:hover { background: linear-gradient(135deg, var(--color-accent-hover), #7c3aed); }
     .auth-divider {
       color: var(--color-text-muted);
       font-size: var(--text-xs);
@@ -1365,7 +1438,7 @@
       align-items: center;
       gap: 8px;
       padding: 6px 14px;
-      background: rgba(99, 102, 241, 0.1);
+      background: rgba(79, 142, 247, 0.1);
       border-radius: 8px;
       font-size: var(--text-xs);
       color: var(--color-text-secondary);
@@ -1439,7 +1512,48 @@
         padding: 24px 16px;
       }
       #welcome h2 { font-size: var(--text-xl); }
+      /* 移动端地图页面：对话全屏，地图全屏切换 */
+      #map-chat-panel {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        border-right: none;
+      }
+      #panel-resizer { display: none; }
+      #page-map { flex-direction: column; }
+      #page-map.mobile-chat-focused #map-right-area { display: none; }
+      #page-map.mobile-map-focused #map-chat-panel { display: none; }
+      .map-search-box { max-width: 180px; font-size: 13px; }
+      #page-map-routes { width: calc(100vw - 24px); }
+      #page-map-statusbar { font-size: 11px; gap: 8px; }
+      #page-map-toolbar { gap: 6px; }
+      .map-tool-btn { width: 32px; height: 32px; font-size: 14px; }
+      /* 移动端视图切换按钮 */
+      .mobile-view-toggle {
+        display: flex;
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        z-index: 1001;
+        gap: 8px;
+      }
+      .mobile-view-btn {
+        background: var(--color-accent-primary);
+        color: white;
+        border: none;
+        border-radius: 24px;
+        padding: 10px 18px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        box-shadow: 0 4px 16px rgba(79, 142, 247, 0.4);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
     }
+    /* 移动端视图切换按钮 — 桌面端隐藏 */
+    .mobile-view-toggle { display: none; }
 
     /* ─── 减少动画偏好 ─────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {
@@ -1563,7 +1677,7 @@
       flex-shrink: 0;
     }
     .share-action-btn {
-      background: var(--color-accent-primary, #6366f1);
+      background: var(--color-accent-primary, var(--color-accent-primary));
       color: white;
       border: none;
       border-radius: 8px;
@@ -1572,7 +1686,7 @@
       cursor: pointer;
       transition: background 0.15s;
     }
-    .share-action-btn:hover { background: var(--color-accent-hover, #4f46e5); }
+    .share-action-btn:hover { background: var(--color-accent-hover, var(--color-accent-hover)); }
     .share-action-btn.secondary {
       background: var(--color-bg-elevated);
       color: var(--color-text-primary);

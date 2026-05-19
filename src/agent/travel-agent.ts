@@ -28,12 +28,9 @@ import {
   createTools,
 } from "../tools/index.js";
 import type { TripPlan, TripRequest } from "../types/trip.js";
-import {
-  getLanguageInstruction,
-  getPhasePrompt,
-  type PromptPhase,
-  STEERING_PROMPT_DIFF,
-} from "./prompts.js";
+import { selectModelTier } from "./model-selector.js";
+import { buildUserPrompt } from "./prompt-builder.js";
+import { getPhasePrompt, type PromptPhase, STEERING_PROMPT_DIFF } from "./prompts.js";
 import { ReviewAgent, type ReviewResult } from "./review-agent.js";
 import { findLatestPlanInMessages, mergeTripPlanDiff } from "./trip-plan-parser.js";
 
@@ -232,35 +229,17 @@ export class TravelAgent {
    *
    * 如果启用了 preSearch（默认），会先并行调用搜索服务获取景点/天气/坐标信息，
    * 将结果注入 prompt 后发给 LLM 编排，省掉 LLM 逐个调用搜索工具的回合。
-   *
-   * 如果请求信息模糊（如只说了城市），Agent 会根据 system prompt 中的
-   * 偏好挖掘规则主动追问，每次只问一个问题。
-   *
-   * 用户回答后通过 `respondToPreferenceDig()` 注入回答，
-   * Agent 判断信息足够后自动开始规划。
    */
-  /**
-   * 根据请求复杂度选择模型层级
-   * L1: 轻量模型（单城市、≤3天、简单偏好）
-   * L2: 强模型（多城市、>3天、复杂偏好）
-   */
-  private selectModelForRequest(request: TripRequest): "L1" | "L2" {
-    if (request.cities.length > 1) return "L2";
-    if (request.travelDays > 3) return "L2";
-    if (request.preferences.length > 2) return "L2";
-    if (request.freeTextInput && request.freeTextInput.length > 20) return "L2";
-    return "L1";
-  }
 
   async planTrip(request: TripRequest): Promise<void> {
     // 保存人群画像，供后处理阶段使用
     this.travelers = request.travelers;
 
     // 根据请求复杂度选择主模型
-    const tier = this.selectModelForRequest(request);
+    const tier = selectModelTier(request);
     this.agent.state.model = tier === "L1" ? this.cheapModel : this.strongModel;
 
-    let prompt = this.buildPrompt(request);
+    let prompt = buildUserPrompt(request);
 
     // 预搜索编排：并行调用搜索服务，将结果注入 prompt
     if (this.preSearch) {
@@ -475,43 +454,5 @@ export class TravelAgent {
     }
   }
 
-  // ============ 内部 ============
-
-  private buildPrompt(request: TripRequest): string {
-    const cities =
-      request.cities.length > 0
-        ? request.cities.map((c) => `${c.city}(${c.days}天)`).join(" → ")
-        : `${request.city}(${request.travelDays}天)`;
-
-    const travelers = request.travelers;
-    const travelersText = travelers
-      ? [
-          `**出行人群**: ${travelers.adults}成人${travelers.seniors > 0 ? ` · ${travelers.seniors}老人` : ""}${travelers.children > 0 ? ` · ${travelers.children}儿童` : ""}${travelers.infants > 0 ? ` · ${travelers.infants}婴幼儿` : ""}${travelers.pregnant ? " · 有孕妇" : ""}${travelers.mobilityImpaired ? " · 有行动不便者" : ""}`,
-          "",
-          "⚠️ 重要：系统已根据人群画像自动过滤了不适合的路线（如高风险登山路线对老人/孕妇已隐藏）。请在剩余可选路线中编排。",
-        ].join("\n")
-      : "";
-
-    const needPreferenceDig =
-      request.preferences.length === 0 && !request.freeTextInput && !travelers;
-
-    return [
-      "请为我规划一次旅行：",
-      "",
-      `**目的地**: ${cities}`,
-      `**日期**: ${request.startDate} 至 ${request.endDate}`,
-      `**天数**: ${request.travelDays}天`,
-      `**交通方式**: ${request.transportation}`,
-      `**住宿偏好**: ${request.accommodation}`,
-      `**兴趣偏好**: ${request.preferences.join("、") || "无特殊偏好"}`,
-      request.freeTextInput ? `\n**额外要求**: ${request.freeTextInput}` : "",
-      travelersText ? `\n${travelersText}` : "",
-      "",
-      needPreferenceDig
-        ? "⚠️ 注意：用户没有提供具体的偏好信息和人群构成。请先通过追问了解：1）旅行风格 2）预算范围 3）是否有老人/儿童/孕妇/行动不便者，2-3轮后自动开始规划。"
-        : "",
-      // 语言指令
-      getLanguageInstruction(request.language),
-    ].join("\n");
-  }
+  // buildPrompt 已提取到 prompt-builder.ts → buildUserPrompt()
 }

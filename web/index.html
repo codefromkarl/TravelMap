@@ -76,21 +76,17 @@
   <div id="app">
     <!-- 主内容区（已移除左侧路由，统一为主界面） -->
     <div id="main-content">
-      <header>
-        <h1>TravelMap</h1>
-        <span data-i18n="subtitle">AI 旅行规划助手</span>
-        <div style="flex:1"></div>
+      <!-- Header 已废弃，功能迁移到 map-chat-header。以下元素保留供 JS 引用 -->
+      <div style="display:none" aria-hidden="true">
         <div id="export-toolbar">
           <button class="export-btn disabled-ghost" id="btn-export-md" title="生成行程后可用" data-i18n-title="exportMd"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> MD</button>
           <button class="export-btn disabled-ghost" id="btn-export-pdf" title="生成行程后可用" data-i18n-title="exportPdf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> PDF</button>
           <button class="export-btn disabled-ghost" id="btn-share-image" title="生成行程后可用" data-i18n-title="shareImage"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> <span data-i18n="shareImage">图片</span></button>
           <button class="export-btn disabled-ghost" id="btn-share-link-new" title="生成行程后可用" data-i18n-title="shareLink"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> <span data-i18n="shareLink">链接</span></button>
-          <button class="export-btn disabled-ghost" id="btn-share-qr" title="生成行程后可用" data-i18n-title="shareQR">📱 <span data-i18n="shareQR">二维码</span></button>
+          <button class="export-btn disabled-ghost" id="btn-share-qr" title="生成行程后可用" data-i18n-title="shareQR"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg> <span data-i18n="shareQR">二维码</span></button>
         </div>
-        <div class="header-actions">
-          <button class="header-action-btn disabled-ghost" id="btn-map" title="生成行程后可用"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></button>
-
-          <div id="quota-bar">
+        <button class="header-action-btn disabled-ghost" id="btn-map" title="生成行程后可用"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></button>
+        <div id="quota-bar">
           <div class="quota-user">
             <img id="quota-avatar" src="" alt="">
             <span id="quota-name"></span>
@@ -103,14 +99,12 @@
           <button class="logout-btn" id="btn-logout" data-i18n="logout">退出</button>
         </div>
         <button class="header-action-btn" id="btn-history" title="历史行程"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
-          <div class="header-divider"></div>
-          <div id="lang-switcher">
-            <button class="lang-btn active" data-lang="zh">中文</button>
-            <button class="lang-btn" data-lang="en">EN</button>
-            <button class="lang-btn" data-lang="ja">日本語</button>
-          </div>
+        <div id="lang-switcher">
+          <button class="lang-btn active" data-lang="zh">中文</button>
+          <button class="lang-btn" data-lang="en">EN</button>
+          <button class="lang-btn" data-lang="ja">日本語</button>
         </div>
-      </header>
+      </div>
     <div id="travelers-panel">
       <div class="panel-header">
         <h3>出行人群</h3>
@@ -188,7 +182,7 @@
           <span data-i18n="authSubtitle">登录后即可免费体验 AI 旅行规划</span>
           <div class="tier-badge" data-i18n="freeTierDesc">🎁 免费体验：1 次完整旅程 + 1 次微调 + 详细报告</div>
         </div>
-        <a class="oauth-btn blog-sso" href="/api/auth/sso" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); margin-bottom: 16px;">
+        <a class="oauth-btn blog-sso" href="/api/auth/sso" style="background: linear-gradient(135deg, #4f8ef7, #6fa3ff); margin-bottom: 16px;">
           <span class="oauth-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           </span>
@@ -376,9 +370,8 @@
         <div id="map-chat-header">
           <h3>🗺️ <span data-i18n="mapChatTitle">旅图助手</span> <a href="https://github.com/codefromkarl/TravelMap" target="_blank" rel="noopener noreferrer" title="GitHub" style="display:inline-flex;align-items:center;margin-left:6px;color:var(--color-text-muted);transition:color 0.15s"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg></a></h3>
           <div style="display:flex;gap:4px;align-items:center">
-            <button class="map-tool-btn" id="travelers-btn-map" title="出行人群" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)">👥</button>
-            <button class="map-tool-btn" id="btn-history-map" title="历史行程" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)">📋</button>
-            <button class="map-tool-btn" id="btn-open-model" title="模型配置" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)">⚙️</button>
+<button class="map-tool-btn" id="btn-history-map" title="历史行程" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+            <button class="map-tool-btn" id="btn-open-model" title="模型配置" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
             <div style="display:flex;gap:1px;margin-left:4px">
               <button class="lang-btn active" data-lang="zh" style="font-size:11px;padding:2px 6px">中</button>
               <button class="lang-btn" data-lang="en" style="font-size:11px;padding:2px 6px">EN</button>
@@ -415,27 +408,27 @@
         <!-- 地图工具栏 -->
         <div id="page-map-toolbar">
           <div class="map-search-box">
-            <span>🔍</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" id="map-search-input" placeholder="搜索景点、路线..." data-i18n-placeholder="mapSearchPlaceholder">
           </div>
-          <button class="map-tool-btn" id="btn-enrich-supplies" title="丰富补给详情" style="display:none">🔄</button>
-          <button class="map-tool-btn" id="btn-map-routes" title="路线面板">📋</button>
-          <button class="map-tool-btn" id="btn-map-layers" title="图层切换">🗺️</button>
-          <button class="map-tool-btn" id="btn-map-locate" title="定位">📍</button>
+          <button class="map-tool-btn" id="btn-enrich-supplies" title="丰富补给详情" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+          <button class="map-tool-btn" id="btn-map-routes" title="路线面板"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+          <button class="map-tool-btn" id="btn-map-layers" title="图层切换"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></button>
+          <button class="map-tool-btn" id="btn-map-locate" title="定位"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></button>
         </div>
 
         <!-- 图层切换 -->
         <div class="map-layer-switcher" id="map-layer-switcher">
           <button class="map-layer-option active" data-layer="standard">
-            <div style="width:32px;height:32px;border-radius:4px;background:linear-gradient(135deg,#e0e7ff,#dbeafe);display:flex;align-items:center;justify-content:center;font-size:16px">🗺️</div>
+            <div style="width:32px;height:32px;border-radius:4px;background:linear-gradient(135deg,#e0e7ff,#dbeafe);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f8ef7" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/></svg></div>
             <span data-i18n="layerStandard">标准地图</span>
           </button>
           <button class="map-layer-option" data-layer="satellite">
-            <div style="width:32px;height:32px;border-radius:4px;background:linear-gradient(135deg,#064e3b,#065f46);display:flex;align-items:center;justify-content:center;font-size:16px">🛰️</div>
+            <div style="width:32px;height:32px;border-radius:4px;background:linear-gradient(135deg,#064e3b,#065f46);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
             <span data-i18n="layerSatellite">卫星地图</span>
           </button>
           <button class="map-layer-option" data-layer="terrain">
-            <div style="width:32px;height:32px;border-radius:4px;background:linear-gradient(135deg,#fef3c7,#fde68a);display:flex;align-items:center;justify-content:center;font-size:16px">⛰️</div>
+            <div style="width:32px;height:32px;border-radius:4px;background:linear-gradient(135deg,#fef3c7,#fde68a);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2"><path d="M2 20 L8 10 L14 16 L22 4"/><polyline points="18 4 22 4 22 8"/></svg></div>
             <span data-i18n="layerTerrain">地形地图</span>
           </button>
         </div>
@@ -443,7 +436,13 @@
         <!-- 路线面板（覆盖在地图上） -->
         <div id="page-map-routes">
           <div class="route-panel-header">
-            📍 <span data-i18n="routePanelTitle">行程路线</span>
+            <span style="display:flex;align-items:center;gap:6px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span data-i18n="routePanelTitle">行程路线</span>
+            </span>
+            <button class="route-panel-minimize" id="btn-minimize-routes" title="最小化" aria-label="最小化路线面板">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </button>
           </div>
           <div class="route-panel-body" id="route-panel-body"></div>
         </div>
@@ -451,10 +450,10 @@
         <!-- 底部状态栏 -->
         <div id="page-map-statusbar">
           <span id="page-map-loading-hint"></span>
-          <span class="status-dot blue" id="status-attractions">0 景点</span>
-          <span class="status-dot green" id="status-routes">0 路线</span>
-          <span class="status-dot yellow" id="status-supplies">0 补给点</span>
-          <span class="status-dot purple" id="status-days">0 天</span>
+          <span class="status-dot blue" id="status-attractions" aria-label="景点数量">📍 <span class="dot-label">景点</span> 0</span>
+          <span class="status-dot green" id="status-routes" aria-label="路线数量">🛤️ <span class="dot-label">路线</span> 0</span>
+          <span class="status-dot yellow" id="status-supplies" aria-label="补给点数量">🍴 <span class="dot-label">补给</span> 0</span>
+          <span class="status-dot purple" id="status-days" aria-label="行程天数">📅 <span class="dot-label">天数</span> 0</span>
         </div>
 
         <!-- 图例 -->
@@ -463,7 +462,20 @@
           <div class="legend-item"><div class="legend-line" style="background:#22c55e"></div> <span data-i18n="legendLowRisk">低风险路线</span></div>
           <div class="legend-item"><div class="legend-line" style="background:#f59e0b"></div> <span data-i18n="legendMidRisk">中风险路线</span></div>
           <div class="legend-item"><div class="legend-line" style="background:#ef4444"></div> <span data-i18n="legendHighRisk">高风险路线</span></div>
-          <div class="legend-item"><div class="legend-line" style="background:#6366f1;border-style:dashed;border-width:1px;height:0"></div> <span data-i18n="legendCityRoute">城际路线</span></div>
+          <div class="legend-item"><div class="legend-line" style="background:#4f8ef7;border-style:dashed;border-width:1px;height:0"></div> <span data-i18n="legendCityRoute">城际路线</span></div>
+        </div>
+        <!-- 移动端视图切换按钮 -->
+        <div class="mobile-view-toggle" id="mobile-view-toggle">
+          <button class="mobile-view-btn" id="btn-mobile-map" title="查看地图">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/></svg>
+            地图
+          </button>
+        </div>
+        <div class="mobile-view-toggle" id="mobile-view-toggle-chat" style="display:none">
+          <button class="mobile-view-btn" id="btn-mobile-chat" title="返回对话">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            对话
+          </button>
         </div>
       </div>
     </div>

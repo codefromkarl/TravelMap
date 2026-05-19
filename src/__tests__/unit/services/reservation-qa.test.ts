@@ -39,9 +39,7 @@ function makeTripPlan(overrides: Partial<TripPlan> = {}): TripPlan {
               bookingOpenDate: "2026-07-08",
               urgency: "expired",
               officialUrl: "https://www.dpm.org.cn/visit/ticket.html",
-              altChannels: [
-                { platform: "美团", url: "https://www.meituan.com/" },
-              ],
+              altChannels: [{ platform: "美团", url: "https://www.meituan.com/" }],
             },
           },
           {

@@ -17,6 +17,8 @@ export interface AppConfig {
   amapWebKey: string | undefined;
   /** OpenWeatherMap API Key */
   openWeatherApiKey: string | undefined;
+  /** 和风天气 API Key */
+  qweatherApiKey: string | undefined;
   /** HTTPS 代理 URL */
   httpsProxy: string | undefined;
   /** OpenTripMap API Key（免费，5000次/天） */
@@ -51,7 +53,7 @@ const KEY_FEATURES: Array<{
     key: "googleMapsApiKey",
     envVar: "GOOGLE_MAPS_API_KEY",
     feature: "Google Maps / Places API",
-    services: ["attraction-service", "multi-source-service", "dual-map-service"],
+    services: ["multi-source-service", "dual-map-service"],
   },
   {
     key: "amapWebKey",
@@ -63,6 +65,12 @@ const KEY_FEATURES: Array<{
     key: "openWeatherApiKey",
     envVar: "OPENWEATHER_API_KEY",
     feature: "OpenWeatherMap 天气 API",
+    services: ["weather-service"],
+  },
+  {
+    key: "qweatherApiKey",
+    envVar: "QWEATHER_API_KEY",
+    feature: "和风天气 API（7天预报，中文原生）",
     services: ["weather-service"],
   },
 ];
@@ -92,6 +100,7 @@ function readFromEnv(): AppConfig {
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
     amapWebKey: process.env.AMAP_WEB_KEY,
     openWeatherApiKey: process.env.OPENWEATHER_API_KEY,
+    qweatherApiKey: process.env.QWEATHER_API_KEY,
     httpsProxy: process.env.HTTPS_PROXY,
     openTripMapApiKey: process.env.OPENTRIPMAP_API_KEY,
 

@@ -101,7 +101,8 @@ function parseTicketHtml(html: string, _city: string): QunarRawItem[] {
   const ratingPattern = /class="[^"]*(?:score|rating)[^"]*"[^>]*>(\d+\.?\d*)/i;
   const salesPattern = /(\d+)\s*(?:人[买已]|已[买售]|销量)/;
   // 预约标签提取：需预约/实名/限流/分时段/提前购票等关键词
-  const reservationPattern = /class="[^"]*(?:tag|label|badge|tip)[^"]*"[^>]*>([^<]*(?:需预约|必须预约|实名|限流|提前购票|分时段|提前|预约)[^<]*)/i;
+  const reservationPattern =
+    /class="[^"]*(?:tag|label|badge|tip)[^"]*"[^>]*>([^<]*(?:需预约|必须预约|实名|限流|提前购票|分时段|提前|预约)[^<]*)/i;
   // 景点详情链接提取
   const detailUrlPattern = /href="(\/ticket\/detail[^"]+)"/i;
 
@@ -131,9 +132,7 @@ function parseTicketHtml(html: string, _city: string): QunarRawItem[] {
       rating: ratingMatch ? Number.parseFloat(ratingMatch[1]) : undefined,
       sales: salesMatch ? Number.parseInt(salesMatch[1], 10) : undefined,
       reservationRequired: reservMatch !== null,
-      bookingUrl: detailUrlMatch
-        ? `https://piao.qunar.com${detailUrlMatch[1]}`
-        : undefined,
+      bookingUrl: detailUrlMatch ? `https://piao.qunar.com${detailUrlMatch[1]}` : undefined,
     });
   }
 
@@ -165,7 +164,8 @@ function parseTicketHtml(html: string, _city: string): QunarRawItem[] {
           reservationRequired:
             sight.needBooking === true ||
             sight.needReserve === true ||
-            (typeof sight.tagList === "string" && /需预约|实名|限流|提前购票/.test(String(sight.tagList))),
+            (typeof sight.tagList === "string" &&
+              /需预约|实名|限流|提前购票/.test(String(sight.tagList))),
           bookingUrl: sight.bookUrl
             ? String(sight.bookUrl)
             : sight.sightId

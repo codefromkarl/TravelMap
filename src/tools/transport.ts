@@ -4,6 +4,7 @@
 
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
+import { formatTransportPrice } from "../services/transport-service";
 import { searchIntercityTransport } from "../services/transport-service.js";
 
 export const searchIntercityTransportTool: AgentTool & { costTier: "cheap" } = {
@@ -56,7 +57,7 @@ export const searchIntercityTransportTool: AgentTool & { costTier: "cheap" } = {
             opt.durationMinutes >= 60
               ? `${Math.floor(opt.durationMinutes / 60)}小时${opt.durationMinutes % 60}分`
               : `${opt.durationMinutes}分钟`;
-          return `${icon} ${opt.code} | ${opt.departureTime}→${opt.arrivalTime}（${durationStr}）| ¥${opt.price} | ${opt.departureStation}→${opt.arrivalStation}${opt.seatType ? ` | ${opt.seatType}` : ""} | 来源:${opt.source}`;
+          return `${icon} ${opt.code} | ${opt.departureTime}→${opt.arrivalTime}（${durationStr}）| ${formatTransportPrice(opt.price, opt.source)} | ${opt.departureStation}→${opt.arrivalStation}${opt.seatType ? ` | ${opt.seatType}` : ""} | 来源:${opt.source}`;
         })
         .join("\n");
 

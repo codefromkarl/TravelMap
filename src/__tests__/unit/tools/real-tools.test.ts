@@ -528,7 +528,7 @@ describe("generateActionLinksTool", () => {
     expect(result.content[0].type).toBe("text");
     const text = (result.content[0] as { type: "text"; text: string }).text;
     // 紧急度标记
-    expect(text).toMatch(/[🔴🟡🟢]/);
+    expect(text).toMatch(/[🔴🟡🟢]/u);
     // 时间轴信息
     expect(text).toContain("提前7天");
     expect(text).toContain("20:00");

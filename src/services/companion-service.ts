@@ -47,8 +47,33 @@ const INTENTS: QueryIntent[] = [
   { type: "hotel_rating", keywords: ["评分", "评价", "星级", "rating"] },
   { type: "ticket_price", keywords: ["门票", "票价", "多少钱", "费用", "价格", "ticket", "price"] },
   { type: "duration", keywords: ["多久", "多长时间", "几个小时", "游览时间", "duration"] },
-  { type: "reservation_timeline", keywords: ["什么时候抢票", "什么时候预约", "几点放票", "抢票时间", "预约时间", "提前几天", "几号预约", "什么时候开始预约"] },
-  { type: "reservation_status", keywords: ["预约清单", "哪些要预约", "预约状态", "待预约", "还没预约", "哪些需要预约", "预约列表", "哪些景点需要预约", "哪些需要预约"] },
+  {
+    type: "reservation_timeline",
+    keywords: [
+      "什么时候抢票",
+      "什么时候预约",
+      "几点放票",
+      "抢票时间",
+      "预约时间",
+      "提前几天",
+      "几号预约",
+      "什么时候开始预约",
+    ],
+  },
+  {
+    type: "reservation_status",
+    keywords: [
+      "预约清单",
+      "哪些要预约",
+      "预约状态",
+      "待预约",
+      "还没预约",
+      "哪些需要预约",
+      "预约列表",
+      "哪些景点需要预约",
+      "哪些需要预约",
+    ],
+  },
   { type: "reservation", keywords: ["预约", "预订", "提前", "买票", "reservation", "book"] },
   { type: "crowd", keywords: ["带孩子", "小孩", "老人", "适合", "亲子", "family", "kid"] },
   { type: "budget", keywords: ["预算", "总花费", "总费用", "预算多少"] },
@@ -126,9 +151,14 @@ function queryReservationTimeline(attractions: Attraction[]): string {
 
   return withReservation
     .map((a) => {
-      const tl = 'reservationTimeline' in a
-        ? (a as Attraction & { reservationTimeline?: import("../types/trip.js").ReservationTimeline }).reservationTimeline
-        : undefined;
+      const tl =
+        "reservationTimeline" in a
+          ? (
+              a as Attraction & {
+                reservationTimeline?: import("../types/trip.js").ReservationTimeline;
+              }
+            ).reservationTimeline
+          : undefined;
       if (!tl) {
         return `${a.nameZh}: 需要预约，建议提前查询官方渠道\n   \u{1F517} ${a.bookingUrl ?? "暂无链接"}`;
       }
@@ -172,11 +202,21 @@ function queryReservationStatus(tripPlan: TripPlan): string {
   ];
 
   required.forEach((a, i) => {
-    const tl = 'reservationTimeline' in a
-      ? (a as Attraction & { reservationTimeline?: import("../types/trip.js").ReservationTimeline }).reservationTimeline
-      : undefined;
+    const tl =
+      "reservationTimeline" in a
+        ? (
+            a as Attraction & {
+              reservationTimeline?: import("../types/trip.js").ReservationTimeline;
+            }
+          ).reservationTimeline
+        : undefined;
     const statusEmoji = tl
-      ? ({ expired: "\u{1F534}过期", urgent: "\u{1F7E1}紧急", normal: "\u{1F7E2}正常" } as Record<string, string>)[tl.urgency] ?? "\u26A0\uFE0F未知"
+      ? ((
+          { expired: "\u{1F534}过期", urgent: "\u{1F7E1}紧急", normal: "\u{1F7E2}正常" } as Record<
+            string,
+            string
+          >
+        )[tl.urgency] ?? "\u26A0\uFE0F未知")
       : "\u26A0\uFE0F未知";
     table.push(
       `| ${i + 1} | ${a.nameZh} | ${a.date} | ${tl?.bookingOpenDate ?? "查询官方"} | ${tl?.releaseTime ?? "全天"} | ${statusEmoji} | [预约](${a.bookingUrl ?? "#"}) |`,

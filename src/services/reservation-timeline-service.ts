@@ -35,9 +35,7 @@ export function enrichReservationTimeline(days: DayPlan[], today?: string): DayP
 
       // 旺季/淡季区别
       const isPeak = entry.peakSeasonMonths?.includes(visitMonth) ?? false;
-      const advanceDays = isPeak
-        ? (entry.peakAdvanceDays ?? entry.advanceDays)
-        : entry.advanceDays;
+      const advanceDays = isPeak ? (entry.peakAdvanceDays ?? entry.advanceDays) : entry.advanceDays;
 
       // 计算预约开放日
       const openDate = new Date(visitDate);
@@ -104,10 +102,7 @@ function formatDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function calcUrgency(
-  today: Date,
-  openDate: Date,
-): ReservationTimeline["urgency"] {
+function calcUrgency(today: Date, openDate: Date): ReservationTimeline["urgency"] {
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const openStart = new Date(openDate.getFullYear(), openDate.getMonth(), openDate.getDate());
   const diffMs = openStart.getTime() - todayStart.getTime();

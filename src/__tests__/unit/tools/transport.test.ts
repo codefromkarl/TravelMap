@@ -7,10 +7,14 @@ import { describe, expect, it, vi } from "vitest";
 import { searchIntercityTransportTool } from "../../../tools/transport.js";
 
 // Mock transport-service
-vi.mock("../../../services/transport-service.js", () => ({
-  searchIntercityTransport: vi.fn(),
-  clearTransportCache: vi.fn(),
-}));
+vi.mock("../../../services/transport-service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../services/transport-service.js")>();
+  return {
+    searchIntercityTransport: vi.fn(),
+    clearTransportCache: vi.fn(),
+    formatTransportPrice: actual.formatTransportPrice,
+  };
+});
 
 import { searchIntercityTransport } from "../../../services/transport-service.js";
 

@@ -1,116 +1,119 @@
 /**
  * 搜索预编排服务 — 并行直接调用搜索服务
  *
- * 核心优化：将景点/天气/酒店搜索从 LLM 逐个决策调用改为代码层直接并行调用，
+ * 核心优化：将搜索从 LLM 逐个决策调用改为代码层直接并行调用，
  * 搜索结果打包后一次性注入给 LLM 编排。
  *
- * 预估节省: 6-8 次 LLM 调用
+ * 内部使用 SearchProvider 注册表，新搜索源只需实现 SearchProvider
+ * 接口并注册，无需修改 orchestrator。
  */
 
 import type { TripRequest, WeatherInfo } from "../types/trip.js";
-import { dualGeocode } from "./dual-map-service.js";
 import type { EnrichedAttraction, FusionResult } from "./multi-source-service.js";
-import { searchAttractionsMultiSource } from "./multi-source-service.js";
-import { searchWeather } from "./weather-service.js";
+import { createDefaultProviders } from "./search/providers/index.js";
+import type { SearchProvider } from "./search/types.js";
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
 export interface SearchResultsBundle {
-  /** 景点搜索结果 */
   attractions: EnrichedAttraction[];
-  /** 天气信息 */
   weather: WeatherInfo[];
-  /** 数据来源列表 */
   sources: string[];
-  /** 各城市坐标信息 */
   cityCoords: Map<string, { latitude: number; longitude: number }>;
 }
 
 export interface SearchOrchestratorOptions {
-  /** 搜索超时时间（毫秒） */
   timeout?: number;
-  /** 是否启用地理编码 */
   enableGeocode?: boolean;
+}
+
+// ─── Provider 注册表 ────────────────────────────────────────
+
+/** 已注册的搜索 Provider 列表 */
+let providers: SearchProvider[] = createDefaultProviders();
+
+/** 注册新的搜索 Provider */
+export function registerSearchProvider(provider: SearchProvider): void {
+  providers.push(provider);
+}
+
+/** 重置为默认 Provider 列表 */
+export function resetSearchProviders(): void {
+  providers = createDefaultProviders();
+}
+
+/** 获取当前已注册的 Provider 列表 */
+export function getSearchProviders(): readonly SearchProvider[] {
+  return providers;
 }
 
 // ─── 搜索执行 ──────────────────────────────────────────────
 
 /**
- * 并行执行所有搜索服务
- *
- * @param request 旅行请求参数
- * @param options 可选配置
- * @returns 搜索结果包
+ * 并行执行所有注册的搜索 Provider
  */
 export async function runParallelSearch(
   request: TripRequest,
-  options: SearchOrchestratorOptions = {},
+  _options: SearchOrchestratorOptions = {},
 ): Promise<SearchResultsBundle> {
-  const { enableGeocode = true } = options;
-  const cities = request.cities.length > 0 ? request.cities.map((c) => c.city) : [request.city];
-  const travelDays = request.travelDays;
+  const activeProviders = [...providers].filter((p) => {
+    // 支持 enableGeocode 选项过滤 geocode provider
+    if (p.resultKey === "cityCoords" && _options.enableGeocode === false) {
+      return false;
+    }
+    return true;
+  });
 
-  // 并行执行所有搜索
-  const searchPromises = [
-    // 1. 景点搜索（取第一个城市作为主要目的地）
-    searchAttractionsMultiSource({
-      city: cities[0]!,
-      preferences: request.preferences,
-    }).catch((err) => {
-      console.warn("[SearchOrchestrator] 景点搜索失败:", err);
-      return { attractions: [], sources: ["failed"], fromCache: false } as FusionResult;
+  // 并行调用所有 provider
+  const results = await Promise.all(
+    activeProviders.map(async (provider) => {
+      try {
+        return await provider.search(request);
+      } catch (err) {
+        console.warn(`[SearchOrchestrator] ${provider.name} 搜索失败:`, err);
+        return { key: provider.resultKey, data: null, source: "failed" };
+      }
     }),
+  );
 
-    // 2. 天气搜索（取第一个城市）
-    searchWeather({ city: cities[0]!, days: travelDays }).catch((err) => {
-      console.warn("[SearchOrchestrator] 天气搜索失败:", err);
-      return { weather: [], source: "failed" };
-    }),
-
-    // 3. 地理编码（每个城市）
-    enableGeocode
-      ? Promise.all(
-          cities.map(async (city) => {
-            try {
-              const { location } = await dualGeocode(city, city);
-              return { city, location };
-            } catch {
-              return { city, location: { latitude: 0, longitude: 0 } };
-            }
-          }),
-        )
-      : Promise.resolve([]),
-  ];
-
-  const [attractionResult, weatherResult, geocodeResults] = await Promise.all(searchPromises);
-
-  // 收集来源
+  // 聚合结果到 SearchResultsBundle
+  const attractions: EnrichedAttraction[] = [];
+  const weather: WeatherInfo[] = [];
   const sources: string[] = [];
-
-  const fusionResult = attractionResult as FusionResult;
-  const weatherRes = weatherResult as { weather: WeatherInfo[]; source: string };
-
-  if (fusionResult.sources.length > 0) {
-    sources.push(...fusionResult.sources);
-  }
-  if (weatherRes.source) {
-    sources.push(weatherRes.source);
-  }
-
-  // 收集坐标
   const cityCoords = new Map<string, { latitude: number; longitude: number }>();
-  for (const r of geocodeResults as {
-    city: string;
-    location: { latitude: number; longitude: number };
-  }[]) {
-    if (r.location.latitude !== 0 && r.location.longitude !== 0) {
-      cityCoords.set(r.city, r.location);
+
+  for (const result of results) {
+    if (!result || result.data === null) {
+      sources.push(result?.source ?? "failed");
+      continue;
+    }
+
+    sources.push(result.source);
+
+    switch (result.key) {
+      case "attractions":
+        attractions.push(...(result.data as EnrichedAttraction[]));
+        break;
+      case "weather":
+        weather.push(...(result.data as WeatherInfo[]));
+        break;
+      case "cityCoords": {
+        const coords = result.data as Map<string, { latitude: number; longitude: number }>;
+        for (const [city, loc] of coords) {
+          if (loc.latitude !== 0 && loc.longitude !== 0) {
+            cityCoords.set(city, loc);
+          }
+        }
+        break;
+      }
+      // 新的 resultKey 会自动被跳过（不影响聚合）
+      // 后续可扩展 SearchResultsBundle 以支持更多结果类型
     }
   }
 
   return {
-    attractions: fusionResult.attractions,
-    weather: weatherRes.weather,
+    attractions,
+    weather,
     sources: [...new Set(sources)],
     cityCoords,
   };
@@ -118,18 +121,11 @@ export async function runParallelSearch(
 
 // ─── 格式化输出 ──────────────────────────────────────────────
 
-/** 输出格式选项 */
 export type SearchResultFormat = "compact" | "readable";
 
-/**
- * 紧凑格式 — 最大化减少 token 消耗
- *
- * 使用管道分隔 + 无字段名，比 markdown 节省 ~40-50% tokens
- */
 export function formatSearchResultsCompact(bundle: SearchResultsBundle): string {
   const lines: string[] = ["[搜索结果]"];
 
-  // 景点: 名称|类别|价格|时长|需预约|坐标
   if (bundle.attractions.length > 0) {
     lines.push(`景点(${bundle.attractions.length}):`);
     for (const a of bundle.attractions.slice(0, 10)) {
@@ -145,7 +141,6 @@ export function formatSearchResultsCompact(bundle: SearchResultsBundle): string 
     }
   }
 
-  // 天气: 日期|白天天气|夜间天气|白天气温|夜间气温
   if (bundle.weather.length > 0) {
     lines.push(`天气(${bundle.weather.length}天):`);
     for (const w of bundle.weather) {
@@ -153,7 +148,6 @@ export function formatSearchResultsCompact(bundle: SearchResultsBundle): string 
     }
   }
 
-  // 坐标
   if (bundle.cityCoords.size > 0) {
     const coordParts: string[] = [];
     for (const [city, loc] of bundle.cityCoords) {
@@ -167,16 +161,9 @@ export function formatSearchResultsCompact(bundle: SearchResultsBundle): string 
   return lines.join("\n");
 }
 
-/**
- * 可读格式 — 保留 markdown，适合调试
- *
- * @param bundle 搜索结果包
- * @returns 格式化文本
- */
 export function formatSearchResultsForAgent(bundle: SearchResultsBundle): string {
   const lines: string[] = ["## 🔍 搜索结果（已由系统预搜索）", ""];
 
-  // 景点
   if (bundle.attractions.length > 0) {
     lines.push(`### 景点（${bundle.attractions.length}个）`);
     for (const a of bundle.attractions.slice(0, 10)) {
@@ -195,7 +182,6 @@ export function formatSearchResultsForAgent(bundle: SearchResultsBundle): string
     lines.push("");
   }
 
-  // 天气
   if (bundle.weather.length > 0) {
     lines.push(`### 天气（${bundle.weather.length}天）`);
     for (const w of bundle.weather) {
@@ -206,7 +192,6 @@ export function formatSearchResultsForAgent(bundle: SearchResultsBundle): string
     lines.push("");
   }
 
-  // 坐标
   if (bundle.cityCoords.size > 0) {
     lines.push("### 城市坐标");
     for (const [city, loc] of bundle.cityCoords) {
@@ -215,7 +200,6 @@ export function formatSearchResultsForAgent(bundle: SearchResultsBundle): string
     lines.push("");
   }
 
-  // 数据来源
   lines.push(`数据来源: ${bundle.sources.join(", ")}`);
 
   return lines.join("\n");
@@ -223,14 +207,6 @@ export function formatSearchResultsForAgent(bundle: SearchResultsBundle): string
 
 // ─── 注入到 Agent Prompt ─────────────────────────────────────
 
-/**
- * 将搜索结果注入到用户 prompt 中
- *
- * @param basePrompt 原始用户 prompt
- * @param bundle 搜索结果包
- * @param format 输出格式，默认 compact
- * @returns 注入搜索结果的完整 prompt
- */
 export function injectSearchResults(
   basePrompt: string,
   bundle: SearchResultsBundle,
@@ -241,11 +217,6 @@ export function injectSearchResults(
   return `${basePrompt}\n\n---\n\n${searchText}`;
 }
 
-// ─── 快速检查 ──────────────────────────────────────────────
-
-/**
- * 检查搜索结果是否可用（非空且有实质内容）
- */
 export function isSearchValid(bundle: SearchResultsBundle): boolean {
   return bundle.attractions.length > 0 || bundle.weather.length > 0;
 }

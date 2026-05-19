@@ -447,6 +447,11 @@ function setupMapInteractions() {
     document.getElementById('page-map-routes')?.classList.toggle('show');
     document.getElementById('btn-map-routes')?.classList.toggle('active');
   });
+  // 路线面板最小化按钮
+  document.getElementById('btn-minimize-routes')?.addEventListener('click', () => {
+    document.getElementById('page-map-routes')?.classList.remove('show');
+    document.getElementById('btn-map-routes')?.classList.remove('active');
+  });
   document.getElementById('btn-map-layers')?.addEventListener('click', () => {
     document.getElementById('map-layer-switcher')?.classList.toggle('show');
   });
@@ -798,13 +803,13 @@ function renderTripOnPageMap(tripPlan) {
   const statusBar = document.getElementById('page-map-statusbar');
   if (statusBar) statusBar.classList.add('show');
   const sa = document.getElementById('status-attractions');
-  if (sa) sa.textContent = markerCount + ' 景点';
+  if (sa) sa.innerHTML = '📍 <span class="dot-label">景点</span> ' + markerCount;
   const sr = document.getElementById('status-routes');
-  if (sr) sr.textContent = routeCount + ' 路线';
+  if (sr) sr.innerHTML = '🛤️ <span class="dot-label">路线</span> ' + routeCount;
   const ss = document.getElementById('status-supplies');
-  if (ss) ss.textContent = supplyPointCount + ' 补给点';
+  if (ss) ss.innerHTML = '🍴 <span class="dot-label">补给</span> ' + supplyPointCount;
   const sd = document.getElementById('status-days');
-  if (sd) sd.textContent = (tripPlan.days?.length||0) + ' 天';
+  if (sd) sd.innerHTML = '📅 <span class="dot-label">天数</span> ' + (tripPlan.days?.length||0);
 
   if (markerCount > 0) document.getElementById('page-map-legend')?.classList.add('show');
   renderRoutePanel(routePanelData);

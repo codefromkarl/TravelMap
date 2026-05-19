@@ -61,7 +61,8 @@ export const generateActionLinksTool: AgentTool = {
             const tl = (attr as any).reservationTimeline;
             let entry = `- **${attr.nameZh}** → [预约链接](${attr.bookingUrl})`;
             if (tl) {
-              const urgencyEmoji = { expired: "🔴", urgent: "🟡", normal: "🟢" }[tl.urgency as string] ?? "";
+              const urgencyEmoji =
+                { expired: "🔴", urgent: "🟡", normal: "🟢" }[tl.urgency as string] ?? "";
               entry += `\n  ${urgencyEmoji} 游玩日 ${day.date} · 需提前${tl.advanceDays}天`;
               entry += tl.releaseTime ? ` · 每日${tl.releaseTime}放票` : "";
               if (tl.altChannels?.length) {

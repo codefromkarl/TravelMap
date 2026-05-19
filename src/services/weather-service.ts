@@ -1,8 +1,9 @@
 /**
- * 天气查询服务 — OpenWeatherMap API (5-day forecast)
+ * 天气查询服务 — 和风天气 > 高德天气 > OpenWeatherMap > mock
  *
- * 免费层：5天/3小时预报 (需 OPENWEATHER_API_KEY)
- * 备选：和风天气 (需 QWEATHER_API_KEY)
+ * 和风天气：7天预报，原生中文，1000次/天免费
+ * 高德天气：3天预报，5000次/天免费
+ * OpenWeatherMap：5天/3小时预报
  * 无 Key 时返回 mock 数据
  */
 
@@ -14,6 +15,8 @@ export interface WeatherSearchParams {
   city: string;
   days?: number;
 }
+
+// ─── OpenWeatherMap 类型 ─────────────────────────────────
 
 interface OWMForecastItem {
   dt: number;
@@ -35,6 +38,56 @@ interface OWMGeocodeResponse {
   lon: number;
   country: string;
 }
+
+// ─── 和风天气类型 ─────────────────────────────────────────
+
+interface QWeatherDailyItem {
+  fxDate: string;
+  textDay: string;
+  textNight: string;
+  tempMax: string;
+  tempMin: string;
+  windDirDay: string;
+  windScaleDay: string;
+}
+
+interface QWeatherResponse {
+  code: string;
+  daily: QWeatherDailyItem[];
+}
+
+// ─── 高德天气类型 ─────────────────────────────────────────
+
+interface AmapWeatherCast {
+  date: string;
+  dayweather: string;
+  nightweather: string;
+  daytemp: string;
+  nighttemp: string;
+  daywind: string;
+  nightwind: string;
+  daypower: string;
+  nightpower: string;
+}
+
+interface AmapWeatherResponse {
+  status: string;
+  forecasts: Array<{
+    city: string;
+    casts: AmapWeatherCast[];
+  }>;
+}
+
+interface AmapRegeocodeResponse {
+  status: string;
+  regeocode: {
+    addressComponent: {
+      adcode: string;
+    };
+  };
+}
+
+// ─── 辅助函数 ─────────────────────────────────────────────
 
 /** 风向角度转中文 */
 function windDirToZh(deg: number): string {
@@ -87,6 +140,105 @@ async function geocodeCity(city: string, apiKey: string): Promise<{ lat: number;
   if (!data.length) throw new Error(`City not found: ${city}`);
   return { lat: data[0].lat, lon: data[0].lon };
 }
+
+/** 高德：通过城市名获取 adcode */
+async function getAmapAdcode(city: string, apiKey: string): Promise<string> {
+  const url = `https://restapi.amap.com/v3/geocode/geo?key=${apiKey}&address=${encodeURIComponent(city)}&city=${encodeURIComponent(city)}`;
+  const res = await fetchWithTimeout(url, { timeout: 5000 });
+  if (!res.ok) throw new Error(`Amap geocode error: ${res.status}`);
+  const data = (await res.json()) as {
+    status: string;
+    geocodes: { adcode: string }[];
+  };
+  if (data.status !== "1" || !data.geocodes?.length || !data.geocodes[0].adcode) {
+    throw new Error(`Amap adcode not found for: ${city}`);
+  }
+  return data.geocodes[0].adcode;
+}
+
+// ─── 和风天气数据源 ─────────────────────────────────────────
+
+/**
+ * 调用和风天气 7 天预报
+ * 用经纬度查询，需先通过 OWM 或其他方式获取坐标
+ */
+async function fetchFromQWeather(params: WeatherSearchParams): Promise<WeatherInfo[]> {
+  const apiKey = config.qweatherApiKey;
+  if (!apiKey) throw new Error("QWEATHER_API_KEY not configured");
+
+  // 先用 OWM geocode 或直接用城市名获取坐标
+  // 和风天气支持城市名直查，但经纬度更准确
+  // 这里复用 OWM geocode 如果有 OWM key，否则用城市名
+  let location: string;
+
+  const owmKey = config.openWeatherApiKey;
+  if (owmKey) {
+    try {
+      const { lat, lon } = await geocodeCity(params.city, owmKey);
+      location = `${lon.toFixed(2)},${lat.toFixed(2)}`;
+    } catch {
+      // OWM geocode 失败，回退到城市名
+      location = params.city;
+    }
+  } else {
+    location = params.city;
+  }
+
+  const url = `https://devapi.qweather.com/v7/weather/7d?location=${encodeURIComponent(location)}&key=${apiKey}`;
+  const res = await fetchWithTimeout(url, { timeout: 8000 });
+  if (!res.ok) throw new Error(`QWeather error: ${res.status}`);
+
+  const data = (await res.json()) as QWeatherResponse;
+  if (data.code !== "200" || !data.daily?.length) {
+    throw new Error(`QWeather no data: code=${data.code}`);
+  }
+
+  const days = params.days ?? 7;
+  return data.daily.slice(0, days).map((item) => ({
+    date: item.fxDate,
+    city: params.city,
+    dayWeather: item.textDay,
+    nightWeather: item.textNight,
+    dayTemp: Number.parseInt(item.tempMax, 10),
+    nightTemp: Number.parseInt(item.tempMin, 10),
+    windDirection: item.windDirDay,
+    windPower: item.windScaleDay.includes("级") ? item.windScaleDay : `${item.windScaleDay}级`,
+  }));
+}
+
+// ─── 高德天气数据源 ─────────────────────────────────────────
+
+/** 调用高德天气 3 天预报 */
+async function fetchFromAmapWeather(params: WeatherSearchParams): Promise<WeatherInfo[]> {
+  const apiKey = config.amapWebKey;
+  if (!apiKey) throw new Error("AMAP_WEB_KEY not configured");
+
+  const adcode = await getAmapAdcode(params.city, apiKey);
+  const url = `https://restapi.amap.com/v3/weather/weatherInfo?city=${adcode}&key=${apiKey}&extensions=all`;
+  const res = await fetchWithTimeout(url, { timeout: 8000 });
+  if (!res.ok) throw new Error(`Amap weather error: ${res.status}`);
+
+  const data = (await res.json()) as AmapWeatherResponse;
+  if (data.status !== "1" || !data.forecasts?.length || !data.forecasts[0].casts?.length) {
+    throw new Error(`Amap weather no data: ${params.city}`);
+  }
+
+  const casts = data.forecasts[0].casts;
+  const days = Math.min(params.days ?? 3, casts.length);
+
+  return casts.slice(0, days).map((cast) => ({
+    date: cast.date,
+    city: params.city,
+    dayWeather: cast.dayweather,
+    nightWeather: cast.nightweather,
+    dayTemp: Number.parseInt(cast.daytemp, 10),
+    nightTemp: Number.parseInt(cast.nighttemp, 10),
+    windDirection: cast.daywind,
+    windPower: cast.daypower,
+  }));
+}
+
+// ─── OpenWeatherMap 数据源（已有）──────────────────────────
 
 /** 从 3 小时预报中提取每日摘要 */
 function dailySummaryFromForecast(
@@ -147,6 +299,8 @@ async function fetchFromOWM(params: WeatherSearchParams, apiKey: string): Promis
   return dailySummaryFromForecast(data.list, params.city, days);
 }
 
+// ─── Mock 数据 ─────────────────────────────────────────────
+
 /** Mock 天气数据 */
 function mockWeather(params: WeatherSearchParams): WeatherInfo[] {
   const days = params.days ?? 7;
@@ -177,16 +331,40 @@ function mockWeather(params: WeatherSearchParams): WeatherInfo[] {
   return result;
 }
 
+// ─── 主入口：优先级链 ──────────────────────────────────────
+
 /** 查询天气 — 主入口 */
 export async function searchWeather(params: WeatherSearchParams): Promise<{
   weather: WeatherInfo[];
   source: string;
 }> {
-  const apiKey = config.openWeatherApiKey;
-
-  if (apiKey) {
+  // 1. 和风天气（7天，中文原生）
+  if (config.qweatherApiKey) {
     try {
-      const weather = await fetchFromOWM(params, apiKey);
+      const weather = await fetchFromQWeather(params);
+      return { weather, source: "qweather" };
+    } catch (err) {
+      console.warn("[WeatherService] QWeather failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  // 2. 高德天气（3天，中文）
+  if (config.amapWebKey) {
+    try {
+      const weather = await fetchFromAmapWeather(params);
+      return { weather, source: "amap" };
+    } catch (err) {
+      console.warn(
+        "[WeatherService] Amap weather failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  // 3. OpenWeatherMap（5天，需翻译）— 已有实现
+  if (config.openWeatherApiKey) {
+    try {
+      const weather = await fetchFromOWM(params, config.openWeatherApiKey);
       return { weather, source: "openweathermap" };
     } catch (err) {
       console.warn(
@@ -196,5 +374,6 @@ export async function searchWeather(params: WeatherSearchParams): Promise<{
     }
   }
 
+  // 4. Mock 降级
   return { weather: mockWeather(params), source: "mock" };
 }

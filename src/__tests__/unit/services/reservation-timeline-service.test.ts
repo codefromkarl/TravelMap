@@ -55,14 +55,18 @@ describe("reservation-timeline-service", () => {
     });
 
     it("非预约景点不受影响", () => {
-      const days = [makeDay({
-        attractions: [makeAttraction({
-          nameZh: "西湖",
-          name: "西湖",
-          reservationRequired: false,
-          reservationTips: "",
-        })],
-      })];
+      const days = [
+        makeDay({
+          attractions: [
+            makeAttraction({
+              nameZh: "西湖",
+              name: "西湖",
+              reservationRequired: false,
+              reservationTips: "",
+            }),
+          ],
+        }),
+      ];
       const result = enrichReservationTimeline(days, "2026-07-01");
 
       expect(result[0].attractions[0].reservationTimeline).toBeUndefined();
@@ -100,14 +104,18 @@ describe("reservation-timeline-service", () => {
     it("旺季使用 peakAdvanceDays", () => {
       // 故宫旺季(7月) peakAdvanceDays=7
       // 默认 advanceDays=7, 所以一致。用颐和园测试（淡季1天, 旺季3天）
-      const days = [makeDay({
-        attractions: [makeAttraction({
-          nameZh: "颐和园",
-          name: "颐和园",
-          reservationRequired: true,
-          reservationTips: "需提前预约",
-        })],
-      })];
+      const days = [
+        makeDay({
+          attractions: [
+            makeAttraction({
+              nameZh: "颐和园",
+              name: "颐和园",
+              reservationRequired: true,
+              reservationTips: "需提前预约",
+            }),
+          ],
+        }),
+      ];
       // 7月 = 旺季
       const result = enrichReservationTimeline(days, "2026-06-20");
 
@@ -117,15 +125,19 @@ describe("reservation-timeline-service", () => {
     });
 
     it("淡季使用基础 advanceDays", () => {
-      const days = [makeDay({
-        date: "2026-12-15", // 12月 = 淡季
-        attractions: [makeAttraction({
-          nameZh: "颐和园",
-          name: "颐和园",
-          reservationRequired: true,
-          reservationTips: "需提前预约",
-        })],
-      })];
+      const days = [
+        makeDay({
+          date: "2026-12-15", // 12月 = 淡季
+          attractions: [
+            makeAttraction({
+              nameZh: "颐和园",
+              name: "颐和园",
+              reservationRequired: true,
+              reservationTips: "需提前预约",
+            }),
+          ],
+        }),
+      ];
       const result = enrichReservationTimeline(days, "2026-12-01");
 
       const tl = result[0].attractions[0].reservationTimeline!;
@@ -134,32 +146,40 @@ describe("reservation-timeline-service", () => {
     });
 
     it("知识库中不存在的景点不受影响", () => {
-      const days = [makeDay({
-        attractions: [makeAttraction({
-          nameZh: "某个不存在的景点ABC",
-          name: "某个不存在的景点ABC",
-          reservationRequired: true,
-          reservationTips: "需预约",
-        })],
-      })];
+      const days = [
+        makeDay({
+          attractions: [
+            makeAttraction({
+              nameZh: "某个不存在的景点ABC",
+              name: "某个不存在的景点ABC",
+              reservationRequired: true,
+              reservationTips: "需预约",
+            }),
+          ],
+        }),
+      ];
       const result = enrichReservationTimeline(days, "2026-07-01");
 
       expect(result[0].attractions[0].reservationTimeline).toBeUndefined();
     });
 
     it("bookingUrl 使用知识库 officialUrl 填充", () => {
-      const days = [makeDay({
-        attractions: [makeAttraction({ bookingUrl: undefined })],
-      })];
+      const days = [
+        makeDay({
+          attractions: [makeAttraction({ bookingUrl: undefined })],
+        }),
+      ];
       const result = enrichReservationTimeline(days, "2026-07-01");
 
       expect(result[0].attractions[0].bookingUrl).toContain("dpm.org.cn");
     });
 
     it("保留已有的 bookingUrl（不覆盖）", () => {
-      const days = [makeDay({
-        attractions: [makeAttraction({ bookingUrl: "https://existing.url" })],
-      })];
+      const days = [
+        makeDay({
+          attractions: [makeAttraction({ bookingUrl: "https://existing.url" })],
+        }),
+      ];
       const result = enrichReservationTimeline(days, "2026-07-01");
 
       expect(result[0].attractions[0].bookingUrl).toBe("https://existing.url");

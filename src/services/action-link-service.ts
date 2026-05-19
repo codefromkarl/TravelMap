@@ -6,8 +6,8 @@
  *   2. fallback：URL 模板生成搜索链接
  */
 
-import type { ActionLink, Attraction, Hotel, TripPlan } from "../types/trip.js";
 import { fuzzyLookupReservation, lookupReservation } from "../data/reservation-db.js";
+import type { ActionLink, Attraction, Hotel, TripPlan } from "../types/trip.js";
 import { isTrvlAvailable, searchFlights, searchHotels } from "./trvl-service.js";
 
 // ─── 景点预约链接 ──────────────────────────────────────────

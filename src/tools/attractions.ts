@@ -6,6 +6,14 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { searchAttractionsMultiSource } from "../services/multi-source-service.js";
 
+const FREE_CATEGORIES = ["公园", "自然风光"];
+
+function formatTicketPrice(price: number, category: string): string {
+  if (price > 0) return `¥${price}（参考价，以景区为准）`;
+  if (FREE_CATEGORIES.includes(category)) return "免费";
+  return "价格待查";
+}
+
 export const searchAttractionsTool: AgentTool & { costTier: "cheap" } = {
   name: "search_attractions",
   costTier: "cheap",
@@ -46,7 +54,7 @@ export const searchAttractionsTool: AgentTool & { costTier: "cheap" } = {
 
           return [
             `${i + 1}. **${a.nameZh}** (${a.nameEn})`,
-            `   📍 ${a.address} | 🎫 ¥${a.ticketPrice} | ⏱ ${a.visitDuration}分钟`,
+            `   📍 ${a.address} | 🎫 ${formatTicketPrice(a.ticketPrice, a.category)} | ⏱ ${a.visitDuration}分钟`,
             a.reservationRequired ? `   ⚠️ 需预约: ${a.reservationTips}` : "",
             `   ${a.description}`,
             reviews ? `   \n${reviews}` : "",

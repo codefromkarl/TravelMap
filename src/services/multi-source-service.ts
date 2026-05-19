@@ -49,6 +49,36 @@ export interface FusionResult {
   fromCache: boolean;
 }
 
+// ─── 游览时长智能推断 ─────────────────────────────────────
+
+/** 类型 → 基础游览时长(分钟) */
+const VISIT_DURATION_MAP: Record<string, number> = {
+  博物馆: 180,
+  艺术画廊: 150,
+  主题乐园: 360,
+  公园: 90,
+  自然风光: 120,
+  宗教场所: 60,
+  购物: 90,
+  景点: 120,
+};
+
+/** 名称含这些关键词 → 额外加 60 分钟 */
+const EXTENDED_KEYWORDS = ["大", "景区", "国家公园", "乐园", "度假区", "世界遗产", "5A"];
+
+/** 根据类型和名称智能推断游览时长 */
+export function inferVisitDuration(a: EnrichedAttraction): number {
+  // 1. 已有真实时长 → 直接用
+  if (a.visitDuration && a.visitDuration > 0) return a.visitDuration;
+
+  // 2. 类型查表
+  const base = VISIT_DURATION_MAP[a.category] ?? 120;
+
+  // 3. 名称关键词加时
+  const hasExtended = EXTENDED_KEYWORDS.some((kw) => a.nameZh.includes(kw));
+  return hasExtended ? base + 60 : base;
+}
+
 // ─── 缓存 ─────────────────────────────────────────────────
 
 interface CacheEntry {
@@ -215,7 +245,7 @@ async function fetchGooglePlaces(
     nameEn: p.name,
     address: p.formatted_address,
     location: { latitude: p.geometry.location.lat, longitude: p.geometry.location.lng },
-    visitDuration: 120,
+    visitDuration: 0,
     description: p.editorial_summary?.overview ?? `${p.name}是${params.city}的热门景点`,
     category: mapCategory(p.types ?? []),
     ticketPrice: 0,
@@ -363,6 +393,11 @@ export async function searchAttractionsMultiSource(
 
   // 去重融合
   const fused = deduplicate(enriched);
+
+  // 游览时长智能推断：融合后统一推断
+  for (const a of fused) {
+    a.visitDuration = inferVisitDuration(a);
+  }
 
   const result: FusionResult = {
     attractions: fused,

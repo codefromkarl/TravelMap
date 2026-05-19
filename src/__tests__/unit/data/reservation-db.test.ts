@@ -137,12 +137,12 @@ describe("reservation-db", () => {
 
     it("覆盖一线城市+热门目的地", () => {
       const hotCities = [
-        "上海迪士尼乐园",   // 上海
+        "上海迪士尼乐园", // 上海
         "成都大熊猫繁育研究基地", // 成都
-        "布达拉宫",         // 拉萨
-        "莫高窟",           // 敦煌
-        "九寨沟",           // 四川
-        "黄山",             // 安徽
+        "布达拉宫", // 拉萨
+        "莫高窟", // 敦煌
+        "九寨沟", // 四川
+        "黄山", // 安徽
       ];
       for (const name of hotCities) {
         expect(lookupReservation(name), `缺少热门景点: ${name}`).toBeDefined();

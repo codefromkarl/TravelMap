@@ -1,4 +1,14 @@
 /**
+ * 格式化交通票价：price=0 且非 trvl 源时显示「价格待查」
+ */
+export function formatTransportPrice(price: number, source: string): string {
+  if (price > 0) return `¥${price}`;
+  if (source === "trvl") return "¥0";
+  if (source === "amap") return "价格待查（以12306为准）";
+  return "价格待查";
+}
+
+/**
  * 城际交通查询服务 — 统一的航班/火车/大巴查询
  *
  * 数据源分层：
@@ -392,7 +402,7 @@ export async function enrichTransferDays(tripPlan: TripPlan): Promise<TripPlan> 
             opt.durationMinutes >= 60
               ? `${Math.floor(opt.durationMinutes / 60)}小时${opt.durationMinutes % 60}分`
               : `${opt.durationMinutes}分钟`;
-          return `${opt.type === "train" ? "🚄" : opt.type === "flight" ? "✈️" : "🚌"} ${opt.code} ${opt.departureTime}→${opt.arrivalTime}（${durationStr}）¥${opt.price} ${opt.departureStation}→${opt.arrivalStation}${opt.seatType ? ` ${opt.seatType}` : ""}`;
+          return `${opt.type === "train" ? "🚄" : opt.type === "flight" ? "✈️" : "🚌"} ${opt.code} ${opt.departureTime}→${opt.arrivalTime}（${durationStr}）${formatTransportPrice(opt.price, opt.source)} ${opt.departureStation}→${opt.arrivalStation}${opt.seatType ? ` ${opt.seatType}` : ""}`;
         })
         .join("\n");
 

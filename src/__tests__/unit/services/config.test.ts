@@ -38,15 +38,16 @@ describe("config — 环境变量验证", () => {
 
   // ── validateConfig ──
 
-  it("所有 key 未配置时 valid=false，warnings 包含 3 个条目", () => {
+  it("所有 key 未配置时 valid=false，warnings 包含 4 个条目", () => {
     clearTestConfig();
     const result = validateConfig();
     expect(result.valid).toBe(false);
-    expect(result.warnings).toHaveLength(3);
+    expect(result.warnings).toHaveLength(4);
     expect(result.warnings.map((w) => w.envVar)).toEqual([
       "GOOGLE_MAPS_API_KEY",
       "AMAP_WEB_KEY",
       "OPENWEATHER_API_KEY",
+      "QWEATHER_API_KEY",
     ]);
   });
 
@@ -61,7 +62,7 @@ describe("config — 环境变量验证", () => {
     setTestConfig({ googleMapsApiKey: "test-key" });
     const result = validateConfig();
     expect(result.valid).toBe(false);
-    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings).toHaveLength(3);
     expect(result.warnings.map((w) => w.envVar)).not.toContain("GOOGLE_MAPS_API_KEY");
   });
 
@@ -70,6 +71,7 @@ describe("config — 环境变量验证", () => {
       googleMapsApiKey: "g",
       amapWebKey: "a",
       openWeatherApiKey: "o",
+      qweatherApiKey: "q",
     });
     const result = validateConfig();
     expect(result.valid).toBe(true);
@@ -95,6 +97,7 @@ describe("config — 环境变量验证", () => {
       googleMapsApiKey: "g",
       amapWebKey: "a",
       openWeatherApiKey: "o",
+      qweatherApiKey: "q",
     });
     printConfigWarnings();
     expect(logSpy).toHaveBeenCalled();

@@ -103,20 +103,49 @@ export async function initApp() {
     if (event.type === "agent_end") {
       if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
       window._hidePlanningIndicator?.();
+
       const msgs = _agent.state.messages;
+
+      // ─── 检查是否有 errorMessage（Agent 内部异常，走 handleRunFailure）
+      const lastAssistant = msgs.filter(m => m.role === 'assistant').slice(-1)[0];
+      if (lastAssistant?.errorMessage) {
+        resetToolbarAfterError();
+        const errMsg = lastAssistant.errorMessage;
+        console.error("[ChatInit] Agent run failure:", errMsg);
+        if (errMsg.includes("fetch") || errMsg.includes("network") || errMsg.includes("Failed to fetch") || errMsg.includes("NetworkError")) {
+          showToast("网络连接失败，请检查网络或 API Key", 5000, "error");
+        } else if (errMsg.includes("401") || errMsg.includes("Unauthorized") || errMsg.includes("Incorrect API key")) {
+          showToast("API Key 无效，请检查配置", 5000, "error");
+        } else if (errMsg.includes("429") || errMsg.includes("rate") || errMsg.includes("Rate limit")) {
+          showToast("API 请求过于频繁，请稍后重试", 5000, "warning");
+        } else if (errMsg.includes("Abort") || errMsg.includes("abort")) {
+          // 用户主动中断，不提示错误
+        } else {
+          showToast(`规划失败：${errMsg.slice(0, 80)}`, 5000, "error");
+        }
+        return;
+      }
+
+      // ─── 正常完成：提取行程内容
       for (let i = msgs.length - 1; i >= 0; i--) {
-        if (msgs[i].role === "assistant" && typeof msgs[i].content === "string" && msgs[i].content.length > 100) {
-          if (msgs[i].content !== lastTripContentInner) {
-            lastTripContentInner = msgs[i].content;
-            setLastTripContent(msgs[i].content);
-            document.getElementById("export-toolbar")?.classList.add("visible");
-            ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
-              document.getElementById(id)?.classList.remove("disabled-ghost");
-            });
+        const m = msgs[i];
+        if (m.role === "assistant") {
+          const content = typeof m.content === "string" ? m.content :
+            Array.isArray(m.content) ? m.content.filter(c => c.type === 'text').map(c => c.text).join('') : '';
+          if (content.length > 100) {
+            if (content !== lastTripContentInner) {
+              lastTripContentInner = content;
+              setLastTripContent(content);
+              document.getElementById("export-toolbar")?.classList.add("visible");
+              ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+                document.getElementById(id)?.classList.remove("disabled-ghost");
+              });
+            }
+            break;
           }
-          break;
         }
       }
+
       // ─── 从 tool results 中提取 tripPlan 并刷新地图 ──
       for (const msg of msgs) {
         if (msg.role === "toolResult" && msg.details) {
@@ -158,13 +187,12 @@ export async function initApp() {
       if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
       resetToolbarAfterError();
       console.error("[ChatInit] Agent error:", event);
-      // 提取错误信息提示用户
       const raw = event.error?.message || event.payload?.error?.message || "";
       const errMsg = String(raw);
       if (errMsg.includes("QUOTA") || errMsg.includes("quota") || errMsg.includes("次数已用完") || errMsg.includes("免费体验")) {
         showToast("免费体验次数已用完，请登录后继续使用", 5000, "warning");
       } else if (errMsg) {
-        showToast(`计划生成失败：${errMsg}`, 5000, "error");
+        showToast(`计划生成失败：${errMsg.slice(0, 80)}`, 5000, "error");
       } else {
         showToast("计划生成失败，请重试", 4000, "error");
       }
@@ -224,6 +252,7 @@ export async function initApp() {
   // ─── 设置全局引用（供工具模块等使用） ────────────────
   window.currentPage = 'page-map';
   window._lastTripPlan = window._lastTripPlan || null;
+  window._chatPanel = panelInstance;  // 测试钩子：暴露给 E2E 测试
 
   // 禁用附件
   if (panelInstance?.agentInterface) {

@@ -4,6 +4,8 @@
  * 基于 pi 框架的智能旅行规划 Agent
  */
 
+export { type ModelTier, selectModelTier } from "./agent/model-selector.js";
+export { buildUserPrompt, formatTravelers, shouldDigPreferences } from "./agent/prompt-builder.js";
 export { TravelAgent } from "./agent/travel-agent.js";
 export { searchAttractions } from "./services/attraction-service.js";
 export { calculateBudget, checkBudgetOverrun } from "./services/budget-service.js";
