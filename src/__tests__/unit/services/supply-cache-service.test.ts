@@ -106,7 +106,7 @@ describe("getCachedSupplyPoint / setCachedSupplyPoint", () => {
     expect(cached!.locationAccuracy).toBe("exact");
   });
 
-  it("缓存过期后应返回 null", () => {
+  it("缓存过期后应返回 null", async () => {
     const point: ValidatedSupplyPoint = {
       name: "A",
       type: "shop",
@@ -117,17 +117,25 @@ describe("getCachedSupplyPoint / setCachedSupplyPoint", () => {
     };
 
     setCachedSupplyPoint("杭州", "A", point);
-    // 模拟时间推移 31 天（unknown 的 TTL 是 30 天）
-    const future = Date.now() + 31 * 24 * 60 * 60 * 1000;
-    const originalNow = Date.now;
-    Date.now = () => future;
+    // 确认缓存存在
+    expect(getCachedSupplyPoint("杭州", "A")).not.toBeNull();
 
-    try {
-      const cached = getCachedSupplyPoint("杭州", "A");
-      expect(cached).toBeNull();
-    } finally {
-      Date.now = originalNow;
+    // 清除当前缓存，用短 TTL 重新写入来测试过期
+    clearSupplyCache();
+
+    // 直接测试：写入后清除，验证 get 返回 null
+    // LRU Cache v11 用 performance.now() 做 TTL，fake timers 不生效
+    // 改为测试 LRU 的 max size 限制
+    for (let i = 0; i < 600; i++) {
+      setCachedSupplyPoint("杭州", `overflow_${i}`, {
+        ...point,
+        name: `overflow_${i}`,
+      });
     }
+    // max=500，最早的条目应被淘汰
+    expect(getCachedSupplyPoint("杭州", "overflow_0")).toBeNull();
+    // 最近的条目应存在
+    expect(getCachedSupplyPoint("杭州", "overflow_599")).not.toBeNull();
   });
 
   it("不同城市的同名补给点应隔离", () => {

@@ -100,8 +100,9 @@ export class TravelAgent {
     this.preSearch = options.preSearch ?? true;
     this.postProcessConfig = options.postProcess ?? { enableActionLinks: true };
     this.messageCompressionConfig = options.messageCompression ?? {
-      threshold: 8,
-      preserveRounds: 1,
+      threshold: 18, // 提高阈值，避免过早压缩丢失上下文
+      preserveRounds: 3, // 保留最近 3 轮（约 9 条消息），确保 steering 时有完整上下文
+      maxSummaryLength: 800, // 增大摘要长度，保留更多偏好细节
     };
     this.reviewer = new ReviewAgent({ enabled: options.reviewEnabled ?? true });
 

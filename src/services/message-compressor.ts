@@ -42,13 +42,28 @@ function extractText(content: unknown): string {
   return "";
 }
 
-/** 粗略估算字符数对应的 token 数（中文按 chars/2，英文按 chars/4） */
+/** 粗略估算字符数对应的 token 数
+ *
+ * 改进策略：
+ * - JSON 结构（括号/引号/冒号）按 6 字符/token 估算（结构开销大）
+ * - 中文文本按 2 字符/token
+ * - 英文文本按 4 字符/token
+ */
 export function estimateTokens(text: string): number {
-  // 混合文本的粗略估算：中文字符占多数时按 /2，否则按 /4
-  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) ?? []).length;
-  const ratio = chineseChars / text.length;
-  const divisor = ratio > 0.5 ? 2 : 4;
-  return Math.ceil(text.length / divisor);
+  if (text.length === 0) return 0;
+
+  // 统计 JSON 结构字符数量
+  const jsonStructChars = (text.match(/[{}[\]":,]/g) ?? []).length;
+
+  // 中文字符数量
+
+  // 混合估算：JSON 结构按 /6，中文按 /2，其余按 /4
+  const jsonTokens = Math.ceil(jsonStructChars / 6);
+  const cnTokens = Math.ceil(chineseChars / 2);
+  const restChars = text.length - jsonStructChars - chineseChars;
+  const restTokens = Math.ceil(Math.max(restChars, 0) / 4);
+
+  return jsonTokens + cnTokens + restTokens;
 }
 
 // ─── 规则摘要 ──────────────────────────────────────────────

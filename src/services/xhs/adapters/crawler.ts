@@ -7,6 +7,39 @@ import type { UGCReview } from "../../multi-source-service.js";
 import type { ProviderContext } from "../types.js";
 import { extractTips } from "../utils.js";
 
+/** 允许的 Crawler base URL 域名模式（自部署爬虫） */
+const ALLOWED_CRAWLER_HOSTS = [
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "::1",
+  // 自部署域名模式
+  /^[a-z0-9-]+\.local$/,
+  /^[a-z0-9-]+\.internal$/,
+  // Docker/K8s 内部
+  /^[a-z0-9-]+\.default\.svc\.cluster\.local$/,
+];
+
+/** 校验 Crawler base URL 是否在允许范围内（防止 SSRF） */
+function validateCrawlerUrl(baseUrl: string): void {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new Error(`Crawler base URL 格式无效: ${baseUrl}`);
+  }
+  const host = url.hostname;
+  const allowed = ALLOWED_CRAWLER_HOSTS.some((pattern) =>
+    typeof pattern === "string" ? pattern === host : pattern.test(host),
+  );
+  if (!allowed) {
+    throw new Error(
+      `Crawler base URL 域名不在白名单中: ${host}。` +
+        `请使用 localhost / *.local / *.internal 或内部 K8s 域名。`,
+    );
+  }
+}
+
 interface CrawlerStartResponse {
   status?: string;
   message?: string;
@@ -35,11 +68,17 @@ const CRAWLER_POLL_INTERVAL = 3_000;
 const CRAWLER_POLL_TIMEOUT = 120_000;
 
 export async function fetchCrawler(keyword: string, ctx: ProviderContext): Promise<UGCReview[]> {
+  // SSRF 防护：校验 base URL
+  validateCrawlerUrl(ctx.baseUrl);
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  if (ctx.token) headers.Authorization = `Bearer ${ctx.token}`;
+  // 仅在有 token 时才添加 Authorization header
+  if (ctx.token && ctx.token.length > 0) {
+    headers.Authorization = `Bearer ${ctx.token}`;
+  }
 
   // 1. 启动爬虫任务
   const startRes = await fetchWithTimeout(`${ctx.baseUrl}/api/crawler/start`, {
@@ -69,7 +108,7 @@ export async function fetchCrawler(keyword: string, ctx: ProviderContext): Promi
     throw new Error(`Crawler start failed: ${startBody.detail ?? startBody.message}`);
   }
 
-  // 2. 轮询等待爬虫完成
+  // 2. 轮询等待爬虫完成（最多 CRAWLER_POLL_TIMEOUT）
   const startTime = Date.now();
   while (Date.now() - startTime < CRAWLER_POLL_TIMEOUT) {
     await new Promise((r) => setTimeout(r, CRAWLER_POLL_INTERVAL));

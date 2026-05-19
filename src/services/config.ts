@@ -38,6 +38,12 @@ export interface AppConfig {
   xhsTikhubBase: string | undefined;
   xhsCrawlerBase: string | undefined;
   xhsCrawlerToken: string | undefined;
+
+  // 图片源配置
+  /** Unsplash API Access Key（免费 50次/小时） */
+  unsplashAccessKey: string | undefined;
+  /** Pexels API Key（免费 200次/小时） */
+  pexelsApiKey: string | undefined;
 }
 
 // ─── 关键 API Key 与功能映射 ────────────────────────────────
@@ -118,6 +124,8 @@ function readFromEnv(): AppConfig {
     xhsTikhubBase: process.env.XHS_TIKHUB_BASE,
     xhsCrawlerBase: process.env.XHS_CRAWLER_BASE,
     xhsCrawlerToken: process.env.XHS_CRAWLER_TOKEN,
+    unsplashAccessKey: process.env.UNSPLASH_ACCESS_KEY,
+    pexelsApiKey: process.env.PEXELS_API_KEY,
   };
 }
 

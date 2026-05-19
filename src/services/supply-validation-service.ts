@@ -17,6 +17,7 @@
 
 import type { LocationAccuracy, PriceConfidence, SupplyPoint } from "../types/route.js";
 import type { Location } from "../types/trip.js";
+import { concurrentMap } from "../utils/concurrent.js";
 import { config as appConfig } from "./config.js";
 import { dualGeocode, gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithTimeout } from "./http-client.js";
@@ -389,18 +390,17 @@ export async function validateSupplyPoint(
 
 // ─── 批量验证 ────────────────────────────────────────────
 
-/** 批量验证路线中所有补给点 */
+/** 批量验证路线中所有补给点（并发度 3，避免串行瓶颈） */
 export async function validateRouteSupplies(
   supplyPoints: SupplyPoint[],
   city: string,
   overrides?: Partial<SupplyValidationConfig>,
 ): Promise<ValidatedSupplyPoint[]> {
-  const results: ValidatedSupplyPoint[] = [];
-  for (const point of supplyPoints) {
-    const validated = await validateSupplyPoint(point, city, overrides);
-    results.push(validated);
-  }
-  return results;
+  return concurrentMap(
+    supplyPoints,
+    (point) => validateSupplyPoint(point, city, overrides),
+    3, // 3 并发，平衡速度和 API 压力
+  );
 }
 
 /** 批量刷新过期补给点 */
@@ -412,25 +412,31 @@ export async function refreshStaleSupplies(
   refreshed: ValidatedSupplyPoint[];
   stats: { total: number; refreshed: number; skipped: number };
 }> {
-  const refreshed: ValidatedSupplyPoint[] = [];
-  let refreshCount = 0;
-  let skipCount = 0;
-
+  // 先分类：哪些需要刷新，哪些可以跳过
+  const needRefresh: SupplyPoint[] = [];
+  const keep: ValidatedSupplyPoint[] = [];
   for (const point of supplyPoints) {
-    const { needsRefresh } = shouldRefresh(point);
-    if (needsRefresh) {
-      const validated = await validateSupplyPoint(point, city, overrides);
-      refreshed.push(validated);
-      refreshCount++;
+    if (shouldRefresh(point).needsRefresh) {
+      needRefresh.push(point);
     } else {
-      refreshed.push(point as ValidatedSupplyPoint);
-      skipCount++;
+      keep.push(point as ValidatedSupplyPoint);
     }
   }
 
+  // 并发刷新需要更新的补给点
+  const refreshed = await concurrentMap(
+    needRefresh,
+    (point) => validateSupplyPoint(point, city, overrides),
+    3,
+  );
+
   return {
-    refreshed,
-    stats: { total: supplyPoints.length, refreshed: refreshCount, skipped: skipCount },
+    refreshed: [...keep, ...refreshed],
+    stats: {
+      total: supplyPoints.length,
+      refreshed: needRefresh.length,
+      skipped: keep.length,
+    },
   };
 }
 

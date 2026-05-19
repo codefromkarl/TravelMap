@@ -141,8 +141,9 @@ describe("MessageCompressor", () => {
     });
 
     it("混合文本应取适当比例", () => {
-      const text = "hello 世界"; // 6 英文 + 2 中文 = 8 字符，中文占比 25%
-      expect(estimateTokens(text)).toBe(2); // ceil(8/4) 因为中文比例 < 50%
+      const text = "hello 世界"; // 7 字符：5 非中文 + 2 中文 + 0 JSON结构
+      // 新估算: ceil(2/2) + ceil(5/4) = 1 + 2 = 3
+      expect(estimateTokens(text)).toBe(3);
     });
   });
 
