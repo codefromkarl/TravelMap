@@ -2,7 +2,7 @@
  * search_restaurants Tool 单元测试
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { searchRestaurantsTool } from "../../../tools/restaurants.js";
 
 describe("search_restaurants tool", () => {

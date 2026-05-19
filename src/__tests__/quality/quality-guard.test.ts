@@ -64,6 +64,7 @@ function getExpectedApiDomains(): string[] {
       const domain = match[1];
       if (domain === "esm.sh") continue; // CDN 不需要 mock
       if (domain === "example.com" || domain.startsWith("www.")) continue; // 示例/官网 URL 不需要 mock
+      if (domain === "kyfw.12306.cn") continue; // 12306 预订跳转链接，非 API 调用
       domains.add(domain);
     }
   }
@@ -140,6 +141,7 @@ describe("测试质量守卫", () => {
           const domain = match[1];
           if (domain === "esm.sh") continue; // CDN 不需要 mock
           if (domain === "example.com" || domain.startsWith("www.")) continue; // 示例/官网 URL
+          if (domain === "kyfw.12306.cn") continue; // 12306 预订跳转链接，非 API 调用
           expect(
             handlerContent.includes(domain),
             `handlers.ts 缺少对 ${domain} 的 mock (来自 ${srcFile})`,

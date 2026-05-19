@@ -56,10 +56,9 @@ describe("batchScrapeDianping", () => {
   });
 
   it("key 格式应为 city:keyword", async () => {
-    const result = await batchScrapeDianping(
-      [{ keyword: "必胜客", city: "广州" }],
-      { requestIntervalMs: 0 },
-    );
+    const result = await batchScrapeDianping([{ keyword: "必胜客", city: "广州" }], {
+      requestIntervalMs: 0,
+    });
     const keys = [...result.keys()];
     expect(keys[0]).toBe("广州:必胜客");
   });
