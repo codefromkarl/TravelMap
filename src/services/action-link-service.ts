@@ -7,25 +7,34 @@
  */
 
 import type { ActionLink, Attraction, Hotel, TripPlan } from "../types/trip.js";
+import { fuzzyLookupReservation, lookupReservation } from "../data/reservation-db.js";
 import { isTrvlAvailable, searchFlights, searchHotels } from "./trvl-service.js";
 
 // ─── 景点预约链接 ──────────────────────────────────────────
 
-/** 需要预约的景点官方预约链接数据库（景点名 → 官方预约 URL） */
-const RESERVATION_URLS: Record<string, string> = {
-  故宫博物院: "https://www.dpm.org.cn/visit/ticket.html",
-  八达岭长城: "https://www.badaling.cn/",
-  国家博物馆: "https://www.chnmuseum.cn/",
-  秦始皇兵马俑: "https://www.bmy.com.cn/",
-  上海博物馆: "https://www.shanghaimuseum.net/",
-  上海迪士尼乐园: "https://www.shanghaidisneyresort.com/",
-  布达拉宫: "https://www.potalapalace.cn/",
-  中国国家图书馆: "https://www.nlc.cn/",
-};
+/**
+ * 从预约知识库查找景点的预约链接
+ *
+ * 三级策略：精确匹配 → 模糊匹配 → Google 搜索 fallback
+ */
+function resolveBookingUrl(attraction: Attraction): string | undefined {
+  if (!attraction.reservationRequired) return undefined;
 
-/** 为非预约景点生成「查询开放时间」链接 */
+  // 1. 知识库精确匹配
+  const exact = lookupReservation(attraction.nameZh);
+  if (exact) return exact.officialUrl;
+
+  // 2. 知识库模糊匹配（别名、去后缀、包含）
+  const fuzzy = fuzzyLookupReservation(attraction.nameZh);
+  if (fuzzy) return fuzzy.officialUrl;
+
+  // 3. Fallback：Google 搜索
+  return getInfoUrl(attraction);
+}
+
+/** 为未在知识库中的景点生成「查询开放时间」链接 */
 function getInfoUrl(attraction: Attraction): string {
-  const query = encodeURIComponent(`${attraction.nameZh} ${attraction.address}`);
+  const query = encodeURIComponent(`${attraction.nameZh} 预约 ${attraction.address}`);
   return `https://www.google.com/search?q=${query}`;
 }
 
@@ -203,7 +212,7 @@ export function enrichTripWithLinks(trip: TripPlan): TripPlan {
 
     day.attractions = day.attractions.map((a) => ({
       ...a,
-      bookingUrl: a.reservationRequired ? (RESERVATION_URLS[a.nameZh] ?? getInfoUrl(a)) : undefined,
+      bookingUrl: resolveBookingUrl(a),
     }));
   }
 
@@ -229,7 +238,7 @@ export async function enrichTripWithLiveLinks(trip: TripPlan): Promise<TripPlan>
   for (const day of enriched.days) {
     day.attractions = day.attractions.map((a) => ({
       ...a,
-      bookingUrl: a.reservationRequired ? (RESERVATION_URLS[a.nameZh] ?? getInfoUrl(a)) : undefined,
+      bookingUrl: resolveBookingUrl(a),
     }));
   }
 

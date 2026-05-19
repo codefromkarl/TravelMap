@@ -44,6 +44,23 @@ export const companionQATool: AgentTool & { costTier: "cheap" } = {
               reservationRequired: Type.Boolean(),
               reservationTips: Type.Optional(Type.String()),
               bookingUrl: Type.Optional(Type.String()),
+              reservationTimeline: Type.Optional(
+                Type.Object({
+                  advanceDays: Type.Number(),
+                  releaseTime: Type.Optional(Type.String()),
+                  bookingOpenDate: Type.String(),
+                  urgency: Type.String(),
+                  officialUrl: Type.Optional(Type.String()),
+                  altChannels: Type.Optional(
+                    Type.Array(
+                      Type.Object({
+                        platform: Type.String(),
+                        url: Type.String(),
+                      }),
+                    ),
+                  ),
+                }),
+              ),
             }),
           ),
           hotel: Type.Optional(

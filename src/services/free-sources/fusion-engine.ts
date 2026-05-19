@@ -295,6 +295,7 @@ function mergeCluster(cluster: Cluster): Attraction {
   // 9. 预约信息
   const reservationRequired = items.some((i) => i.reservationRequired);
   const reservationTips = items.find((i) => i.reservationTips)?.reservationTips ?? "";
+  const bookingUrl = items.find((i) => i.bookingUrl)?.bookingUrl;
 
   // 10. 数据来源列表
   const _sources = [...new Set(items.map((i) => i.source))];
@@ -311,6 +312,7 @@ function mergeCluster(cluster: Cluster): Attraction {
     ticketPrice,
     reservationRequired,
     reservationTips,
+    bookingUrl,
   };
 }
 

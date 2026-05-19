@@ -35,6 +35,8 @@ export interface FreeSourceAttraction {
   reservationRequired?: boolean;
   /** 预约提示 */
   reservationTips?: string;
+  /** 购票/预约链接（来自数据源） */
+  bookingUrl?: string;
   /** 图片 URL */
   imageUrl?: string;
   /** 数据来源 */
@@ -88,6 +90,8 @@ export interface FusedAttraction {
   reservationRequired: boolean;
   /** 预约提示 */
   reservationTips: string;
+  /** 购票/预约链接（来自数据源） */
+  bookingUrl?: string;
   /** 数据来源列表 */
   sources: FreeSourceName[];
   /** 各来源的原始数据 */

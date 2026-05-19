@@ -1,5 +1,21 @@
 /** 旅行规划核心类型 */
 
+/** 预约时间轴（由 post-processor 计算） */
+export interface ReservationTimeline {
+  /** 需提前几天 */
+  advanceDays: number;
+  /** 放票时间 */
+  releaseTime?: string;
+  /** 预约开放日（自动计算：游玩日 - advanceDays） */
+  bookingOpenDate: string;
+  /** 紧急度 */
+  urgency: "expired" | "urgent" | "normal";
+  /** 官方预约链接 */
+  officialUrl?: string;
+  /** 备选渠道 */
+  altChannels?: Array<{ platform: string; url: string }>;
+}
+
 /** 比价/行动链接 */
 export interface ActionLink {
   platform: string;
@@ -33,6 +49,8 @@ export interface Attraction {
   reservationRequired: boolean;
   reservationTips: string;
   bookingUrl?: string;
+  /** 预约时间轴（由 enrichReservationTimeline 填充） */
+  reservationTimeline?: ReservationTimeline;
   /** 该景点的可选游玩路线（大型景区适用，如西湖北线/西线/南线） */
   routes?: import("./route.js").AttractionRoute[];
   /** 当前选中的路线 ID */
@@ -74,6 +92,16 @@ export interface Hotel {
   rating: number;
   estimatedCost: number;
   comparisonLinks?: ActionLink[];
+  /** 数据来源 */
+  source?: "amap" | "google" | "mock";
+  /** 标签（如 "有电梯", "免费停车"） */
+  tags?: string[];
+  /** 距搜索中心距离（米） */
+  distance?: number;
+  /** 步行时间估算（分钟） */
+  walkMinutes?: number;
+  /** 公共交通可达 */
+  transitAccessible?: boolean;
 }
 
 /** 单日行程 */

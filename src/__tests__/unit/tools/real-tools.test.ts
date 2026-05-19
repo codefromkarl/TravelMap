@@ -487,6 +487,55 @@ describe("generateActionLinksTool", () => {
     expect(result.details.linkCount).toBeGreaterThan(0);
   });
 
+  it("预约链接含时间轴信息（紧急度 + 备选渠道）", async () => {
+    const result = await generateActionLinksTool.execute("test-id", {
+      tripPlan: {
+        city: "北京",
+        cities: ["北京"],
+        startDate: "2025-06-01",
+        endDate: "2025-06-03",
+        days: [
+          {
+            date: "2025-06-01",
+            dayIndex: 1,
+            city: "北京",
+            attractions: [
+              {
+                name: "故宫博物院",
+                nameZh: "故宫博物院",
+                reservationRequired: true,
+                reservationTips: "需提前7天预约",
+                bookingUrl: "https://www.dpm.org.cn/visit/ticket.html",
+                // 模拟 reservationTimeline 由 post-processor 填充
+                reservationTimeline: {
+                  advanceDays: 7,
+                  releaseTime: "20:00",
+                  bookingOpenDate: "2025-05-25",
+                  urgency: "urgent",
+                  officialUrl: "https://www.dpm.org.cn/visit/ticket.html",
+                  altChannels: [
+                    { platform: "美团", url: "https://www.meituan.com/" },
+                    { platform: "携程", url: "https://www.ctrip.com/" },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.content[0].type).toBe("text");
+    const text = (result.content[0] as { type: "text"; text: string }).text;
+    // 紧急度标记
+    expect(text).toMatch(/[🔴🟡🟢]/);
+    // 时间轴信息
+    expect(text).toContain("提前7天");
+    expect(text).toContain("20:00");
+    // 备选渠道
+    expect(text).toContain("美团");
+  });
+
   it("为酒店生成比价链接", async () => {
     const result = await generateActionLinksTool.execute("test-id", {
       tripPlan: {

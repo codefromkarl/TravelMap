@@ -58,7 +58,17 @@ export const generateActionLinksTool: AgentTool = {
       for (const attr of day.attractions) {
         if (attr.bookingUrl) {
           if (attr.reservationRequired) {
-            reservationList.push(`- **${attr.nameZh}** → ${attr.bookingUrl}`);
+            const tl = (attr as any).reservationTimeline;
+            let entry = `- **${attr.nameZh}** → [预约链接](${attr.bookingUrl})`;
+            if (tl) {
+              const urgencyEmoji = { expired: "🔴", urgent: "🟡", normal: "🟢" }[tl.urgency as string] ?? "";
+              entry += `\n  ${urgencyEmoji} 游玩日 ${day.date} · 需提前${tl.advanceDays}天`;
+              entry += tl.releaseTime ? ` · 每日${tl.releaseTime}放票` : "";
+              if (tl.altChannels?.length) {
+                entry += `\n  📎 备选: ${tl.altChannels.map((c: any) => `[${c.platform}](${c.url})`).join(" | ")}`;
+              }
+            }
+            reservationList.push(entry);
           }
           linkCount++;
         }

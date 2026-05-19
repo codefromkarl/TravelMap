@@ -103,6 +103,69 @@ describe("action-link-service", () => {
       expect(result.days[0].attractions[0].bookingUrl).toBeUndefined();
     });
 
+    it("别名匹配：兵马俑 → 秦始皇兵马俑知识库条目", () => {
+      const trip = createMockTripPlan({
+        days: [
+          createMockDayPlan({
+            attractions: [
+              createMockAttraction({
+                nameZh: "兵马俑",
+                reservationRequired: true,
+                reservationTips: "需提前预约",
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = enrichTripWithLinks(trip);
+
+      // 兵马俑通过别名模糊匹配到秦始皇兵马俑 → bmy.com.cn
+      expect(result.days[0].attractions[0].bookingUrl).toContain("bmy.com.cn");
+    });
+
+    it("去后缀匹配：八达岭长城景区 → 八达岭长城", () => {
+      const trip = createMockTripPlan({
+        days: [
+          createMockDayPlan({
+            attractions: [
+              createMockAttraction({
+                nameZh: "八达岭长城景区",
+                reservationRequired: true,
+                reservationTips: "需预约",
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = enrichTripWithLinks(trip);
+
+      // 去掉"景区"后缀匹配到八达岭长城
+      expect(result.days[0].attractions[0].bookingUrl).toContain("badaling.cn");
+    });
+
+    it("包含匹配：上海迪士尼 → 上海迪士尼乐园", () => {
+      const trip = createMockTripPlan({
+        days: [
+          createMockDayPlan({
+            attractions: [
+              createMockAttraction({
+                nameZh: "上海迪士尼",
+                reservationRequired: true,
+                reservationTips: "需购票",
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = enrichTripWithLinks(trip);
+
+      // 包含匹配到上海迪士尼乐园
+      expect(result.days[0].attractions[0].bookingUrl).toContain("shanghaidisneyresort");
+    });
+
     it("为酒店生成比价链接（URL 模板）", () => {
       const trip = createMockTripPlan({
         days: [

@@ -30,6 +30,8 @@ interface QueryIntent {
     | "ticket_price"
     | "duration"
     | "reservation"
+    | "reservation_timeline"
+    | "reservation_status"
     | "crowd"
     | "hotel_price"
     | "hotel_rating"
@@ -45,6 +47,8 @@ const INTENTS: QueryIntent[] = [
   { type: "hotel_rating", keywords: ["评分", "评价", "星级", "rating"] },
   { type: "ticket_price", keywords: ["门票", "票价", "多少钱", "费用", "价格", "ticket", "price"] },
   { type: "duration", keywords: ["多久", "多长时间", "几个小时", "游览时间", "duration"] },
+  { type: "reservation_timeline", keywords: ["什么时候抢票", "什么时候预约", "几点放票", "抢票时间", "预约时间", "提前几天", "几号预约", "什么时候开始预约"] },
+  { type: "reservation_status", keywords: ["预约清单", "哪些要预约", "预约状态", "待预约", "还没预约", "哪些需要预约", "预约列表", "哪些景点需要预约", "哪些需要预约"] },
   { type: "reservation", keywords: ["预约", "预订", "提前", "买票", "reservation", "book"] },
   { type: "crowd", keywords: ["带孩子", "小孩", "老人", "适合", "亲子", "family", "kid"] },
   { type: "budget", keywords: ["预算", "总花费", "总费用", "预算多少"] },
@@ -112,6 +116,74 @@ function queryReservation(attractions: Attraction[]): string {
         `⚠️ ${a.nameZh}: 需要预约\n   💡 ${a.reservationTips}${a.bookingUrl ? `\n   🔗 ${a.bookingUrl}` : ""}`,
     )
     .join("\n\n");
+}
+
+function queryReservationTimeline(attractions: Attraction[]): string {
+  const withReservation = attractions.filter((a) => a.reservationRequired);
+  if (withReservation.length === 0) {
+    return "当前查询的景点中没有需要提前预约的景点 \u{1F389}";
+  }
+
+  return withReservation
+    .map((a) => {
+      const tl = 'reservationTimeline' in a
+        ? (a as Attraction & { reservationTimeline?: import("../types/trip.js").ReservationTimeline }).reservationTimeline
+        : undefined;
+      if (!tl) {
+        return `${a.nameZh}: 需要预约，建议提前查询官方渠道\n   \u{1F517} ${a.bookingUrl ?? "暂无链接"}`;
+      }
+      const urgencyMap: Record<string, string> = {
+        expired: "\u{1F534} 已过预约窗口！建议寻找备选景点",
+        urgent: "\u{1F7E1} 预约窗口即将开启，请设闹钟提醒",
+        normal: "\u{1F7E2} 尚早，可稍后预约",
+      };
+      const lines = [
+        `${a.nameZh}:`,
+        `   \u{1F4C5} 需提前 ${tl.advanceDays} 天预约`,
+        `   \u23F0 ${tl.releaseTime ? `每日 ${tl.releaseTime} 放票` : "全天可约"}`,
+        `   \u{1F4C6} 预约开放日: ${tl.bookingOpenDate}`,
+        `   ${urgencyMap[tl.urgency] ?? ""}`,
+        `   \u{1F517} ${tl.officialUrl ?? a.bookingUrl ?? "暂无链接"}`,
+      ];
+      if (tl.altChannels?.length) {
+        lines.push(
+          `   \u{1F4CE} 备选: ${tl.altChannels.map((c) => `${c.platform}(${c.url})`).join(", ")}`,
+        );
+      }
+      return lines.join("\n");
+    })
+    .join("\n\n");
+}
+
+function queryReservationStatus(tripPlan: TripPlan): string {
+  const allAttractions = tripPlan.days.flatMap((d) =>
+    d.attractions.map((a) => ({ ...a, date: d.date, dayIndex: d.dayIndex })),
+  );
+  const required = allAttractions.filter((a) => a.reservationRequired);
+
+  if (required.length === 0) {
+    return "当前行程中没有需要预约的景点 \u{1F389} 全部可直接前往！";
+  }
+
+  const lines = ["\u{1F4CB} **预约清单**", ""];
+  const table = [
+    "| # | 景点 | 游玩日 | 预约开放日 | 放票时间 | 状态 | 链接 |",
+    "|---|------|--------|-----------|---------|------|------|",
+  ];
+
+  required.forEach((a, i) => {
+    const tl = 'reservationTimeline' in a
+      ? (a as Attraction & { reservationTimeline?: import("../types/trip.js").ReservationTimeline }).reservationTimeline
+      : undefined;
+    const statusEmoji = tl
+      ? ({ expired: "\u{1F534}过期", urgent: "\u{1F7E1}紧急", normal: "\u{1F7E2}正常" } as Record<string, string>)[tl.urgency] ?? "\u26A0\uFE0F未知"
+      : "\u26A0\uFE0F未知";
+    table.push(
+      `| ${i + 1} | ${a.nameZh} | ${a.date} | ${tl?.bookingOpenDate ?? "查询官方"} | ${tl?.releaseTime ?? "全天"} | ${statusEmoji} | [预约](${a.bookingUrl ?? "#"}) |`,
+    );
+  });
+
+  return [...lines, ...table].join("\n");
 }
 
 function queryCrowdInfo(attractions: Attraction[]): string {
@@ -217,6 +289,14 @@ export function queryTripData(params: TripQueryParams): TripQueryResult {
     case "reservation":
       answer = queryReservation(matchedAttractions);
       sources.push(...matchedAttractions.map((a) => a.nameZh));
+      break;
+    case "reservation_timeline":
+      answer = queryReservationTimeline(matchedAttractions);
+      sources.push(...matchedAttractions.filter((a) => a.reservationRequired).map((a) => a.nameZh));
+      break;
+    case "reservation_status":
+      answer = queryReservationStatus(tripPlan);
+      sources.push("reservation_data");
       break;
     case "crowd":
       answer = queryCrowdInfo(matchedAttractions);

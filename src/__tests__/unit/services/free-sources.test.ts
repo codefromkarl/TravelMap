@@ -193,6 +193,72 @@ describe("融合引擎", () => {
       expect(result[0]!.location.latitude).toBeGreaterThan(39.915);
       expect(result[0]!.location.latitude).toBeLessThan(39.918);
     });
+
+    it("任一源标记 reservationRequired 则结果为 true", () => {
+      const sourceData = new Map<FreeSourceName, FreeSourceAttraction[]>();
+      sourceData.set("wikivoyage", [
+        {
+          nameZh: "故宫",
+          source: "wikivoyage",
+          confidence: "high",
+          reservationRequired: false,
+        },
+      ]);
+      sourceData.set("qunar", [
+        {
+          nameZh: "故宫博物院",
+          source: "qunar",
+          confidence: "high",
+          reservationRequired: true,
+          reservationTips: "需提前7天预约",
+        },
+      ]);
+
+      const result = fuseAttractions(sourceData);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.reservationRequired).toBe(true);
+      expect(result[0]!.reservationTips).toBe("需提前7天预约");
+    });
+
+    it("bookingUrl 从有值的数据源提取", () => {
+      const sourceData = new Map<FreeSourceName, FreeSourceAttraction[]>();
+      sourceData.set("wikivoyage", [
+        {
+          nameZh: "故宫",
+          source: "wikivoyage",
+          confidence: "high",
+          reservationRequired: true,
+        },
+      ]);
+      sourceData.set("qunar", [
+        {
+          nameZh: "故宫博物院",
+          source: "qunar",
+          confidence: "high",
+          reservationRequired: true,
+          bookingUrl: "https://piao.qunar.com/ticket/detail/123.html",
+        },
+      ]);
+
+      const result = fuseAttractions(sourceData);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.bookingUrl).toBe("https://piao.qunar.com/ticket/detail/123.html");
+    });
+
+    it("全部源未标记预约则结果为 false", () => {
+      const sourceData = new Map<FreeSourceName, FreeSourceAttraction[]>();
+      sourceData.set("wikivoyage", [
+        {
+          nameZh: "西湖",
+          source: "wikivoyage",
+          confidence: "high",
+        },
+      ]);
+
+      const result = fuseAttractions(sourceData);
+      expect(result[0]!.reservationRequired).toBe(false);
+      expect(result[0]!.reservationTips).toBe("");
+    });
   });
 });
 
