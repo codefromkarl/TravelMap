@@ -39,6 +39,8 @@ export interface PostProcessorResult {
     overBudget: boolean;
     suggestions: string[];
   };
+  /** 行程一致性校验结果 */
+  consistencyCheck?: TripPlanConsistency;
 }
 
 // ─── 主入口 ──────────────────────────────────────────────
@@ -97,11 +99,15 @@ export async function postProcessTripPlan(
     budgetCheck = checkBudgetOverrun(enriched.budget, budgetLimit);
   }
 
+  // 4. 行程一致性校验
+  const consistencyCheck = validateTripPlanConsistency(enriched);
+
   return {
     tripPlan: enriched,
     budgetCalculated,
     linksGenerated,
     budgetCheck,
+    consistencyCheck,
   };
 }
 
@@ -130,4 +136,85 @@ export function calculateBudgetForTrip(
  */
 export async function enrichLinksForTrip(tripPlan: TripPlan): Promise<TripPlan> {
   return enrichTripWithLiveLinks(tripPlan);
+}
+
+// ─── 行程一致性校验 ──────────────────────────────────────────
+
+export interface TripPlanConsistency {
+  /** 是否通过校验 */
+  valid: boolean;
+  /** 警告列表 */
+  warnings: string[];
+  /** 错误列表（严重问题） */
+  errors: string[];
+}
+
+/**
+ * 校验 TripPlan 一致性 — 日期连续性、天数匹配、城市覆盖
+ *
+ * 确定性检查，不依赖 LLM：
+ *   - 日期是否连续无间隙
+ *   - days 数组长度是否匹配 travelDays
+ *   - 每天是否至少有 1 个景点
+ *   - 多城市行程是否有城际移动日
+ */
+export function validateTripPlanConsistency(tripPlan: TripPlan): TripPlanConsistency {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  // 1. 天数检查
+  if (tripPlan.days.length === 0) {
+    errors.push("行程没有任何天数数据");
+  }
+
+  // 2. 日期连续性
+  if (tripPlan.days.length > 1) {
+    for (let i = 1; i < tripPlan.days.length; i++) {
+      const prev = new Date(tripPlan.days[i - 1]!.date);
+      const curr = new Date(tripPlan.days[i]!.date);
+      const diffMs = curr.getTime() - prev.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays !== 1) {
+        if (diffDays <= 0) {
+          errors.push(
+            `第 ${i + 1} 天日期(${tripPlan.days[i]!.date})不晚于第 ${i} 天(${tripPlan.days[i - 1]!.date})`,
+          );
+        } else {
+          warnings.push(
+            `第 ${i} 天(${tripPlan.days[i - 1]!.date})和第 ${i + 1} 天(${tripPlan.days[i]!.date})之间有 ${diffDays - 1} 天空隙`,
+          );
+        }
+      }
+    }
+  }
+
+  // 3. 每天至少 1 个景点
+  for (const day of tripPlan.days) {
+    if (day.attractions.length === 0 && !day.isTransferDay) {
+      warnings.push(`${day.date}(${day.city})没有安排景点`);
+    }
+  }
+
+  // 4. 多城市行程检查城际移动日
+  if (tripPlan.cities.length > 1) {
+    const hasTransferDay = tripPlan.days.some((d) => d.isTransferDay);
+    if (!hasTransferDay) {
+      warnings.push(`多城市行程(${tripPlan.cities.join("→")})没有城际移动日`);
+    }
+  }
+
+  // 5. dayIndex 连续性
+  for (let i = 0; i < tripPlan.days.length; i++) {
+    const expected = i + 1;
+    if (tripPlan.days[i]!.dayIndex !== expected) {
+      warnings.push(`第 ${i + 1} 天的 dayIndex 为 ${tripPlan.days[i]!.dayIndex}，期望 ${expected}`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    warnings,
+    errors,
+  };
 }

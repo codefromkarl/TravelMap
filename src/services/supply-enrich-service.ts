@@ -27,7 +27,70 @@ export interface SupplyEnrichConfig {
 // ─── 景点级丰富 ──────────────────────────────────────────
 
 /**
- * 为单个景点丰富补给点数据
+ * 为单个景点丰富补给点数据并收集统计
+ *
+ * @param attraction 已附加路线的景点
+ * @param city 城市名
+ * @param config 丰富配置
+ * @returns 补给点已验证的景点和统计信息
+ */
+export async function enrichAttractionSuppliesWithStats(
+  attraction: Attraction,
+  city: string,
+  config: SupplyEnrichConfig = {},
+  stats: SupplyEnrichStats = {
+    attractionsProcessed: 0,
+    routesProcessed: 0,
+    supplyPointsValidated: 0,
+    supplyPointsSkipped: 0,
+  },
+): Promise<{ attraction: Attraction; stats: SupplyEnrichStats }> {
+  if (!attraction.routes || attraction.routes.length === 0) {
+    return { attraction, stats };
+  }
+
+  stats.attractionsProcessed++;
+
+  const { skipValidated = true } = config;
+  const enrichedRoutes = await Promise.all(
+    attraction.routes.map(async (route) => {
+      stats.routesProcessed++;
+      const waypoints = [...route.waypoints];
+      let hasChanges = false;
+
+      for (let i = 0; i < waypoints.length; i++) {
+        const wp = waypoints[i];
+        if (!wp.supplyPoints || wp.supplyPoints.length === 0) continue;
+
+        if (skipValidated) {
+          const allExact = wp.supplyPoints.every(
+            (sp) => sp.locationAccuracy === "exact" && sp.priceConfidence === "api",
+          );
+          if (allExact) {
+            stats.supplyPointsSkipped += wp.supplyPoints.length;
+            continue;
+          }
+        }
+
+        const validated = await validateRouteSupplies(wp.supplyPoints, city);
+        waypoints[i] = { ...wp, supplyPoints: validated };
+        stats.supplyPointsValidated += wp.supplyPoints.length;
+        hasChanges = true;
+      }
+
+      if (!hasChanges) return route;
+      return { ...route, waypoints };
+    }),
+  );
+
+  return {
+    attraction: { ...attraction, routes: enrichedRoutes },
+    stats,
+  };
+}
+
+/**
+ * 为单个景点丰富补给点数据（无统计）
  *
  * @param attraction 已附加路线的景点
  * @param city 城市名
@@ -39,42 +102,8 @@ export async function enrichAttractionSupplies(
   city: string,
   config: SupplyEnrichConfig = {},
 ): Promise<Attraction> {
-  if (!attraction.routes || attraction.routes.length === 0) {
-    return attraction;
-  }
-
-  const { skipValidated = true } = config;
-  const enrichedRoutes = await Promise.all(
-    attraction.routes.map(async (route) => {
-      const waypoints = [...route.waypoints];
-      let hasChanges = false;
-
-      for (let i = 0; i < waypoints.length; i++) {
-        const wp = waypoints[i];
-        if (!wp.supplyPoints || wp.supplyPoints.length === 0) continue;
-
-        // 如果跳过已验证的，检查是否全部都已验证为 exact
-        if (skipValidated) {
-          const allExact = wp.supplyPoints.every(
-            (sp) => sp.locationAccuracy === "exact" && sp.priceConfidence === "api",
-          );
-          if (allExact) continue;
-        }
-
-        const validated = await validateRouteSupplies(wp.supplyPoints, city);
-        waypoints[i] = { ...wp, supplyPoints: validated };
-        hasChanges = true;
-      }
-
-      if (!hasChanges) return route;
-      return { ...route, waypoints };
-    }),
-  );
-
-  return {
-    ...attraction,
-    routes: enrichedRoutes,
-  };
+  const result = await enrichAttractionSuppliesWithStats(attraction, city, config);
+  return result.attraction;
 }
 
 // ─── 行程级丰富 ──────────────────────────────────────────
@@ -117,6 +146,8 @@ export interface SupplyEnrichStats {
 
 /**
  * 丰富行程补给并返回统计信息
+ *
+ * 复用 enrichAttractionSuppliesWithStats，消除嵌套循环重复
  */
 export async function enrichTripPlanSuppliesWithStats(
   tripPlan: TripPlan,
@@ -133,42 +164,8 @@ export async function enrichTripPlanSuppliesWithStats(
     tripPlan.days.map(async (day) => {
       const enrichedAttractions = await Promise.all(
         day.attractions.map(async (attr) => {
-          if (!attr.routes || attr.routes.length === 0) return attr;
-
-          stats.attractionsProcessed++;
-          const enrichedRoutes = await Promise.all(
-            attr.routes.map(async (route) => {
-              stats.routesProcessed++;
-              const waypoints = [...route.waypoints];
-              let hasChanges = false;
-
-              for (let i = 0; i < waypoints.length; i++) {
-                const wp = waypoints[i];
-                if (!wp.supplyPoints || wp.supplyPoints.length === 0) continue;
-
-                const { skipValidated = true } = config;
-                if (skipValidated) {
-                  const allExact = wp.supplyPoints.every(
-                    (sp) => sp.locationAccuracy === "exact" && sp.priceConfidence === "api",
-                  );
-                  if (allExact) {
-                    stats.supplyPointsSkipped += wp.supplyPoints.length;
-                    continue;
-                  }
-                }
-
-                const validated = await validateRouteSupplies(wp.supplyPoints, day.city);
-                waypoints[i] = { ...wp, supplyPoints: validated };
-                stats.supplyPointsValidated += wp.supplyPoints.length;
-                hasChanges = true;
-              }
-
-              if (!hasChanges) return route;
-              return { ...route, waypoints };
-            }),
-          );
-
-          return { ...attr, routes: enrichedRoutes };
+          const result = await enrichAttractionSuppliesWithStats(attr, day.city, config, stats);
+          return result.attraction;
         }),
       );
       return { ...day, attractions: enrichedAttractions };

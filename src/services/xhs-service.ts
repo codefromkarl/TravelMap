@@ -46,6 +46,7 @@
  */
 
 import { LRUCache } from "lru-cache";
+import { config } from "./config.js";
 import type { UGCReview } from "./multi-source-service.js";
 import { PROVIDER_ADAPTERS } from "./xhs/adapters/index.js";
 import type { ProviderContext, ProviderName, ProviderResult } from "./xhs/types.js";
@@ -70,13 +71,13 @@ type RouterStrategy = "priority" | "cost" | "all";
 const DEFAULT_PRIORITY: ProviderName[] = ["rnote", "justoneapi", "tikhub", "crawler"];
 
 function getStrategy(): RouterStrategy {
-  const s = process.env.XHS_ROUTER_STRATEGY?.toLowerCase();
+  const s = config.xhsRouterStrategy?.toLowerCase();
   if (s === "cost" || s === "all") return s;
   return "priority";
 }
 
 function resolveProviders(): ProviderName[] {
-  const env = process.env.XHS_ROUTER_PROVIDERS ?? process.env.XHS_API_PROVIDER;
+  const env = config.xhsRouterProviders ?? config.xhsApiProvider;
   if (!env) return DEFAULT_PRIORITY;
   return env
     .split(",")
@@ -87,24 +88,23 @@ function resolveProviders(): ProviderName[] {
 function getProviderContext(name: ProviderName): ProviderContext | null {
   switch (name) {
     case "rnote": {
-      const token = process.env.XHS_RNOTE_TOKEN;
-      const base = process.env.XHS_RNOTE_BASE ?? "https://rnote.dev";
+      const token = config.xhsRnoteToken;
+      const base = config.xhsRnoteBase ?? "https://rnote.dev";
       return token ? { token, baseUrl: base } : null;
     }
     case "justoneapi": {
-      const token = process.env.XHS_JUSTONEAPI_TOKEN ?? process.env.XHS_API_TOKEN;
-      const base =
-        process.env.XHS_JUSTONEAPI_BASE ?? process.env.XHS_API_BASE ?? "https://api.justoneapi.com";
+      const token = config.xhsJustoneapiToken ?? config.xhsApiToken;
+      const base = config.xhsJustoneapiBase ?? config.xhsApiBase ?? "https://api.justoneapi.com";
       return token ? { token, baseUrl: base } : null;
     }
     case "tikhub": {
-      const token = process.env.XHS_TIKHUB_TOKEN;
-      const base = process.env.XHS_TIKHUB_BASE ?? "https://api.tikhub.io";
+      const token = config.xhsTikhubToken;
+      const base = config.xhsTikhubBase ?? "https://api.tikhub.io";
       return token ? { token, baseUrl: base } : null;
     }
     case "crawler": {
-      const base = process.env.XHS_CRAWLER_BASE;
-      const token = process.env.XHS_CRAWLER_TOKEN ?? "";
+      const base = config.xhsCrawlerBase;
+      const token = config.xhsCrawlerToken ?? "";
       return base ? { token, baseUrl: base } : null;
     }
     default:

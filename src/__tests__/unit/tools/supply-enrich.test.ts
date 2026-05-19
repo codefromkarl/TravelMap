@@ -218,8 +218,8 @@ describe("enrichSupplyDetailsTool execute", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test fixture
     const sp1 = (enrichedPlan.days[0]?.attractions[0]?.routes[0]?.waypoints[0]?.supplyPoints?.[0] ??
       {}) as Record<string, unknown>;
-    sp1["locationAccuracy"] = "exact";
-    sp1["priceConfidence"] = "api";
+    sp1.locationAccuracy = "exact";
+    sp1.priceConfidence = "api";
 
     mockedEnrich.mockResolvedValue({
       tripPlan: enrichedPlan as any,

@@ -6,8 +6,9 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { searchWeather } from "../services/weather-service.js";
 
-export const searchWeatherTool: AgentTool = {
+export const searchWeatherTool: AgentTool & { costTier: "cheap" } = {
   name: "search_weather",
+  costTier: "cheap",
   label: "天气查询",
   description: "查询指定城市未来几天的天气预报，返回日期、天气状况、温度、风向风力",
   parameters: Type.Object({

@@ -55,7 +55,7 @@ const KEY_FEATURES: Array<{
     key: "amapWebKey",
     envVar: "AMAP_WEB_KEY",
     feature: "高德地图 Web API",
-    services: ["geocode-service", "dual-map-service"],
+    services: ["dual-map-service"],
   },
   {
     key: "openWeatherApiKey",

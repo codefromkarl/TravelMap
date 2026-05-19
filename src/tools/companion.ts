@@ -9,7 +9,8 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { queryTripData } from "../services/companion-service.js";
 
-export const companionQATool: AgentTool = {
+export const companionQATool: AgentTool & { costTier: "cheap" } = {
+  costTier: "cheap",
   name: "query_trip_data",
   label: "伴游问答",
   description:

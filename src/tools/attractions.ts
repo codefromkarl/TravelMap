@@ -6,8 +6,9 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { searchAttractionsMultiSource } from "../services/multi-source-service.js";
 
-export const searchAttractionsTool: AgentTool = {
+export const searchAttractionsTool: AgentTool & { costTier: "cheap" } = {
   name: "search_attractions",
+  costTier: "cheap",
   label: "景点搜索",
   description:
     "搜索指定城市的景点信息，从多个数据源（Google Places + UGC点评）融合，返回景点名称、地址、经纬度、描述、门票价格、真实评价和避坑指南",

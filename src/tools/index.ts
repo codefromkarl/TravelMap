@@ -6,6 +6,8 @@
  *   - 编排阶段: createPlanningTools()
  *   - 伴游阶段: createCompanionTools()
  *   - 完整版: createTools()（向后兼容）
+ *
+ * costTier 元数据在工具定义文件中声明，通过 registerToolCostTiers 自动注册。
  */
 
 import type { AgentTool } from "@earendil-works/pi-agent-core";
@@ -30,14 +32,31 @@ export { planMultiCityTool } from "./multi-city.js";
 export { enrichSupplyDetailsTool } from "./supply-enrich.js";
 export { searchWeatherTool } from "./weather.js";
 
+// ─── costTier 自动注册 ─────────────────────────────────────
+
+type ToolWithCost = AgentTool & { costTier?: "cheap" | "strong" };
+
+/** 从工具列表中自动注册 costTier 元数据 */
+function registerToolCostTiers(tools: ToolWithCost[]): void {
+  for (const tool of tools) {
+    if (tool.costTier) {
+      registerToolMetadata(tool.name, tool.costTier);
+    }
+  }
+}
+
+// ─── 工具集工厂 ─────────────────────────────────────────────
+
 /** 搜索类工具（当未启用 preSearch 时使用） */
 export function createSearchTools(): AgentTool[] {
-  registerToolMetadata("search_attractions", "cheap");
-  registerToolMetadata("search_weather", "cheap");
-  registerToolMetadata("search_hotels", "cheap");
-  registerToolMetadata("geocode", "cheap");
-
-  return [searchAttractionsTool, searchWeatherTool, searchHotelsTool, geocodeTool];
+  const tools: ToolWithCost[] = [
+    searchAttractionsTool,
+    searchWeatherTool,
+    searchHotelsTool,
+    geocodeTool,
+  ];
+  registerToolCostTiers(tools);
+  return tools;
 }
 
 /** 编排类工具（行程生成 + 预算 + 链接 + 伴游 + 补给丰富） */
@@ -53,8 +72,9 @@ export function createPlanningTools(): AgentTool[] {
 
 // 伴游工具已合并到 createPlanningTools，保持向后兼容
 export function createCompanionTools(): AgentTool[] {
-  registerToolMetadata("query_trip_data", "cheap");
-  return [companionQATool];
+  const tools: ToolWithCost[] = [companionQATool];
+  registerToolCostTiers(tools);
+  return tools;
 }
 
 /** 创建全部工具并注册 costTier 元数据（向后兼容） */

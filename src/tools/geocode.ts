@@ -6,8 +6,9 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { dualGeocode } from "../services/dual-map-service.js";
 
-export const geocodeTool: AgentTool = {
+export const geocodeTool: AgentTool & { costTier: "cheap" } = {
   name: "geocode",
+  costTier: "cheap",
   label: "地理编码",
   description:
     "将地址文本转换为经纬度坐标。国内用高德地图，国外用 Google Maps，自动降级。用于景点定位和路线规划。",

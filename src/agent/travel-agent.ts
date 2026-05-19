@@ -32,6 +32,7 @@ import {
   type PromptPhase,
   STEERING_PROMPT_DIFF,
 } from "./prompts.js";
+import { findLatestPlanInMessages, mergeTripPlanDiff } from "./trip-plan-parser.js";
 
 export interface TravelAgentOptions {
   /** LLM 供应商 */
@@ -364,44 +365,28 @@ export class TravelAgent {
    */
   async finalize(): Promise<TripPlan | null> {
     const messages = this.agent.state.messages;
+    const found = findLatestPlanInMessages(messages as Array<{ role: string; content: unknown }>);
 
-    // 从后往前找第一个 assistant message
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg.role !== "assistant") continue;
+    if (!found) return null;
 
-      // 提取 JSON（TripPlan 通常以 ```json 代码块或纯 JSON 形式出现）
-      const text = this.extractTextFromMessage(msg);
-      if (!text) continue;
+    let tripPlan: TripPlan;
 
-      // 尝试解析为 Diff（steerDiff 模式）
-      const diff = this.parseTripPlanDiff(text);
-      if (diff && this.lastProcessedPlan) {
-        const merged = this.mergeTripPlanDiff(this.lastProcessedPlan, diff);
-        const config: PostProcessorConfig = {
-          ...this.postProcessConfig,
-          travelers: this.travelers,
-        };
-        const result = await postProcessTripPlan(merged, config);
-        this.lastProcessedPlan = result.tripPlan;
-        return result.tripPlan;
-      }
-
-      // 尝试解析为完整 TripPlan
-      const tripPlan = this.parseTripPlanFromText(text);
-      if (!tripPlan) continue;
-
-      // 调用后处理（传入人群画像用于预算联动）
-      const config: PostProcessorConfig = {
-        ...this.postProcessConfig,
-        travelers: this.travelers,
-      };
-      const result = await postProcessTripPlan(tripPlan, config);
-      this.lastProcessedPlan = result.tripPlan;
-      return result.tripPlan;
+    if (found.type === "diff") {
+      // Diff 模式：需要合并到上次处理的 plan
+      if (!this.lastProcessedPlan) return null;
+      tripPlan = mergeTripPlanDiff(this.lastProcessedPlan, found.diff);
+    } else {
+      tripPlan = found.plan;
     }
 
-    return null;
+    // 调用后处理（传入人群画像用于预算联动）
+    const config: PostProcessorConfig = {
+      ...this.postProcessConfig,
+      travelers: this.travelers,
+    };
+    const result = await postProcessTripPlan(tripPlan, config);
+    this.lastProcessedPlan = result.tripPlan;
+    return result.tripPlan;
   }
 
   /** 获取最近一次后处理的 TripPlan */
@@ -436,101 +421,6 @@ export class TravelAgent {
     if (result.compressed) {
       this.agent.state.messages = result.messages as unknown as typeof this.agent.state.messages;
     }
-  }
-
-  // ============ 内部工具方法 ============
-
-  /** 从消息对象中提取纯文本内容 */
-  private extractTextFromMessage(msg: { role: string; content: unknown }): string | null {
-    if (!msg.content) return null;
-
-    // pi-agent-core 的消息格式: content 是数组 [{type, text}]
-    if (Array.isArray(msg.content)) {
-      const textParts = msg.content
-        .filter((c: unknown) => (c as Record<string, unknown>).type === "text")
-        .map((c: unknown) => (c as Record<string, unknown>).text as string);
-      return textParts.join("\n");
-    }
-
-    // 也可能是字符串
-    if (typeof msg.content === "string") {
-      return msg.content;
-    }
-
-    return null;
-  }
-
-  /** 从文本中提取 TripPlan Diff */
-  private parseTripPlanDiff(
-    text: string,
-  ): { changedDays: number[]; days: Record<string, unknown> } | null {
-    try {
-      // 尝试提取 JSON
-      let jsonText = text.trim();
-      const codeBlockMatch = jsonText.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-      if (codeBlockMatch) jsonText = codeBlockMatch[1]!.trim();
-
-      const parsed = JSON.parse(jsonText);
-      // Diff 格式特征：有 changedDays 和 days 字段，但没有 city
-      if (parsed.changedDays && Array.isArray(parsed.changedDays) && parsed.days && !parsed.city) {
-        return parsed as { changedDays: number[]; days: Record<string, unknown> };
-      }
-    } catch {
-      // 不是有效的 diff
-    }
-    return null;
-  }
-
-  /** 合并 Diff 到现有 TripPlan */
-  private mergeTripPlanDiff(
-    base: TripPlan,
-    diff: { changedDays: number[]; days: Record<string, unknown> },
-  ): TripPlan {
-    const merged = { ...base, days: [...base.days] };
-    for (const dayIndex of diff.changedDays) {
-      const dayKey = String(dayIndex);
-      const newDay = diff.days[dayKey];
-      if (newDay && dayIndex >= 1 && dayIndex <= merged.days.length) {
-        merged.days[dayIndex - 1] = newDay as (typeof merged.days)[0];
-      }
-    }
-    return merged;
-  }
-
-  /** 从文本中提取 TripPlan JSON */
-  private parseTripPlanFromText(text: string): TripPlan | null {
-    // 策略 1: 从 ```json 代码块中提取
-    const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      try {
-        return JSON.parse(codeBlockMatch[1]!.trim()) as TripPlan;
-      } catch {
-        // 不是有效的 JSON，继续尝试
-      }
-    }
-
-    // 策略 2: 尝试解析整个文本为 JSON
-    try {
-      return JSON.parse(text.trim()) as TripPlan;
-    } catch {
-      // 不是有效的 JSON
-    }
-
-    // 策略 3: 从文本中提取最大可能 JSON 对象（从第一个 { 到最后一个 }）
-    const jsonMatch = text.match(/(\{[\s\S]*\})/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[1]!);
-        // 验证是否是 TripPlan（有 days 和 budget 等关键字段）
-        if (parsed.city && Array.isArray(parsed.days)) {
-          return parsed as TripPlan;
-        }
-      } catch {
-        // 解析失败
-      }
-    }
-
-    return null;
   }
 
   // ============ 内部 ============

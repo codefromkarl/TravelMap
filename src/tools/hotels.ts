@@ -5,7 +5,8 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 
-export const searchHotelsTool: AgentTool = {
+export const searchHotelsTool: AgentTool & { costTier: "cheap" } = {
+  costTier: "cheap",
   name: "search_hotels",
   label: "酒店搜索",
   description: "搜索指定城市的酒店，根据预算和位置筛选",
