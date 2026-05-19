@@ -1,5 +1,5 @@
-import { showToast, getAmapKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel } from './context.js';
-import { I18N, currentLang } from './i18n.js';
+import { showToast, getAmapKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js';
+import { I18N } from './i18n.js';
 import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js';
 
 let leafletMap = null;
