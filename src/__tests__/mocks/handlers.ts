@@ -286,6 +286,64 @@ export const googlePlacesNearbyHandler = http.get(
   },
 );
 
+// ─── 高德路线规划（城际交通） ─────────────────────────────
+export const amapTransitHandler = http.get(
+  "https://restapi.amap.com/v3/direction/transit/integrated",
+  () => {
+    return HttpResponse.json({
+      status: "1",
+      route: {
+        transits: [
+          {
+            cost: { duration: "5400", transit_fee: "73.5" },
+            distance: "175000",
+            segments: [
+              {
+                transit_mode: "火车",
+                bus: {
+                  buslines: [
+                    {
+                      departure_stop: { name: "杭州东站", location: "120.21,30.29" },
+                      arrival_stop: { name: "上海虹桥站", location: "121.32,31.19" },
+                      name: "G7590",
+                      via_num: "1",
+                      via_stops: [],
+                      start_time: "08:30",
+                      end_time: "09:30",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            cost: { duration: "6000", transit_fee: "55.0" },
+            distance: "175000",
+            segments: [
+              {
+                transit_mode: "火车",
+                bus: {
+                  buslines: [
+                    {
+                      departure_stop: { name: "杭州东站", location: "120.21,30.29" },
+                      arrival_stop: { name: "上海站", location: "121.47,31.23" },
+                      name: "D658",
+                      via_num: "2",
+                      via_stops: [],
+                      start_time: "10:00",
+                      end_time: "11:40",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+  },
+);
+
 // ─── 汇总导出 ──────────────────────────────────────────────
 export const handlers = [
   googlePlacesHandler,
@@ -296,6 +354,7 @@ export const handlers = [
   amapGeocodeHandler,
   amapPoiHandler,
   amapNearbySearchHandler,
+  amapTransitHandler,
   nominatimHandler,
   opentopodataHandler,
   rnoteHandler,

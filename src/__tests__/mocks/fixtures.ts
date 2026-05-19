@@ -12,6 +12,7 @@ import type {
   Hotel,
   Meal,
   Restaurant,
+  TransportOption,
   TravelerProfile,
   TripPlan,
   TripRequest,
@@ -226,6 +227,24 @@ export function createMockTrvlHotelResult(
         ],
       },
     ],
+    ...overrides,
+  };
+}
+
+// ─── 城际交通工厂 ──────────────────────────────────────────
+
+export function createMockTransportOption(overrides?: Partial<TransportOption>): TransportOption {
+  return {
+    type: "train",
+    code: "G7590",
+    departureTime: "08:30",
+    arrivalTime: "09:30",
+    durationMinutes: 60,
+    price: 73.5,
+    departureStation: "杭州东站",
+    arrivalStation: "上海虹桥站",
+    seatType: "二等座",
+    source: "amap",
     ...overrides,
   };
 }
