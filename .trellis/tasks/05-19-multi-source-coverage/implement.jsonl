@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试编写规范、mock 策略、错误路径覆盖要求"}
+{"file": ".trellis/spec/backend/testing-roadmap.md", "reason": "测试迭代路线图和 Phase 进度"}

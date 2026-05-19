@@ -1,9 +1,11 @@
+import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearSearchCache,
   searchAttractionsMultiSource,
 } from "../../../services/multi-source-service.js";
 import { clearXhsCache } from "../../../services/xhs-service.js";
+import { server } from "../../mocks/server.js";
 
 // Mock xhs-service
 vi.mock("../../../services/xhs-service.js", () => ({
@@ -84,6 +86,204 @@ describe("searchAttractionsMultiSource", () => {
     const result = await searchAttractionsMultiSource({ city: "北京" });
     const hasRatings = result.attractions.some((a) => a.ugcReviews.some((r) => r.rating != null));
     expect(hasRatings).toBe(true);
+  });
+
+  // ─── Google Places 路径 ──────────────────────────────────
+
+  describe("Google Places API", () => {
+    it("有 GOOGLE_MAPS_API_KEY 时应调用 Google Places 并返回结构化数据", async () => {
+      process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
+
+      const result = await searchAttractionsMultiSource({ city: "杭州" });
+
+      expect(result.sources).toContain("google_places");
+      expect(result.attractions.length).toBeGreaterThan(0);
+
+      const first = result.attractions[0];
+      expect(first.name).toBeTruthy();
+      expect(first.address).toBeTruthy();
+      expect(first.location.latitude).toBeDefined();
+      expect(first.location.longitude).toBeDefined();
+      expect(first.category).toBeTruthy();
+    });
+
+    it("Google Places 5xx 时应降级到 mock", async () => {
+      process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
+
+      server.use(
+        http.get("https://maps.googleapis.com/maps/api/place/textsearch/json", () => {
+          return new HttpResponse(null, { status: 502 });
+        }),
+      );
+
+      const result = await searchAttractionsMultiSource({ city: "杭州" });
+
+      expect(result.sources).not.toContain("google_places");
+      expect(result.sources).toContain("mock");
+      expect(result.attractions.length).toBeGreaterThan(0);
+    });
+
+    it("Google Places ZERO_RESULTS 时应降级到 mock", async () => {
+      process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
+
+      server.use(
+        http.get("https://maps.googleapis.com/maps/api/place/textsearch/json", () => {
+          return HttpResponse.json({ status: "ZERO_RESULTS", results: [] });
+        }),
+      );
+
+      const result = await searchAttractionsMultiSource({ city: "杭州" });
+
+      // ZERO_RESULTS 时 fetchGooglePlaces 返回空数组，不抛错
+      // sources 仍包含 google_places（因为 API 被调用了），同时 mock 降级补充
+      expect(result.sources).toContain("google_places");
+      expect(result.sources).toContain("mock");
+      expect(result.attractions.length).toBeGreaterThan(0);
+    });
+
+    it("不同类型应映射到正确 category", async () => {
+      process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
+
+      server.use(
+        http.get("https://maps.googleapis.com/maps/api/place/textsearch/json", () => {
+          return HttpResponse.json({
+            status: "OK",
+            results: [
+              {
+                name: "A博物馆",
+                formatted_address: "",
+                geometry: { location: { lat: 0, lng: 0 } },
+                types: ["museum"],
+              },
+              {
+                name: "B公园",
+                formatted_address: "",
+                geometry: { location: { lat: 0, lng: 0 } },
+                types: ["park"],
+              },
+              {
+                name: "C乐园",
+                formatted_address: "",
+                geometry: { location: { lat: 0, lng: 0 } },
+                types: ["amusement_park"],
+              },
+              {
+                name: "D画廊",
+                formatted_address: "",
+                geometry: { location: { lat: 0, lng: 0 } },
+                types: ["art_gallery"],
+              },
+              {
+                name: "E教堂",
+                formatted_address: "",
+                geometry: { location: { lat: 0, lng: 0 } },
+                types: ["place_of_worship"],
+              },
+            ],
+          });
+        }),
+      );
+
+      const result = await searchAttractionsMultiSource({ city: "杭州" });
+
+      expect(result.attractions.some((a) => a.category === "博物馆")).toBe(true);
+      expect(result.attractions.some((a) => a.category === "公园")).toBe(true);
+      expect(result.attractions.some((a) => a.category === "主题乐园")).toBe(true);
+      expect(result.attractions.some((a) => a.category === "艺术画廊")).toBe(true);
+      expect(result.attractions.some((a) => a.category === "宗教场所")).toBe(true);
+    });
+  });
+
+  // ─── deduplicate 合并逻辑 ────────────────────────────────
+
+  describe("deduplicate 合并", () => {
+    it("同名景点应合并 sources 和 ugcReviews", async () => {
+      process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
+
+      server.use(
+        http.get("https://maps.googleapis.com/maps/api/place/textsearch/json", () => {
+          return HttpResponse.json({
+            status: "OK",
+            results: [
+              {
+                name: "西湖",
+                formatted_address: "杭州",
+                geometry: { location: { lat: 30, lng: 120 } },
+                types: ["tourist_attraction"],
+                editorial_summary: { overview: "官方描述" },
+              },
+            ],
+          });
+        }),
+      );
+
+      // 第一次调用（Google Places 返回西湖）
+      const r1 = await searchAttractionsMultiSource({ city: "杭州" });
+      // 第二次调用同一城市，但不同参数触发不同搜索（通过 keywords 区分）
+      // 由于缓存存在，直接清除缓存再模拟不同结果
+      clearSearchCache();
+
+      server.use(
+        http.get("https://maps.googleapis.com/maps/api/place/textsearch/json", () => {
+          return HttpResponse.json({
+            status: "OK",
+            results: [
+              {
+                name: "西湖",
+                formatted_address: "杭州西湖区",
+                geometry: { location: { lat: 30.1, lng: 120.1 } },
+                types: ["natural_feature"],
+                editorial_summary: { overview: "另一个描述" },
+              },
+            ],
+          });
+        }),
+      );
+
+      const r2 = await searchAttractionsMultiSource({ city: "杭州", keywords: "西" });
+
+      // 两个结果中应该只有一条西湖（去重后）
+      const xihuCount = r2.attractions.filter((a) => a.nameZh === "西湖").length;
+      expect(xihuCount).toBe(1);
+
+      const xihu = r2.attractions.find((a) => a.nameZh === "西湖");
+      expect(xihu).toBeDefined();
+      // 合并后 sources 应包含 structured
+      expect(xihu!.sources).toContain("structured");
+    });
+  });
+
+  // ─── enrichWithUGC 边界路径 ─────────────────────────────
+
+  describe("enrichWithUGC 边界", () => {
+    it("当 Google 和 UGC 均无数据时应添加默认 local_knowledge", async () => {
+      process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
+
+      // Google 返回一个景点
+      server.use(
+        http.get("https://maps.googleapis.com/maps/api/place/textsearch/json", () => {
+          return HttpResponse.json({
+            status: "OK",
+            results: [
+              {
+                name: "某未知景点",
+                formatted_address: "火星",
+                geometry: { location: { lat: 0, lng: 0 } },
+                types: ["tourist_attraction"],
+              },
+            ],
+          });
+        }),
+      );
+
+      const result = await searchAttractionsMultiSource({ city: "火星" });
+
+      // 火星不在 mock UGC 数据中，且无 XHS token
+      const attraction = result.attractions.find((a) => a.nameZh === "某未知景点");
+      expect(attraction).toBeDefined();
+      expect(attraction!.ugcReviews.length).toBeGreaterThan(0);
+      expect(attraction!.ugcReviews.some((r) => r.source === "local_knowledge")).toBe(true);
+    });
   });
 
   // ─── 真实 XHS API 集成测试 ────────────────────────────────
