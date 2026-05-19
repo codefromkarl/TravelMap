@@ -20,6 +20,7 @@
 - 不允许在非测试文件中导入 `__tests__/` 下的任何模块
 - 服务层不允许直接 `fetch` 不经过 try-catch 包装
 - ❌ **禁止仅 `.not.toThrow()` 作为测试的唯一断言** — 必须有值验证断言
+- ❌ **禁止纯结构断言作为唯一业务验证** — `toBeDefined/toBeTruthy/toEqual([])/toHaveLength(0)` 等结构断言不验证业务正确性，必须与值断言搭配使用
 - ❌ **禁止为 try-catch 不写错误路径测试** — catch 分支必须有对应用例
 
 ---
@@ -69,6 +70,7 @@ src/__tests__/
 | 反模式 | 禁止理由 | 替代方案 |
 |--------|----------|----------|
 | 仅 `.not.toThrow()` | 不验证结果正确性，实现可随意变 | 补具体值断言 |
+| 纯结构断言唯一断言 | `toBeDefined/toBeTruthy/toEqual([])` 不验证业务结果 | 补 `toBe/toEqual/toContain` 等值断言 |
 | catch 块无错误路径测试 | 真实路径退化时无感知 | 模拟异常 + 验证降级 |
 | 测试无 `expect` | 根本不算测试 | 删除或用 `it.skip` |
 | mock 数据硬编码在测试中 | 变更时成本高 | 用 `fixtures.ts` 工厂 |

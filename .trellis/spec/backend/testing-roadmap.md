@@ -4,14 +4,16 @@
 
 ---
 
-## 现状 (2025-05-18)
+## 现状 (2025-05-19)
 
 | 指标 | 值 |
 |------|-----|
-| Vitest 测试总数 | 141 |
+| Vitest 测试总数 | 193 (+52) |
 | Playwright E2E 测试 | 50 (desktop + mobile) |
 | 通过率 | 100% |
-| 质量守卫测试 | 17 (源文件覆盖/Mock覆盖/Fixtures/命名规范) |
+| 质量守卫测试 | 18 (+1 业务断言密度检查) |
+| travel-agent.ts 行覆盖 | 84.9% (↑ 从 38.2%) |
+| budget-service.ts 分支覆盖 | 100% (↑ 从 84.0%) |
 
 ### 测试分层
 
@@ -41,6 +43,7 @@ web/__tests__/         # Playwright E2E
 - [x] 所有 tool execute 都有测试
 - [x] 质量守卫自动检测新增未测试文件
 - [x] MSW mock handlers 覆盖所有外部 API
+- [x] 人群画像预算测试 (travelers: 老人/儿童/婴幼儿/孕妇/行动不便者)
 - [ ] 新增 service/tool → 补测试 + 补 mock + 补 fixture
 
 ---
@@ -50,9 +53,11 @@ web/__tests__/         # Playwright E2E
 - [x] 局部修改端到端 (parseTargetDays → applyPartialEdit → calculateBudget)
 - [x] Mock LLM + Agent 工具调用链
 - [x] 多工具并行执行测试
+- [x] Agent steer/followUp 多轮对话测试
+- [x] Agent abort 中断场景测试
+- [x] Prompt 内容验证（城市/日期/人群画像/语言指令/偏好挖掘）
+- [x] finalize() 后处理（预算计算、diff 合并、空消息降级）
 - [ ] 完整编排: 景点→天气→酒店→预算 的四步链路
-- [ ] Agent steer/followUp 多轮对话测试
-- [ ] Agent abort 中断场景测试
 
 ---
 
@@ -71,7 +76,8 @@ web/__tests__/         # Playwright E2E
 - [x] 检测仅 `.not.toThrow()` 而无实质值断言的测试文件
 - [x] 检测 services 中 catch 块缺少错误路径测试
 - [x] 断言密度扫描（expect/test 比例）
-- [x] 覆盖率阈值 `lines: 30%`（起始阶段）
+- [x] **业务断言密度检查** — 每个测试文件必须至少有一个验证业务结果的值断言（2025-05-19 新增）
+- [x] 覆盖率阈值 `lines: 75%`（已提升至 75/70/65/75）
 
 ### Phase 3b: Pre-commit 快速扫描 ✅ (2025-05-18)
 
