@@ -910,8 +910,13 @@ async function renderTripAnimated(tripPlan) {
         allCoords.push([loc.latitude, loc.longitude]);
         markerCount++;
 
-        // 平滑平移到新景点
+        // 平滑平移到新景点 + 自动弹窗
         pageMapInstance.panTo([loc.latitude, loc.longitude], { animate: true, duration: 0.5 });
+        if (totalDays <= 5) {
+          // 短行程：自动弹出景点信息卡（2秒后自动关闭）
+          setTimeout(() => { marker.openPopup(); }, 300);
+          setTimeout(() => { if (marker.isPopupOpen()) marker.closePopup(); }, 2300);
+        }
         await delay(attrDelay);
       }
 
@@ -1064,6 +1069,129 @@ async function renderTripAnimated(tripPlan) {
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── Tool 级增量渲染 API（A2）────────────────────────────
+let _previewLayers = []; // 半透明预览图层
+
+/** 添加半透明景点预览 marker（tool 返回后立即显示） */
+export function addAttractionPreview(attractions, city) {
+  if (!pageMapInstance || !attractions) return;
+  for (const attr of attractions) {
+    const loc = attr.location;
+    if (!loc || !loc.latitude || !loc.longitude) continue;
+    const icon = L.divIcon({
+      className: 'custom-marker',
+      html: '<div class="attraction-marker" style="opacity:0.5;animation:markerPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;"></div>',
+      iconSize: [32, 32], iconAnchor: [16, 16],
+    });
+    const marker = L.marker([loc.latitude, loc.longitude], { icon, interactive: true }).addTo(pageMapInstance);
+    pageMapLayers.push(marker);
+    _previewLayers.push(marker);
+  }
+}
+window._addAttractionPreview = addAttractionPreview;
+
+/** 将半透明预览 marker 变实 */
+export function confirmPreviewMarkers() {
+  for (const marker of _previewLayers) {
+    const el = marker.getElement?.()?.querySelector('.attraction-marker');
+    if (el) el.style.opacity = '1';
+  }
+  _previewLayers = [];
+}
+window._confirmPreviewMarkers = confirmPreviewMarkers;
+
+/** 添加天气图标覆盖层 */
+export function addWeatherOverlay(weatherInfo) {
+  if (!pageMapInstance || !weatherInfo) return;
+  const weatherIcons = { '晴': '\u2600\ufe0f', '多云': '\u26c5', '阴': '\u2601\ufe0f', '小雨': '\ud83c\udf27\ufe0f', '中雨': '\ud83c\udf27\ufe0f', '大雨': '\ud83c\udf27\ufe0f', '雪': '\u2744\ufe0f', '雾': '\ud83c\udf2b\ufe0f' };
+  for (const w of weatherInfo) {
+    if (!w.dayWeather) continue;
+    const center = CITY_CENTERS[w.city];
+    if (!center) continue;
+    const icon = L.divIcon({
+      className: 'weather-overlay',
+      html: '<div class="weather-badge">' + (weatherIcons[w.dayWeather] || '\ud83c\udf24\ufe0f') + ' ' + w.dayTemp + '\u00b0</div>',
+      iconSize: [80, 28], iconAnchor: [40, 14],
+    });
+    const marker = L.marker(center, { icon, interactive: false, zIndexOffset: -100 }).addTo(pageMapInstance);
+    pageMapLayers.push(marker);
+  }
+}
+window._addWeatherOverlay = addWeatherOverlay;
+
+// ─── 流式文本实时渲染（A4）─────────────────────────────────
+let _ghostLayers = []; // 幽灵 marker
+
+/** 添加幽灵 marker（从流式文本解析出的景点） */
+export function addGhostMarker(name, lat, lng) {
+  if (!pageMapInstance) return;
+  const icon = L.divIcon({
+    className: 'ghost-marker-container',
+    html: '<div class="ghost-marker"><div class="ghost-pulse"></div></div>',
+    iconSize: [24, 24], iconAnchor: [12, 12],
+  });
+  const marker = L.marker([lat, lng], { icon, interactive: false, zIndexOffset: 500 }).addTo(pageMapInstance);
+  pageMapLayers.push(marker);
+  _ghostLayers.push({ marker, name, lat, lng });
+}
+window._addGhostMarker = addGhostMarker;
+
+/** 清除所有幽灵 marker */
+export function clearGhostMarkers() {
+  for (const g of _ghostLayers) {
+    pageMapInstance?.removeLayer(g.marker);
+  }
+  _ghostLayers = [];
+}
+window._clearGhostMarkers = clearGhostMarkers;
+
+// ─── 流式文本解析器（A4）───────────────────────────────────
+const _parsedAttractionNames = new Set();
+
+/** 从流式文本中提取景点名，匹配已知坐标后添加幽灵 marker */
+export function streamingMapParser(textChunk) {
+  if (!window._lastTripPlan?.days) return;
+  // 从已有行程数据中构建景点名→坐标映射
+  const nameToCoord = {};
+  for (const day of window._lastTripPlan.days) {
+    for (const attr of day.attractions) {
+      if (attr.location?.latitude) {
+        const names = [attr.nameZh, attr.name, attr.nameEn].filter(Boolean);
+        for (const n of names) nameToCoord[n] = attr.location;
+      }
+    }
+  }
+  // 用《》标记和常见模式匹配景点名
+  const patterns = [/《([^》]{2,20})》/g, /(?:前往|游览|参观|游览)\s*([\u4e00-\u9fa5]{2,10})(?:景区|公园|寺庙|博物馆|故居|楼|塔|湖|山|寺|园|城|街|桥)/g];
+  for (const pat of patterns) {
+    let match;
+    while ((match = pat.exec(textChunk)) !== null) {
+      const name = match[1];
+      if (!name || _parsedAttractionNames.has(name)) continue;
+      _parsedAttractionNames.add(name);
+      const loc = nameToCoord[name];
+      if (loc) {
+        addGhostMarker(name, loc.latitude, loc.longitude);
+      }
+    }
+  }
+  // 也检查纯景点名匹配
+  for (const name of Object.keys(nameToCoord)) {
+    if (textChunk.includes(name) && !_parsedAttractionNames.has(name)) {
+      _parsedAttractionNames.add(name);
+      addGhostMarker(name, nameToCoord[name].latitude, nameToCoord[name].longitude);
+    }
+  }
+}
+window._streamingMapParser = streamingMapParser;
+
+// turn_end 时重置解析状态
+const _origConfirm = confirmPreviewMarkers;
+export function resetStreamingParser() {
+  _parsedAttractionNames.clear();
+}
+window._resetStreamingParser = resetStreamingParser;
 
 // ─── 对话定位辅助函数 ──────────────────────────────────
 function scrollChatToAttraction(name) {

@@ -23,6 +23,7 @@ import { searchRestaurantsTool } from "./restaurants.js";
 import { enrichSupplyDetailsTool } from "./supply-enrich.js";
 import { searchIntercityTransportTool } from "./transport.js";
 import { searchWeatherTool } from "./weather.js";
+import { recognizeImageTool } from "./image-recognize.js";
 
 export { generateActionLinksTool } from "./action-links.js";
 export { searchAttractionsTool } from "./attractions.js";
@@ -35,6 +36,7 @@ export { searchRestaurantsTool } from "./restaurants.js";
 export { enrichSupplyDetailsTool } from "./supply-enrich.js";
 export { searchIntercityTransportTool } from "./transport.js";
 export { searchWeatherTool } from "./weather.js";
+export { recognizeImageTool } from "./image-recognize.js";
 
 // ─── costTier 自动注册 ─────────────────────────────────────
 

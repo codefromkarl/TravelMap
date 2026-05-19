@@ -187,6 +187,40 @@ export async function initApp() {
         showToast("请求超时，请重试", 4000, 'warning');
       }, 60000);
     }
+    // ─── Tool 级增量渲染（A2）────────────────────────
+    if (event.type === "tool_execution_end" && window.currentPage === "page-map") {
+      const { toolName, result } = event;
+      if (!result || result.isError) return;
+
+      // 景点工具返回后，在地图上添加半透明预览 marker
+      if (toolName === "search_attractions" || toolName === "searchAttractions") {
+        const details = result.result?.details || result.result;
+        if (details?.attractions && window._addAttractionPreview) {
+          window._addAttractionPreview(details.attractions, details.city);
+        }
+      }
+      // 天气工具返回后显示天气图标
+      if (toolName === "get_weather" || toolName === "getWeather") {
+        const details = result.result?.details || result.result;
+        if (details?.weatherInfo && window._addWeatherOverlay) {
+          window._addWeatherOverlay(details.weatherInfo);
+        }
+      }
+    }
+
+    // ─── 流式文本实时渲染（A4）─────────────────────────
+    if (event.type === "message_update" && window.currentPage === "page-map") {
+      const text = event.message?.content;
+      if (typeof text === 'string' && window._streamingMapParser) {
+        window._streamingMapParser(text);
+      }
+    }
+    if (event.type === "turn_end") {
+      // turn 结束时清除幽灵 marker
+      window._clearGhostMarkers?.();
+      window._confirmPreviewMarkers?.();
+    }
+
     if (event.type === "error" || event.type === "agent_error") {
       if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
       resetToolbarAfterError();

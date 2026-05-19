@@ -643,6 +643,158 @@ function roundRect(ctx, x, y, w, h, r) {
 // ═══════════════════════════════════════════════════════════
 // 4. 分享链接生成
 // ═══════════════════════════════════════════════════════════
+// AI 行程海报（B3） — 小红书风格多页长图
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * 生成小红书风格行程海报
+ * 多页长图，左侧时间线 + 中间内容 + 景点图片
+ */
+export async function generateTripPoster(tripPlan) {
+  if (!tripPlan?.days) return null;
+
+  const WIDTH = 800;
+  const dayHeight = 320; // 每天高度
+  const headerH = 200;
+  const footerH = 80;
+  const totalH = headerH + tripPlan.days.length * dayHeight + footerH;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = WIDTH;
+  canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
+
+  // 背景
+  ctx.fillStyle = '#fafafa';
+  ctx.fillRect(0, 0, WIDTH, totalH);
+
+  // 头部
+  const grad = ctx.createLinearGradient(0, 0, WIDTH, headerH);
+  grad.addColorStop(0, '#667eea');
+  grad.addColorStop(1, '#764ba2');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, WIDTH, headerH);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 42px "PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${tripPlan.city || '旅行'} · ${tripPlan.days.length}日游`, WIDTH / 2, 80);
+
+  ctx.font = '20px "PingFang SC",sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  const dateRange = `${tripPlan.startDate || ''} ~ ${tripPlan.endDate || ''}`;
+  if (dateRange.trim()) ctx.fillText(dateRange, WIDTH / 2, 120);
+
+  // 预算信息
+  if (tripPlan.budget?.total) {
+    ctx.font = '18px "PingFang SC",sans-serif';
+    ctx.fillText(`💰 预估费用 ¥${tripPlan.budget.total}`, WIDTH / 2, 155);
+  }
+
+  // 每天内容
+  let y = headerH;
+  const timeLineX = 60;
+
+  for (let di = 0; di < tripPlan.days.length; di++) {
+    const day = tripPlan.days[di];
+
+    // 时间线左侧圆点
+    ctx.fillStyle = '#667eea';
+    ctx.beginPath();
+    ctx.arc(timeLineX, y + 30, 8, 0, Math.PI * 2);
+    ctx.fill();
+    // 时间线竖线
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(timeLineX, y + 38);
+    ctx.lineTo(timeLineX, y + dayHeight - 20);
+    ctx.stroke();
+
+    // Day 标签
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 22px "PingFang SC",sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Day ${di + 1} · ${day.city || ''}`, timeLineX + 24, y + 36);
+
+    // 景点列表
+    let itemY = y + 65;
+    for (const attr of (day.attractions || []).slice(0, 4)) {
+      // 景点图片（如果有）
+      if (attr.images?.[0]?.url) {
+        try {
+          const img = await loadImage(attr.images[0].url);
+          ctx.save();
+          roundRect(ctx, timeLineX + 24, itemY, 60, 45, 4);
+          ctx.clip();
+          ctx.drawImage(img, timeLineX + 24, itemY, 60, 45);
+          ctx.restore();
+        } catch { /* 图片加载失败跳过 */ }
+      }
+
+      // 景点文字
+      const textX = attr.images?.length ? timeLineX + 96 : timeLineX + 24;
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = '16px "PingFang SC",sans-serif';
+      ctx.fillText(`${attr.nameZh || attr.name}`, textX, itemY + 14);
+      ctx.fillStyle = '#888';
+      ctx.font = '13px "PingFang SC",sans-serif';
+      const meta = `${attr.visitDuration ? '⏱' + attr.visitDuration + 'min' : ''} ${attr.ticketPrice > 0 ? '🎫¥' + attr.ticketPrice : '🎫免费'}`;
+      ctx.fillText(meta.trim(), textX, itemY + 32);
+      itemY += 55;
+    }
+
+    // 餐饮
+    if (day.meals?.length) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '14px "PingFang SC",sans-serif';
+      const mealText = day.meals.map(m => `${m.type === 'breakfast' ? '早餐' : m.type === 'lunch' ? '午餐' : '晚餐'}: ${m.name}`).join(' | ');
+      ctx.fillText('🍽 ' + mealText, timeLineX + 24, itemY + 10);
+    }
+
+    y += dayHeight;
+  }
+
+  // 底部
+  ctx.fillStyle = '#eee';
+  ctx.fillRect(0, y, WIDTH, footerH);
+  ctx.fillStyle = '#999';
+  ctx.font = '14px "PingFang SC",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🗺️ 由 旅图 TravelMap AI 生成', WIDTH / 2, y + 40);
+
+  return canvas.toDataURL('image/png');
+}
+
+/** Canvas 加载图片辅助 */
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/** Canvas 圆角矩形辅助 */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+window._generateTripPoster = generateTripPoster;
+
+// ═══════════════════════════════════════════════════════════
 
 /**
  * 生成只读分享链接
