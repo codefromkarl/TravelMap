@@ -44,6 +44,14 @@ export const generateActionLinksTool = {
         lines.push(`- 🏨 **${day.hotel.name}** → [Booking.com 比价](https://www.booking.com/searchresults.html?ss=${encodeURIComponent(day.city)})`);
         linkCount++;
       }
+      for (const meal of (day.meals || [])) {
+        if (meal.restaurant) {
+          const r = meal.restaurant;
+          const query = encodeURIComponent(r.name + ' ' + day.city);
+          lines.push(`- 🍴 **${r.name}** (${meal.type === 'breakfast' ? '早餐' : meal.type === 'lunch' ? '午餐' : meal.type === 'dinner' ? '晚餐' : '小吃'}) → [大众点评](https://www.dianping.com/search/keyword/${encodeURIComponent(day.city)}/${encodeURIComponent(r.name)}) [搜索](https://www.google.com/search?q=${query})`);
+          linkCount++;
+        }
+      }
     }
     if (tripPlan.cities?.length > 1) {
       for (let i = 0; i < tripPlan.cities.length - 1; i++) {

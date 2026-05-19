@@ -579,6 +579,7 @@ export function initPageMap() {
 }
 
 window._initPageMap = initPageMap;
+window._pageMapInstance = pageMapInstance;
 
 // ─── 实时规划指示器 ────────────────────────────────────
 let _planningMarker = null;
@@ -943,7 +944,41 @@ function renderTripOnPageMap(tripPlan) {
         }
       }
     }
-    routePanelData.push({ dayNum: dayIdx + 1, city: dayCity, attractions: dayAttrItems });
+    // 餐厅标记
+    let restaurantCount = 0;
+    for (const meal of (day.meals || [])) {
+      const r = meal.restaurant;
+      if (r && r.location && r.location.latitude && r.location.longitude) {
+        const rIcon = L.divIcon({
+          className: 'custom-marker',
+          html: '<div class="restaurant-marker" style="animation-delay:' + ((dayIdx * 4 + restaurantCount) * 60) + 'ms">🍴</div>',
+          iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
+        });
+        const rPopup = '<div class="map-popup">' +
+          '<div class="popup-title">' + r.name + '</div>' +
+          '<div class="popup-meta">' +
+          (r.rating ? '<span>⭐ ' + r.rating + '</span>' : '') +
+          (r.averageCost ? '<span>¥' + r.averageCost + '/人</span>' : '') +
+          (r.cuisine ? '<span>' + r.cuisine + '</span>' : '') +
+          '</div>' +
+          (r.address ? '<div class="popup-city">📍 ' + r.address + '</div>' : '') +
+          (r.signature ? '<div class="popup-tips">🍽️ 招牌：' + r.signature + '</div>' : '') +
+          '</div>';
+        const rMarker = L.marker([r.location.latitude, r.location.longitude], { icon: rIcon, interactive: true }).bindPopup(rPopup, { maxWidth: 260 });
+        rMarker.addTo(pageMapInstance);
+        pageMapLayers.push(rMarker);
+        allCoords.push([r.location.latitude, r.location.longitude]);
+        restaurantCount++;
+      }
+    }
+    const dayMeals = (day.meals || []).map(m => ({
+      type: m.type,
+      name: m.name,
+      description: m.description,
+      estimatedCost: m.estimatedCost,
+      restaurant: m.restaurant,
+    }));
+    routePanelData.push({ dayNum: dayIdx + 1, city: dayCity, attractions: dayAttrItems, meals: dayMeals });
   }
 
   // 城市间连线
@@ -1051,6 +1086,22 @@ function renderRoutePanel(data) {
       '<span class="attr-dot"></span><span>' + attr.name + '</span>' +
       (attr.duration ? '<span class="attr-duration">' + attr.duration + 'min</span>' : '') +
     '</div>').join('') +
+    (day.meals && day.meals.length > 0 ? '<div class="route-meals-group">' + day.meals.map(meal => {
+      const r = meal.restaurant;
+      if (r) {
+        return '<div class="route-meal-item" data-lat="' + (r.location?.latitude||'') + '" data-lng="' + (r.location?.longitude||'') + '" data-name="' + (r.name||'') + '">' +
+          '<span class="meal-icon">' + (meal.type === 'breakfast' ? '🍳' : meal.type === 'lunch' ? '🍜' : meal.type === 'dinner' ? '🍽️' : '🧋') + '</span>' +
+          '<span class="meal-name">' + r.name + '</span>' +
+          (r.rating ? '<span class="meal-rating">⭐ ' + r.rating + '</span>' : '') +
+          (r.averageCost ? '<span class="meal-cost">¥' + r.averageCost + '/人</span>' : '') +
+          (r.walkMinutes ? '<span class="meal-walk">🚶 ' + r.walkMinutes + 'min</span>' : '') +
+        '</div>';
+      }
+      return '<div class="route-meal-item plain">' +
+        '<span class="meal-icon">' + (meal.type === 'breakfast' ? '🍳' : meal.type === 'lunch' ? '🍜' : meal.type === 'dinner' ? '🍽️' : '🧋') + '</span>' +
+        '<span class="meal-name">' + meal.name + '</span>' +
+      '</div>';
+    }).join('') + '</div>' : '') +
   '</div>').join('');
 
   // Day 标题点击 → 对话定位到对应天
@@ -1062,12 +1113,11 @@ function renderRoutePanel(data) {
     });
   });
 
-  body.querySelectorAll('.route-attr-item').forEach(item => {
+  body.querySelectorAll('.route-attr-item, .route-meal-item').forEach(item => {
     item.addEventListener('click', () => {
       const lat = parseFloat(item.dataset.lat);
       const lng = parseFloat(item.dataset.lng);
       const name = item.dataset.name;
-      // 1. 地图定位
       if (lat && lng && pageMapInstance) {
         pageMapInstance.setView([lat, lng], 16, { animate: true });
         pageMapLayers.forEach(layer => {
@@ -1077,7 +1127,6 @@ function renderRoutePanel(data) {
           }
         });
       }
-      // 2. 对话定位（新增）
       if (name) scrollChatToAttraction(name);
     });
   });
