@@ -139,3 +139,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: 测试质量优化：从覆盖率导向转向业务需求导向
+
+**Date**: 2026-05-19
+**Task**: 测试质量优化：从覆盖率导向转向业务需求导向
+**Branch**: `main`
+
+### Summary
+
+完成 trellis 任务 05-19-test-quality-business-driven：1) budget-service 新增 travelers 人群画像测试（8个）覆盖老人/儿童/婴幼儿/酒店/交通系数；2) restaurants tool 新增 execute 行为测试覆盖 mock 降级/参数传递/结果格式；3) travel-agent.test.ts 从5个.not.toThrow()伪测试重写为22个业务场景测试（prompt构建/人群画像/偏好挖掘/多轮对话/steer/finalize），行覆盖从38.2%提升至84.9%；4) quality-guard 新增'业务断言密度检查'检测纯结构断言测试文件。全部测试通过(593 pass)，lint+typecheck通过。spec已更新quality-guidelines.md和testing-roadmap.md。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9f149cb` | (see git log) |
+| `04783d9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

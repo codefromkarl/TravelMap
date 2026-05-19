@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
-- **Last Active**: 2026-05-18
+- **Total Sessions**: 5
+- **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~141 | Active |
+| `journal-1.md` | ~175 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-05-19 | 测试质量优化：从覆盖率导向转向业务需求导向 | `9f149cb`, `04783d9` | `main` |
 | 4 | 2026-05-18 | UI/UX P2 打磨 — 动画偏好/发送按钮/键盘无障碍/卡片i18n | `cf800ee` | `main` |
 | 3 | 2026-05-18 | UI/UX P0/P1 优化 — 首屏引导 + 面板交互统一 | `f84caa9` | `main` |
 | 2 | 2026-05-18 | 外部API集成系统性修复 — http-client增强与测试补全 | `b8171a1` | `main` |
