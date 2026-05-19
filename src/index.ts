@@ -17,6 +17,16 @@ export {
   enrichLinksForTrip,
   postProcessTripPlan,
 } from "./services/post-processor.js";
+export type {
+  Restaurant,
+  RestaurantSearchResult,
+  SearchNearbyParams,
+} from "./services/restaurant-service.js";
+export {
+  clearRestaurantCache,
+  enrichDayMeals,
+  searchNearbyRestaurants,
+} from "./services/restaurant-service.js";
 export {
   formatSearchResultsForAgent,
   injectSearchResults,

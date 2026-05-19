@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试框架、mock 模式、代码规范要求"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理和降级策略规范"}
+{"file": ".trellis/tasks/05-19-restaurant-service/research/amap-nearby-api.md", "reason": "高德周边搜索 API 参数、返回格式、注意事项"}
+{"file": ".trellis/tasks/05-19-restaurant-service/prd.md", "reason": "需求文档 — 功能范围、数据源分层、文件变更清单"}

@@ -35,14 +35,15 @@ import { createMockDayPlan } from "../../mocks/fixtures.js";
 // ─── createTools (index.ts) ───────────────────────────
 
 describe("createTools()", () => {
-  it("应返回 9 个工具", () => {
+  it("应返回 10 个工具", () => {
     const tools = createTools();
-    expect(tools).toHaveLength(9);
+    expect(tools).toHaveLength(10);
     expect(tools.map((t) => t.name)).toEqual([
       "search_attractions",
       "search_weather",
       "search_hotels",
       "geocode",
+      "search_restaurants",
       "calculate_budget",
       "generate_action_links",
       "query_trip_data",

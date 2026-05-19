@@ -39,12 +39,30 @@ export interface Attraction {
   selectedRouteId?: string;
 }
 
+/** 餐厅信息（来自 restaurant-service） */
+export interface Restaurant {
+  name: string;
+  rating: number;
+  averageCost: number;
+  distance: number;
+  walkMinutes: number;
+  cuisine: string;
+  address: string;
+  location: Location;
+  businessHours?: string;
+  phone?: string;
+  signature?: string;
+  source: "amap" | "google" | "mock";
+}
+
 /** 餐饮 */
 export interface Meal {
   type: "breakfast" | "lunch" | "dinner" | "snack";
   name: string;
   description: string;
   estimatedCost: number;
+  /** 关联的真实餐厅数据（由 restaurant-service 填充） */
+  restaurant?: Restaurant;
 }
 
 /** 酒店 */

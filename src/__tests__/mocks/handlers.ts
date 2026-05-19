@@ -220,14 +220,82 @@ export const crawlerFileContentHandler = http.get(
   },
 );
 
+// ─── 高德周边搜索（餐厅） ──────────────────────────────
+export const amapNearbySearchHandler = http.get(
+  "https://restapi.amap.com/v3/place/around",
+  ({ request }) => {
+    const url = new URL(request.url);
+    const keywords = url.searchParams.get("keywords");
+
+    return HttpResponse.json({
+      status: "1",
+      count: "2",
+      pois: [
+        {
+          id: "B001",
+          name: keywords ? `${keywords}餐厅` : "外婆家(西湖店)",
+          type: "餐饮服务;中餐厅;浙江菜",
+          address: "杭州市西湖区龙井路1号",
+          location: "120.155,30.275",
+          tel: "0571-88888001",
+          rating: "4.5",
+          biz_ext: { rating: "4.5", cost: "85", open_time: "10:00-22:00" },
+          distance: "350",
+        },
+        {
+          id: "B002",
+          name: "绿茶餐厅(西湖银泰店)",
+          type: "餐饮服务;中餐厅;浙江菜",
+          address: "杭州市上城区延安路98号",
+          location: "120.169,30.259",
+          tel: "0571-88888002",
+          rating: "4.2",
+          biz_ext: { rating: "4.2", cost: "65", open_time: "11:00-21:30" },
+          distance: "580",
+        },
+      ],
+    });
+  },
+);
+
+// ─── Google Places Nearby Search ─────────────────────────
+export const googlePlacesNearbyHandler = http.get(
+  "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+  () => {
+    return HttpResponse.json({
+      status: "OK",
+      results: [
+        {
+          name: "Tokyo Ramen Street",
+          vicinity: "Tokyo Station Basement",
+          geometry: { location: { lat: 35.681, lng: 139.767 } },
+          rating: 4.3,
+          price_level: 2,
+          types: ["restaurant", "food"],
+        },
+        {
+          name: "Sushi Dai",
+          vicinity: "Tsukiji Market",
+          geometry: { location: { lat: 35.665, lng: 139.771 } },
+          rating: 4.7,
+          price_level: 3,
+          types: ["restaurant", "food", "sushi_restaurant"],
+        },
+      ],
+    });
+  },
+);
+
 // ─── 汇总导出 ──────────────────────────────────────────────
 export const handlers = [
   googlePlacesHandler,
   googleGeocodeHandler,
+  googlePlacesNearbyHandler,
   owmGeocodeHandler,
   owmForecastHandler,
   amapGeocodeHandler,
   amapPoiHandler,
+  amapNearbySearchHandler,
   nominatimHandler,
   opentopodataHandler,
   rnoteHandler,

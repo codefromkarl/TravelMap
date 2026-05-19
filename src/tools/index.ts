@@ -19,6 +19,7 @@ import { companionQATool } from "./companion.js";
 import { geocodeTool } from "./geocode.js";
 import { searchHotelsTool } from "./hotels.js";
 import { planMultiCityTool } from "./multi-city.js";
+import { searchRestaurantsTool } from "./restaurants.js";
 import { enrichSupplyDetailsTool } from "./supply-enrich.js";
 import { searchWeatherTool } from "./weather.js";
 
@@ -29,6 +30,7 @@ export { companionQATool } from "./companion.js";
 export { geocodeTool } from "./geocode.js";
 export { searchHotelsTool } from "./hotels.js";
 export { planMultiCityTool } from "./multi-city.js";
+export { searchRestaurantsTool } from "./restaurants.js";
 export { enrichSupplyDetailsTool } from "./supply-enrich.js";
 export { searchWeatherTool } from "./weather.js";
 
@@ -54,6 +56,7 @@ export function createSearchTools(): AgentTool[] {
     searchWeatherTool,
     searchHotelsTool,
     geocodeTool,
+    searchRestaurantsTool,
   ];
   registerToolCostTiers(tools);
   return tools;

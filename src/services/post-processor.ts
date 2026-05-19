@@ -11,6 +11,7 @@
 import type { TravelerProfile, TripPlan } from "../types/trip.js";
 import { enrichTripWithLiveLinks } from "./action-link-service.js";
 import { calculateBudget } from "./budget-service.js";
+import { enrichDayMeals } from "./restaurant-service.js";
 
 // ─── 后处理配置 ──────────────────────────────────────────────
 
@@ -23,6 +24,8 @@ export interface PostProcessorConfig {
   budgetLimit?: number;
   /** 是否生成行动链接 */
   enableActionLinks?: boolean;
+  /** 是否启用餐厅推荐丰富 */
+  enableRestaurantEnrich?: boolean;
   /** 出行人群画像，用于按人数精确计算预算 */
   travelers?: TravelerProfile;
 }
@@ -61,12 +64,23 @@ export async function postProcessTripPlan(
     interCityTransportCost = 0,
     budgetLimit,
     enableActionLinks = true,
+    enableRestaurantEnrich = false,
     travelers,
   } = config;
 
   let enriched = { ...tripPlan };
   let budgetCalculated = false;
   let linksGenerated = false;
+
+  // 0. 餐厅推荐丰富（在预算计算之前，以使用真实人均消费）
+  if (enableRestaurantEnrich) {
+    try {
+      const enrichedDays = await Promise.all(enriched.days.map((day) => enrichDayMeals(day)));
+      enriched = { ...enriched, days: enrichedDays };
+    } catch (err) {
+      console.warn("[PostProcessor] 餐厅推荐丰富失败:", err);
+    }
+  }
 
   // 1. 预算计算（含人群画像联动）
   try {

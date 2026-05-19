@@ -11,6 +11,7 @@ import type {
   DayPlan,
   Hotel,
   Meal,
+  Restaurant,
   TravelerProfile,
   TripPlan,
   TripRequest,
@@ -57,6 +58,23 @@ export function createMockMeal(overrides?: Partial<Meal>): Meal {
     name: "测试餐厅",
     description: "测试美食",
     estimatedCost: 80,
+    ...overrides,
+  };
+}
+
+export function createMockRestaurant(overrides?: Partial<Restaurant>): Restaurant {
+  return {
+    name: "外婆家(西湖店)",
+    rating: 4.5,
+    averageCost: 85,
+    distance: 350,
+    walkMinutes: 5,
+    cuisine: "浙江菜",
+    address: "杭州市西湖区龙井路1号",
+    location: createMockLocation({ latitude: 30.275, longitude: 120.155 }),
+    businessHours: "10:00-22:00",
+    phone: "0571-88888001",
+    source: "mock",
     ...overrides,
   };
 }
