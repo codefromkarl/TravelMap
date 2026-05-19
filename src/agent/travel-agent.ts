@@ -16,9 +16,11 @@ import {
   type HandoffConfig,
   isToolCallTool,
 } from "../services/cost-tracker.js";
+import { getLogger } from "../services/logger.js";
 import { type CompressorOptions, compressHistory } from "../services/message-compressor.js";
 import { type PostProcessorConfig, postProcessTripPlan } from "../services/post-processor.js";
 import { injectSearchResults, runParallelSearch } from "../services/search-orchestrator.js";
+import { generateSpanId, generateTraceId, runWithTrace } from "../services/trace-context.js";
 import {
   createCompanionTools,
   createPlanningTools,
@@ -255,12 +257,23 @@ export class TravelAgent {
         const searchBundle = await runParallelSearch(request);
         prompt = injectSearchResults(prompt, searchBundle);
       } catch (err) {
-        console.warn("[TravelAgent] 预搜索失败，降级到手动搜索模式:", err);
+        getLogger().warn("预搜索失败，降级到手动搜索模式", {
+          error: err instanceof Error ? err.message : String(err),
+          city: request.city,
+        });
         // 失败时 fallback：不注入搜索结果，LLM 仍可手动调用搜索工具
       }
     }
 
-    await this.agent.prompt(prompt);
+    await runWithTrace(
+      {
+        traceId: generateTraceId(),
+        spanId: generateSpanId(),
+        operation: "planTrip",
+        city: request.city,
+      },
+      () => this.agent.prompt(prompt),
+    );
   }
 
   /**

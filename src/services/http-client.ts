@@ -8,6 +8,9 @@
  * - 统一错误分类 + URL 日志脱敏
  */
 
+import { getLogger } from "./logger.js";
+import { getTrace } from "./trace-context.js";
+
 /** 统一错误类型 */
 export class NetworkError extends Error {
   constructor(
@@ -133,9 +136,12 @@ export async function fetchWithRetry(url: string, options: FetchOptions = {}): P
       if (res.status >= 500 && res.status < 600) {
         if (attempt < maxRetries) {
           const delay = Math.min(baseDelay * 2 ** attempt, 8000);
-          console.warn(
-            `[HTTPClient] Server ${res.status} retry ${attempt + 1}/${maxRetries} for ${sanitizeUrl(url)} in ${delay}ms`,
-          );
+          getLogger().warn(`Server ${res.status} retry ${attempt + 1}/${maxRetries}`, {
+            url: sanitizeUrl(url),
+            delay,
+            attempt,
+            trace: getTrace(),
+          });
           await new Promise((r) => setTimeout(r, delay));
           continue;
         }
@@ -148,9 +154,13 @@ export async function fetchWithRetry(url: string, options: FetchOptions = {}): P
       lastError = err instanceof Error ? err : new Error(String(err));
       if (attempt < maxRetries) {
         const delay = Math.min(baseDelay * 2 ** attempt, 8000);
-        console.warn(
-          `[HTTPClient] ${lastError.name} retry ${attempt + 1}/${maxRetries} for ${sanitizeUrl(url)} in ${delay}ms`,
-        );
+        getLogger().warn(`${lastError.name} retry ${attempt + 1}/${maxRetries}`, {
+          url: sanitizeUrl(url),
+          delay,
+          attempt,
+          error: lastError.message,
+          trace: getTrace(),
+        });
         await new Promise((r) => setTimeout(r, delay));
       }
     }

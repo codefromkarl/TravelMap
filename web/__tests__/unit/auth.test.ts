@@ -139,6 +139,11 @@ describe("auth/callback", () => {
     const { signJwt } = await import("../../functions/_lib/jwt.js");
     const state = await signJwt({ provider: "github", redirect: "/" }, SECRET, 60);
 
+    // mock OAuth exchange 成功，使流程到达 KV 检查
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ access_token: "tok" }) })
+      .mockResolvedValueOnce({ json: async () => ({ id: 1, name: "Test", login: "test", avatar_url: "", email: "" }) }));
+
     const req = new Request(`https://example.com/api/auth/callback?code=abc&state=${state}`);
     const res = await onCallbackGet(mockContext(req, { RATE_LIMIT_KV: undefined }));
     expect(res.status).toBe(503);
