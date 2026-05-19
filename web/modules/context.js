@@ -23,6 +23,10 @@ export let activePanel = null;
 // 出行人群
 export let currentTravelers = null;
 
+// 用户偏好
+export let currentPreferences = null;
+export const PREFERENCES_KEY = "travel-agent-preferences";
+
 // 导航
 export let currentPage = 'page-map';
 
@@ -131,6 +135,7 @@ export function isDomesticCityForMap(city) {
 
 // ─── Setter 函数 ─────────────────────────────────────────
 export function setAgent(a) { agent = a; }
+export function setPreferences(p) { currentPreferences = p; }
 export function setCurrentTripId(id) { currentTripId = id; }
 export function setCurrentLang(lang) { currentLang = lang; }
 export function setChatPanel(c) { chatPanel = c; }

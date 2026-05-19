@@ -140,8 +140,32 @@
         <label>有行动不便者</label>
         <input type="checkbox" id="t-mobility">
       </div>
+      <div class="traveler-row" style="margin-top:12px;border-top:1px solid var(--color-border-subtle);padding-top:12px">
+        <label>人均预算（元）</label>
+        <input type="number" id="t-budget" min="0" step="500" placeholder="例如 5000">
+      </div>
+      <div class="traveler-row">
+        <label>饮食忌口</label>
+        <input type="text" id="t-diet" placeholder="例如：不吃辣、素食、海鲜过敏">
+      </div>
+      <div class="traveler-row">
+        <label>必去景点</label>
+        <input type="text" id="t-must-see" placeholder="例如：故宫、西湖">
+      </div>
+      <div class="traveler-row">
+        <label>旅行风格</label>
+        <select id="t-style">
+          <option value="">未选择</option>
+          <option value="relaxed">🌿 休闲度假</option>
+          <option value="compact">⚡ 紧凑打卡</option>
+          <option value="cultural">🏛️ 文化历史</option>
+          <option value="food">🍜 美食探索</option>
+          <option value="nature">⛰️ 自然风光</option>
+        </select>
+      </div>
       <button id="travelers-save">保存设置</button>
       <div id="travelers-summary"></div>
+      <div id="preferences-summary" style="margin-top:8px;font-size:12px;color:var(--color-text-secondary)"></div>
     </div>
     <div id="print-content"></div>
     <div id="history-panel">

@@ -296,6 +296,75 @@ describe("测试质量守卫", () => {
       }
     });
   });
+
+  // ─── 8. 业务断言密度检查 ─────────────────────────────────
+
+  describe("业务断言密度检查", () => {
+    it("每个测试文件至少有一个验证业务结果的值断言", () => {
+      const testFiles = findFiles(
+        TEST_DIR,
+        (f) => f.endsWith(".test.ts") && !f.includes("quality-guard"),
+      );
+      const warnings: string[] = [];
+
+      // 纯结构断言模式（不算业务断言）
+      const STRUCTURAL_PATTERNS = [
+        /\.toBeDefined\(\)/,
+        /\.toBeTruthy\(\)/,
+        /\.toBeFalsy\(\)/,
+        /\.toBeNull\(\)/,
+        /\.not\.toBeNull\(\)/,
+        /\.toHaveLength\(\s*0\s*\)/,
+        /\.toEqual\(\s*\[\]\s*\)/,
+        /\.toEqual\(\s*\{\}\s*\)/,
+        /\.not\.toThrow\(\)/,
+      ];
+
+      // 业务值断言模式（验证具体业务结果）
+      const BUSINESS_PATTERNS = [
+        /\.toBe\(\s*["\d]/, // toBe(数字或字符串字面量)
+        /\.toEqual\(\s*["\d{]/, // toEqual(对象字面量或数字/字符串)
+        /\.toContain\(/,
+        /\.toMatch\(/,
+        /\.toBeGreaterThan\(/,
+        /\.toBeLessThan\(/,
+        /\.toBeGreaterThanOrEqual\(/,
+        /\.toBeLessThanOrEqual\(/,
+      ];
+
+      for (const file of testFiles) {
+        const content = fs.readFileSync(file, "utf-8");
+        const lines = content.split("\n");
+
+        let structuralCount = 0;
+        let businessCount = 0;
+
+        for (const line of lines) {
+          if (!line.includes("expect(")) continue;
+
+          const isStructural = STRUCTURAL_PATTERNS.some((p) => p.test(line));
+          const isBusiness = BUSINESS_PATTERNS.some((p) => p.test(line));
+
+          if (isStructural) structuralCount++;
+          if (isBusiness) businessCount++;
+        }
+
+        if (businessCount === 0 && structuralCount > 0) {
+          warnings.push(
+            `  - ${path.relative(TEST_DIR, file)} (${structuralCount}× 结构断言, 0× 业务值断言)`,
+          );
+        }
+      }
+
+      if (warnings.length > 0) {
+        console.warn(
+          "[测试守卫] 以下测试文件仅有结构断言（toBeDefined/toBeTruthy/toEqual([])/.not.toThrow 等），" +
+            "无验证业务结果的值断言:\n" +
+            warnings.join("\n"),
+        );
+      }
+    });
+  });
 });
 
 // ─── 工具函数 ────────────────────────────────────────────────

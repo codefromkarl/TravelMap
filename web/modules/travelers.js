@@ -1,4 +1,4 @@
-import { currentTravelers, setCurrentTravelers, TRAVELERS_KEY, showToast } from './context.js';
+import { currentTravelers, setCurrentTravelers, TRAVELERS_KEY, currentPreferences, setPreferences, PREFERENCES_KEY, showToast } from './context.js';
 import { buildSystemPrompt } from './prompt.js';
 import { agent, setAgent, currentLang } from './context.js';
 
@@ -13,6 +13,31 @@ export function loadTravelersFromStorage() {
 
 export function saveTravelersToStorage(t) {
   localStorage.setItem(TRAVELERS_KEY, JSON.stringify(t));
+}
+
+export function loadPreferencesFromStorage() {
+  try {
+    const raw = localStorage.getItem(PREFERENCES_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+export function savePreferencesToStorage(p) {
+  localStorage.setItem(PREFERENCES_KEY, JSON.stringify(p));
+}
+
+export function formatPreferencesText(p) {
+  if (!p) return "";
+  const parts = [];
+  if (p.budget) parts.push(`💰 ¥${p.budget}/人`);
+  if (p.diet) parts.push(`🍽️ ${p.diet}`);
+  if (p.mustSee) parts.push(`📍 ${p.mustSee}`);
+  if (p.style) {
+    const labels = { relaxed: '休闲度假', compact: '紧凑打卡', cultural: '文化历史', food: '美食探索', nature: '自然风光' };
+    parts.push(`✨ ${labels[p.style] || p.style}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : "";
 }
 
 export function formatTravelersText(t) {
@@ -33,6 +58,12 @@ export function updateSystemPromptWithTravelers() {
   }
 }
 
+export function updateSystemPromptWithPreferences() {
+  if (agent) {
+    agent.state.systemPrompt = buildSystemPrompt(currentLang);
+  }
+}
+
 export function initTravelersPanel() {
   const t = loadTravelersFromStorage();
   if (t) {
@@ -45,6 +76,15 @@ export function initTravelersPanel() {
     document.getElementById("t-mobility").checked = t.mobilityImpaired;
     document.getElementById("travelers-summary").textContent = formatTravelersText(t);
     document.getElementById("travelers-btn").classList.add("active");
+  }
+  const p = loadPreferencesFromStorage();
+  if (p) {
+    setPreferences(p);
+    document.getElementById("t-budget").value = p.budget || '';
+    document.getElementById("t-diet").value = p.diet || '';
+    document.getElementById("t-must-see").value = p.mustSee || '';
+    document.getElementById("t-style").value = p.style || '';
+    document.getElementById("preferences-summary").textContent = formatPreferencesText(p);
   }
   if (agent) {
     agent.state.systemPrompt = buildSystemPrompt(currentLang);
@@ -79,9 +119,20 @@ document.getElementById("travelers-save")?.addEventListener("click", () => {
   saveTravelersToStorage(t);
   document.getElementById("travelers-summary").textContent = formatTravelersText(t);
   document.getElementById("travelers-btn").classList.add("active");
-  updateSystemPromptWithTravelers();
+
+  const p = {
+    budget: parseInt(document.getElementById("t-budget").value) || 0,
+    diet: document.getElementById("t-diet").value.trim(),
+    mustSee: document.getElementById("t-must-see").value.trim(),
+    style: document.getElementById("t-style").value,
+  };
+  setPreferences(p);
+  savePreferencesToStorage(p);
+  document.getElementById("preferences-summary").textContent = formatPreferencesText(p);
+  updateSystemPromptWithPreferences();
+
   document.getElementById("travelers-panel").classList.remove("open");
   setActivePanel(null);
   document.getElementById("overlay")?.classList.remove("visible");
-  showToast(`已保存：${formatTravelersText(t)}`, 2500, 'success');
+  showToast(`已保存：${formatTravelersText(t)} ${formatPreferencesText(p)}`, 2500, 'success');
 });

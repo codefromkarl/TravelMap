@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 // Mock context.js
 vi.mock('../context.js', () => ({
   currentTravelers: null,
+  currentPreferences: null,
 }));
 
 const { SYSTEM_PROMPT, LANG_PROMPTS, buildTravelersPrompt, buildSystemPrompt } = await import('../prompt.js');
@@ -22,6 +23,7 @@ describe('SYSTEM_PROMPT', () => {
   it('contains template placeholders', () => {
     expect(SYSTEM_PROMPT).toContain('{{TRAVELERS}}');
     expect(SYSTEM_PROMPT).toContain('{{LANGUAGE_INSTRUCTION}}');
+    expect(SYSTEM_PROMPT).toContain('{{CONFIRMATION_RULES}}');
   });
 });
 
@@ -82,6 +84,7 @@ describe('buildSystemPrompt', () => {
     expect(typeof result).toBe('string');
     expect(result).not.toContain('{{TRAVELERS}}');
     expect(result).not.toContain('{{LANGUAGE_INSTRUCTION}}');
+    expect(result).not.toContain('{{CONFIRMATION_RULES}}');
   });
 
   it('includes language instruction for en', () => {

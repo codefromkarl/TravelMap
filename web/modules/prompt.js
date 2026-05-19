@@ -1,4 +1,4 @@
-import { currentTravelers } from './context.js';
+import { currentTravelers, currentPreferences } from './context.js';
 
 // ─── System Prompt ────────────────────────────────────────
 const SYSTEM_PROMPT = `你是「TravelMap」，一位专业且贴心的私人旅行管家。
@@ -45,19 +45,16 @@ const SYSTEM_PROMPT = `你是「TravelMap」，一位专业且贴心的私人旅
 
 当用户发送行程规划请求（包括点击快捷提示）时，**严格禁止立即调用任何工具**。
 
-你必须先以友好、简洁的方式反问用户 2-3 个关键信息：
-1. **出发日期** — 具体哪几天？（年月日）
-2. **预算范围** — 人均预算大约多少？
-3. **特殊需求** — 有无必去景点、饮食忌口、或其他要求？
+{{CONFIRMATION_RULES}}
 
 **关键约束**：
 - 在未获得用户确认前，**绝对不要调用 search_attractions、search_weather、search_hotels、calculate_budget、generate_action_links 等任何工具**
 - 不要生成"我先给您一份参考方案"之类的话术来绕过确认
 - 简短反问后，明确等待用户回复
 
-只有在用户明确回复并确认了日期、预算等信息后，才开始调用工具进行完整规划。
+只有在用户明确回复并确认了缺失信息后，才开始调用工具进行完整规划。
 
-例外：如果用户消息中已经明确包含具体日期、预算范围和特殊需求，可以直接开始规划。
+例外：如果用户消息中已经明确包含所有必要信息（日期、预算、特殊需求），可以直接开始规划。
 
 ## 输出格式
 
@@ -109,13 +106,35 @@ function buildTravelersPrompt(t) {
   return parts.join("\n");
 }
 
+// ─── 用户偏好 Prompt 构建 ──────────────────────────────
+function buildPreferencesPrompt(p) {
+  if (!p) return "";
+  const parts = ["## 用户偏好"];
+  if (p.budget) parts.push(`人均预算: ¥${p.budget}`);
+  if (p.diet) parts.push(`饮食忌口: ${p.diet}`);
+  if (p.mustSee) parts.push(`必去景点: ${p.mustSee}`);
+  if (p.style) {
+    const labels = { relaxed: '休闲度假', compact: '紧凑打卡', cultural: '文化历史', food: '美食探索', nature: '自然风光' };
+    parts.push(`旅行风格: ${labels[p.style] || p.style}`);
+  }
+  parts.push("");
+  parts.push("以上偏好已确认，无需再次询问用户。直接开始规划行程。");
+  return parts.join("\n");
+}
+
 // ─── 构建完整 System Prompt ────────────────────────────
 function buildSystemPrompt(lang) {
   const instruction = LANG_PROMPTS[lang] || "";
   const travelersText = buildTravelersPrompt(currentTravelers);
+  const preferencesText = buildPreferencesPrompt(currentPreferences);
+  const hasPrefs = currentPreferences && (currentPreferences.budget || currentPreferences.diet || currentPreferences.mustSee || currentPreferences.style);
+  const confirmationRules = hasPrefs
+    ? "以下信息已由用户预先设置，无需重复确认：\n1. **出发日期** — 请从用户消息中提取，若未提及则询问\n2. **预算范围** — " + (currentPreferences?.budget ? `¥${currentPreferences.budget}/人（已设置）` : "请询问") + "\n3. **特殊需求** — " + (currentPreferences?.diet || currentPreferences?.mustSee ? "已设置偏好（见下方「用户偏好」），若用户消息未提及新需求则无需追问" : "请询问") + "\n"
+    : "你必须先以友好、简洁的方式反问用户 2-3 个关键信息：\n1. **出发日期** — 具体哪几天？（年月日）\n2. **预算范围** — 人均预算大约多少？\n3. **特殊需求** — 有无必去景点、饮食忌口、或其他要求？\n";
   return SYSTEM_PROMPT
-    .replace("{{TRAVELERS}}", travelersText)
-    .replace("{{LANGUAGE_INSTRUCTION}}", instruction);
+    .replace("{{TRAVELERS}}", travelersText + "\n" + preferencesText)
+    .replace("{{LANGUAGE_INSTRUCTION}}", instruction)
+    .replace("{{CONFIRMATION_RULES}}", confirmationRules);
 }
 
 export { SYSTEM_PROMPT, LANG_PROMPTS, buildTravelersPrompt, buildSystemPrompt };
