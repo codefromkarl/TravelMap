@@ -111,7 +111,7 @@ export async function fetchWithRetry(url: string, options: FetchOptions = {}): P
   const method = (options.method ?? "GET").toUpperCase();
   const isIdempotent = method === "GET" || method === "HEAD" || method === "OPTIONS";
   const maxRetries = options.maxRetries ?? (isIdempotent ? 3 : 0);
-  const baseDelay = options.baseDelayMs ?? 500;
+  const baseDelay = options.baseDelayMs ?? (process.env.NODE_ENV === "test" ? 0 : 500);
 
   let lastError: Error | undefined;
 
