@@ -11,12 +11,7 @@
 
 import { HttpResponse, http } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TransportOption } from "../../../types/trip.js";
-import {
-  createMockDayPlan,
-  createMockTransportOption,
-  createMockTripPlan,
-} from "../../mocks/fixtures.js";
+import { createMockDayPlan, createMockTripPlan } from "../../mocks/fixtures.js";
 import { server } from "../../mocks/server.js";
 
 // Mock trvl-service（trvl CLI 在测试环境不可用）

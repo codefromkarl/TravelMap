@@ -224,7 +224,7 @@ async function searchFlightsFromTrvl(
 function getMockTransportOptions(
   originCity: string,
   destCity: string,
-  date: string,
+  _date: string,
   transportType: string,
 ): TransportOption[] {
   const options: TransportOption[] = [];

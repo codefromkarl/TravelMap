@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import type { TripPlan } from "../../../types/trip.js";
 
 import { enrichSupplyDetailsTool } from "../../../tools/supply-enrich.js";
 
@@ -82,14 +83,13 @@ describe("enrichSupplyDetailsTool execute", () => {
     const enrichedPlan = makeTripPlan();
     // 模拟验证后的补给点
     const waypoint = enrichedPlan.days[0]?.attractions[0]?.routes[0]?.waypoints[0];
-    // biome-ignore lint/suspicious/noExplicitAny: test fixture
-    const sp0 = (waypoint?.supplyPoints?.[0] ?? {}) as any;
+    const sp0 = (waypoint?.supplyPoints?.[0] ?? {}) as Record<string, unknown>;
     sp0.locationAccuracy = "exact";
     sp0.estimatedCost = 55;
     sp0.priceConfidence = "api";
 
     mockedEnrich.mockResolvedValue({
-      tripPlan: enrichedPlan as any,
+      tripPlan: enrichedPlan as unknown as TripPlan,
       stats: {
         attractionsProcessed: 1,
         routesProcessed: 1,
@@ -108,7 +108,7 @@ describe("enrichSupplyDetailsTool execute", () => {
     expect(text).toContain("故宫博物院");
 
     const details = result.details as {
-      tripPlan: unknown;
+      tripPlan: TripPlan;
       stats: { attractionsProcessed: number; supplyPointsValidated: number };
     };
     expect(details.stats.attractionsProcessed).toBe(1);
@@ -134,7 +134,7 @@ describe("enrichSupplyDetailsTool execute", () => {
     };
 
     mockedEnrich.mockResolvedValue({
-      tripPlan: planNoRoutes as any,
+      tripPlan: planNoRoutes as unknown as TripPlan,
       stats: {
         attractionsProcessed: 0,
         routesProcessed: 0,
@@ -154,7 +154,7 @@ describe("enrichSupplyDetailsTool execute", () => {
 
   it("skipValidated 传递到 service", async () => {
     mockedEnrich.mockResolvedValue({
-      tripPlan: makeTripPlan() as any,
+      tripPlan: makeTripPlan() as unknown as TripPlan,
       stats: {
         attractionsProcessed: 1,
         routesProcessed: 1,
@@ -192,7 +192,7 @@ describe("enrichSupplyDetailsTool execute", () => {
   it("返回的 details 包含 tripPlan 和 stats", async () => {
     const plan = makeTripPlan();
     mockedEnrich.mockResolvedValue({
-      tripPlan: plan as any,
+      tripPlan: plan as unknown as TripPlan,
       stats: {
         attractionsProcessed: 2,
         routesProcessed: 3,
@@ -205,7 +205,7 @@ describe("enrichSupplyDetailsTool execute", () => {
       tripPlan: plan,
     });
 
-    const details = result.details as any;
+    const details = result.details as unknown as { tripPlan: TripPlan; stats: Record<string, unknown> };
     expect(details).toHaveProperty("tripPlan");
     expect(details.stats.attractionsProcessed).toBe(2);
     expect(details.stats.routesProcessed).toBe(3);
@@ -215,14 +215,13 @@ describe("enrichSupplyDetailsTool execute", () => {
 
   it("补给点有 exact 坐标时显示实时价格", async () => {
     const enrichedPlan = makeTripPlan();
-    // biome-ignore lint/suspicious/noExplicitAny: test fixture
     const sp1 = (enrichedPlan.days[0]?.attractions[0]?.routes[0]?.waypoints[0]?.supplyPoints?.[0] ??
       {}) as Record<string, unknown>;
     sp1.locationAccuracy = "exact";
     sp1.priceConfidence = "api";
 
     mockedEnrich.mockResolvedValue({
-      tripPlan: enrichedPlan as any,
+      tripPlan: enrichedPlan as unknown as TripPlan,
       stats: {
         attractionsProcessed: 1,
         routesProcessed: 1,
@@ -291,7 +290,7 @@ describe("enrichSupplyDetailsTool execute", () => {
     };
 
     mockedEnrich.mockResolvedValue({
-      tripPlan: multiDayPlan as any,
+      tripPlan: multiDayPlan as unknown as TripPlan,
       stats: {
         attractionsProcessed: 1,
         routesProcessed: 1,

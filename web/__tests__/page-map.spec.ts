@@ -15,6 +15,36 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import { spawn, ChildProcess } from "child_process";
+import { createServer } from "net";
+
+let server: ChildProcess | null = null;
+let serverPort = 0;
+
+/** 启动本地 HTTP 服务器 */
+async function startServer(): Promise<number> {
+  const port = await new Promise<number>((resolve) => {
+    const s = createServer();
+    s.listen(0, () => {
+      const p = (s.address() as any).port;
+      s.close(() => resolve(p));
+    });
+  });
+  server = spawn("python3", ["-m", "http.server", String(port), "--directory", "web"], {
+    cwd: process.cwd(),
+    stdio: "ignore",
+  });
+  await new Promise((r) => setTimeout(r, 800));
+  return port;
+}
+
+/** 关闭服务器 */
+function stopServer() {
+  if (server) {
+    server.kill();
+    server = null;
+  }
+}
 
 // ─── 辅助函数 ─────────────────────────────────────────────
 
@@ -111,12 +141,15 @@ async function injectMockTrip(page: Page) {
         },
       ],
     };
-    // 触发地图重绘
+    // 确保地图已初始化再重绘
+    if ((window as any)._initPageMap) {
+      (window as any)._initPageMap();
+    }
     if ((window as any)._renderTripOnPageMap) {
       (window as any)._renderTripOnPageMap((window as any)._lastTripPlan);
     }
   });
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(1200);
 }
 
 // ─── 测试用例 ─────────────────────────────────────────────
@@ -124,6 +157,21 @@ async function injectMockTrip(page: Page) {
 test.describe("页面地图功能测试", () => {
   let consoleErrors: string[] = [];
   let consoleCleanup: () => void;
+
+  test.beforeAll(async () => {
+    serverPort = await startServer();
+    console.log(`[page-map] HTTP server started on port ${serverPort}`);
+  });
+
+  test.afterAll(() => {
+    stopServer();
+    console.log("[page-map] HTTP server stopped");
+  });
+
+  /** 使用完整 URL 跳转 */
+  async function gotoPage(page: Page, path: string) {
+    await page.goto(`http://localhost:${serverPort}${path}`, { waitUntil: "networkidle" });
+  }
 
   test.beforeEach(async ({ page }) => {
     const listener = setupConsoleListener(page);
@@ -137,7 +185,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 1. 页面结构与初始化 ──
   test("页面结构完整，地图初始化成功", async ({ page }, testInfo) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
 
     // 先等页面基本渲染（不强制要求 agent 初始化）
     await page.waitForTimeout(3000);
@@ -150,7 +198,6 @@ test.describe("页面地图功能测试", () => {
 
     const mapReady = await waitForMapReady(page, 5000);
     if (!mapReady) {
-      // 截图保存诊断信息
       await page.screenshot({ path: testInfo.outputPath("diag-no-map.png") });
       const diag = await page.evaluate(() => ({
         url: location.href,
@@ -163,9 +210,13 @@ test.describe("页面地图功能测试", () => {
         bodyScripts: Array.from(document.querySelectorAll("script")).map((s) =>
           (s as HTMLScriptElement).src || "inline"
         ),
-        consoleErrors: (window as any).__consoleErrors || [],
+        moduleErrors: (window as any).__moduleErrors || [],
       }));
-      console.log("诊断信息:", JSON.stringify(diag, null, 2));
+      const diagStr = JSON.stringify(diag, null, 2);
+      // 写入文件避免日志截断
+      const fs = (window as any).__fs;
+      console.log("[DIAG] map not ready, url=" + diag.url + ", title=" + diag.title);
+      console.log("[DIAG] hasApp=" + diag.hasApp + ", hasPageMap=" + diag.hasPageMap);
     }
     expect(mapReady).toBe(true);
 
@@ -201,7 +252,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 2. 左侧面板拖拽调整宽度 ──
   test("拖拽分割线可调整左侧面板宽度", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     const resizer = await page.locator("#panel-resizer");
@@ -234,7 +285,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 3. 图层切换 ──
   test("图层切换：标准 → 卫星 → 地形", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     const layerBtn = await page.locator("#btn-map-layers");
@@ -267,7 +318,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 4. 路线面板显示/隐藏 ──
   test("路线面板可展开和收起", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     const routeBtn = await page.locator("#btn-map-routes");
@@ -286,7 +337,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 5. 定位按钮 ──
   test("定位按钮存在且可点击", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     const locateBtn = await page.locator("#btn-map-locate");
@@ -301,7 +352,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 6. Marker popup（注入模拟行程数据） ──
   test("模拟行程渲染后，景点 Marker 可点击显示 Popup", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     // 注入模拟数据
@@ -339,7 +390,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 7. 状态栏与图例更新 ──
   test("模拟行程渲染后，状态栏和图例正确显示", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     await injectMockTrip(page);
@@ -364,7 +415,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 8. POI 点击反查（缩放足够后点击地图空白处） ──
   test("POI 点击反查：放大地图后点击空白处", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     // 缩放到足够级别（zoom >= 12）
@@ -390,7 +441,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 9. 地图搜索输入交互 ──
   test("地图搜索框可输入并触发搜索", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     const searchInput = await page.locator("#map-search-input");
@@ -408,7 +459,7 @@ test.describe("页面地图功能测试", () => {
 
   // ── 10. 快捷提示点击 ──
   test("快捷提示卡片可点击并填入输入框", async ({ page }) => {
-    await page.goto("/index.html", { waitUntil: "networkidle" });
+    await gotoPage(page, "/index.html");
     await waitForAppReady(page, 20000);
     await waitForMapReady(page);
 

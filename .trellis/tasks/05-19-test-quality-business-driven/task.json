@@ -1,0 +1,29 @@
+{
+  "id": "test-quality-business-driven",
+  "name": "test-quality-business-driven",
+  "title": "测试质量优化：从覆盖率导向转向业务需求导向",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-18-test-travel-agent",
+    "05-18-coverage-thresholds"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

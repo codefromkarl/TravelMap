@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "验收标准：禁止 .not.toThrow 唯一断言、catch 必须覆盖、新增测试必须有实质值验证"}
+{"file": ".trellis/spec/backend/testing-roadmap.md", "reason": "验证完成情况对照 roadmap Phase 1-6"}
