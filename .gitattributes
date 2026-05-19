@@ -1,0 +1,5 @@
+# Vendor bundles — exclude from language stats
+web/pi-bundle.js linguist-vendored
+web/pi-core.bundle.js linguist-vendored
+web/pi-ai.bundle.js linguist-vendored
+web/pi-web-ui.css linguist-vendored
