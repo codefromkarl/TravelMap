@@ -2,52 +2,105 @@
 
 ## 背景
 
-当前所有景点的 `visitDuration` 硬编码为 `120` 分钟（在 `multi-source-service.ts` 的 `fetchGooglePlaces` 中）。这导致：
-- 博物馆被低估（通常需要 3-4 小时）
-- 公园/街区被高估（1-1.5 小时即可）
-- 行程编排时间不准，影响每日景点数量建议
+当前所有景点的 `visitDuration` 硬编码为 `120` 分钟。导致博物馆被低估、公园被高估，行程编排时间不准。
 
 ## 目标
 
-根据景点类型和特征智能推断游览时长。
+根据景点类型和名称特征智能推断游览时长。
 
-## 需求
+---
 
-### 时长推断规则
+## 决策记录（Grill Me 已确认）
+
+### D1. 推断位置
+在 `searchAttractionsMultiSource` 最终融合后、返回前，统一推断。一个函数处理，不分散到各 adapter。
+
+### D2. 推断优先级
+1. 免费源提供的真实时长（fusion-engine 已有 median 逻辑）→ 直接使用
+2. 类型推断（查 `VISIT_DURATION_MAP`）
+3. 名称关键词加时（+60min）
+4. 默认值 120 分钟
+
+### D3. 时长映射表
+
+| 类别 | 时长(分钟) |
+|------|-----------|
+| 博物馆 | 180 |
+| 艺术画廊 | 150 |
+| 主题乐园 | 360 |
+| 公园 | 90 |
+| 自然风光 | 120 |
+| 宗教场所 | 60 |
+| 购物 | 90 |
+| 景点（默认） | 120 |
+
+### D4. 面积判断
+不做面积判断（无景区边界数据）。改为名称关键词匹配加时。
+
+### D5. 关键词加时词表
+景点名包含以下任一关键词 → `visitDuration += 60`：
+```typescript
+const EXTENDED_KEYWORDS = ["大", "景区", "国家公园", "乐园", "度假区", "世界遗产", "5A"];
+```
+
+---
+
+## 文件变更
+
+### 修改
+1. `src/services/multi-source-service.ts`
+   - 新增 `VISIT_DURATION_MAP` 常量
+   - 新增 `EXTENDED_KEYWORDS` 常量
+   - 新增 `inferVisitDuration(attraction)` 函数
+   - 修改 `searchAttractionsMultiSource()`：融合后遍历推断时长
+
+2. `src/services/multi-source-service.ts` — `fetchGooglePlaces()`
+   - 移除 `visitDuration: 120` 硬编码，改为 `visitDuration: 0`（占位，后续推断）
+
+### 不变
+- 免费源 adapter（已有 visitDuration 框架，暂不改）
+- 融合引擎（已有 median 逻辑）
+- Tool 层
+
+## 核心逻辑
 
 ```typescript
 const VISIT_DURATION_MAP: Record<string, number> = {
-  // 博物馆/美术馆
   "博物馆": 180, "艺术画廊": 150,
-  // 大型景区
-  "主题乐园": 360, "公园": 90, "自然风光": 120,
-  // 宗教/历史
-  "宗教场所": 60, "景点": 120,
-  // 购物
-  "购物": 90,
+  "主题乐园": 360, "公园": 90,
+  "自然风光": 120, "宗教场所": 60,
+  "购物": 90, "景点": 120,
 };
+
+const EXTENDED_KEYWORDS = ["大", "景区", "国家公园", "乐园", "度假区", "世界遗产", "5A"];
+
+function inferVisitDuration(a: EnrichedAttraction): number {
+  // 1. 已有真实时长 → 直接用
+  if (a.visitDuration && a.visitDuration > 0) return a.visitDuration;
+
+  // 2. 类型查表
+  const base = VISIT_DURATION_MAP[a.category] ?? 120;
+
+  // 3. 名称关键词加时
+  const hasExtended = EXTENDED_KEYWORDS.some(kw => a.nameZh.includes(kw));
+  return hasExtended ? base + 60 : base;
+}
 ```
 
-### 数据源优先级
+## 验收标准
 
-1. **免费数据源**：去哪儿/Wikipedia 如果有游览时长信息，优先使用
-2. **类型推断**：根据 `category` 字段查表
-3. **面积推断**：如果是大型景区（坐标范围 > 1km²），时长 +60 分钟
-4. **默认值**：120 分钟（保持当前行为）
+- [ ] 博物馆类景点 ≥ 150min
+- [ ] 小型景点（宗教场所）≤ 90min
+- [ ] 名称含"景区/乐园/5A"等关键词的景点时长 +60min
+- [ ] 免费源有时长数据时优先使用，不做推断
+- [ ] 所有现有测试通过
+- [ ] 不同类型景点的时长推断有对应测试用例
 
-### 文件变更
+## 测试策略
 
-1. `src/services/multi-source-service.ts` — 修改 `fetchGooglePlaces` 中的硬编码
-2. `src/services/free-sources/types.ts` — 新增 `visitDuration` 字段（如果免费源能提供）
-
-### 验收标准
-
-- [ ] 不同类型景点返回不同游览时长
-- [ ] 博物馆 ≥ 150min，小型景点 ≤ 90min
-- [ ] 免费源有时长数据时优先使用
-- [ ] 不影响现有搜索结果的其他字段
-
-## 影响范围
-
-- 行程编排（AI 根据时长安排每天景点数）
-- 预算估算（时长影响餐饮安排）
+1. 博物馆 → 180min
+2. 公园 → 90min
+3. 名含"景区"的公园 → 150min（90+60）
+4. 已有 visitDuration=200 → 保持 200
+5. 未知类别 → 120min（默认）
+6. 主题乐园 → 360min

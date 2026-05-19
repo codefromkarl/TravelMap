@@ -1,0 +1,29 @@
+{
+  "id": "arch-decompose-travel-agent",
+  "name": "arch-decompose-travel-agent",
+  "title": "架构: 分解 TravelAgent God Object",
+  "description": "将 TravelAgent 的 8+ 职责拆分为 PromptBuilder / ModelSelector / PostProcessOrchestrator 等子模块",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "架构深化候选 #2，优先级 ⭐⭐⭐",
+  "meta": {
+    "source": "architecture-review",
+    "candidate": 2
+  }
+}

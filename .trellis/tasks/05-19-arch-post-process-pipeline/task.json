@@ -1,0 +1,29 @@
+{
+  "id": "arch-post-process-pipeline",
+  "name": "arch-post-process-pipeline",
+  "title": "架构: 后处理管线引入 Pipeline 抽象",
+  "description": "将 post-processor.ts 硬编码的 if/try-catch 链路重构为显式 Pipeline + Step 模式",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P3",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "架构深化候选 #3，优先级 ⭐⭐",
+  "meta": {
+    "source": "architecture-review",
+    "candidate": 3
+  }
+}

@@ -1,7 +1,7 @@
 {
-  "id": "weather-real-api",
-  "name": "weather-real-api",
-  "title": "P1: 配置真实天气API（和风天气或OpenWeatherMap）",
+  "id": "multimodal-vision-voice",
+  "name": "multimodal-vision-voice",
+  "title": "图像与语音多模态能力规划",
   "description": "",
   "status": "in_progress",
   "dev_type": null,

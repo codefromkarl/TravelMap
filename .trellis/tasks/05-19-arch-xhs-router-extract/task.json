@@ -1,0 +1,29 @@
+{
+  "id": "arch-xhs-router-extract",
+  "name": "arch-xhs-router-extract",
+  "title": "架构: XHS 路由层提取 XhsRouter 类 + 通用并发工具",
+  "description": "将 xhs-service.ts 的路由逻辑和批量并发 worker 模式解耦为独立模块",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P3",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "架构深化候选 #4，优先级 ⭐",
+  "meta": {
+    "source": "architecture-review",
+    "candidate": 4
+  }
+}

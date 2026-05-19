@@ -1,0 +1,29 @@
+{
+  "id": "arch-search-provider-registry",
+  "name": "arch-search-provider-registry",
+  "title": "架构: SearchOrchestrator 引入 Provider 注册表",
+  "description": "为 SearchOrchestrator 添加 SearchProvider 接口 + 注册表，新搜索源无需修改 orchestrator",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P3",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "架构深化候选 #6，优先级 ⭐⭐",
+  "meta": {
+    "source": "architecture-review",
+    "candidate": 6
+  }
+}

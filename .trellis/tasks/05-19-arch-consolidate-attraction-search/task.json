@@ -1,0 +1,29 @@
+{
+  "id": "arch-consolidate-attraction-search",
+  "name": "arch-consolidate-attraction-search",
+  "title": "架构: 收拢景点搜索碎片化管线",
+  "description": "消除 attraction-service.ts 和 multi-source-service.ts 的功能重叠，统一为单一深度模块",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "架构深化候选 #1，优先级 ⭐⭐⭐",
+  "meta": {
+    "source": "architecture-review",
+    "candidate": 1
+  }
+}
