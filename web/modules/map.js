@@ -2,6 +2,62 @@ import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK
 import { I18N } from './i18n.js';
 import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js';
 
+// ═══════════════════════════════════════════════════════
+// 坐标系转换：WGS-84 (GPS) → GCJ-02 (火星坐标/高德)
+// Leaflet 使用 WGS-84，高德 API 需要 GCJ-02，直接传会导致偏移
+// ═══════════════════════════════════════════════════════
+const _PI = 3.14159265358979324;
+const _A = 6378245.0;
+const _EE = 0.00669342162296594323;
+
+function _outOfChina(lat, lng) {
+  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+}
+
+function _transformLat(x, y) {
+  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * _PI) + 20.0 * Math.sin(2.0 * x * _PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(y * _PI) + 40.0 * Math.sin(y / 3.0 * _PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(y / 12.0 * _PI) + 320 * Math.sin(y * _PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function _transformLng(x, y) {
+  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * _PI) + 20.0 * Math.sin(2.0 * x * _PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(x * _PI) + 40.0 * Math.sin(x / 3.0 * _PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(x / 12.0 * _PI) + 300.0 * Math.sin(x / 30.0 * _PI)) * 2.0 / 3.0;
+  return ret;
+}
+
+/** WGS-84 → GCJ-02（高德/国内地图使用） */
+function wgs84ToGcj02(lat, lng) {
+  if (_outOfChina(lat, lng)) return { lat, lng };
+  let dLat = _transformLat(lng - 105.0, lat - 35.0);
+  let dLng = _transformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * _PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - _EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((_A * (1 - _EE)) / (magic * sqrtMagic) * _PI);
+  dLng = (dLng * 180.0) / (_A / sqrtMagic * Math.cos(radLat) * _PI);
+  return { lat: lat + dLat, lng: lng + dLng };
+}
+
+/** GCJ-02 → WGS-84（Leaflet 使用） */
+function gcj02ToWgs84(lat, lng) {
+  if (_outOfChina(lat, lng)) return { lat, lng };
+  const d = wgs84ToGcj02(lat, lng);
+  return { lat: lat - (d.lat - lat), lng: lng - (d.lng - lng) };
+}
+
+/** fetch 带超时 */
+function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
 let leafletMap = null;
 let leafletLayers = [];
 
@@ -313,7 +369,12 @@ function _gridKey(lat, lng) {
 
 async function _handleMapPoiClick(e, mapInstance) {
   // 跳过 marker/polyline 等已有元素的点击
-  if (e.originalEvent?.target?.closest?.('.leaflet-marker-icon, .leaflet-interactive, .supply-marker, .custom-marker')) return;
+  const target = e.originalEvent?.target;
+  if (target && typeof target.closest === 'function') {
+    if (target.closest('.leaflet-marker-icon, .leaflet-interactive, .supply-marker, .custom-marker, .attraction-marker, .waypoint-marker, .city-marker')) {
+      return;
+    }
+  }
 
   const now = Date.now();
   if (now - _poiLastTime < _POI_THROTTLE_MS) return;
@@ -322,37 +383,55 @@ async function _handleMapPoiClick(e, mapInstance) {
   const { lat, lng } = e.latlng;
   if (!lat || !lng) return;
 
-  // 缩放级别太低（视野覆盖整个城市级别）时不查询
-  if (mapInstance.getZoom() < 12) return;
-
-  const key = _gridKey(lat, lng);
-
-  // 缓存命中
-  if (_poiCache.has(key)) {
-    const cached = _poiCache.get(key);
-    if (!cached) return; // 空结果缓存，静默跳过
-    L.popup({ maxWidth: 300, className: 'poi-click-popup' })
-      .setLatLng([lat, lng])
-      .setContent(cached)
-      .openOn(mapInstance);
+  // 缩放级别太低时不查询
+  if (mapInstance.getZoom() < 12) {
+    showToast('请放大地图后再点击查询周边', 2000, 'warning');
     return;
   }
 
-  // ─── 先请求，拿到结果才弹窗 ──────────────────────
-  try {
-    let html = '';
-    const geoKey = getAmapGeoKey();
+  const key = _gridKey(lat, lng);
 
+  // ─── 缓存命中 ──────────────────────────────────────
+  if (_poiCache.has(key)) {
+    const cached = _poiCache.get(key);
+    if (!cached) {
+      // 空结果缓存也重试（5分钟后过期）
+      if (now - cached?._ts < 300000) return;
+      _poiCache.delete(key);
+    } else {
+      L.popup({ maxWidth: 320, className: 'poi-click-popup' })
+        .setLatLng([lat, lng])
+        .setContent(cached.html)
+        .openOn(mapInstance);
+      return;
+    }
+  }
+
+  // ─── 请求 POI 数据 ─────────────────────────────────
+  let html = '';
+  let source = '';
+  const geoKey = getAmapGeoKey();
+
+  try {
     if (geoKey) {
-      const resp = await fetch(
-        `https://restapi.amap.com/v3/place/around?location=${lng},${lat}&radius=500&types=风景名胜|餐饮服务|住宿服务|体育休闲服务|购物服务&key=${geoKey}&offset=5&extensions=all`
+      // 高德需要 GCJ-02 坐标，Leaflet 给的是 WGS-84，必须转换
+      const gcj = wgs84ToGcj02(lat, lng);
+      const resp = await fetchWithTimeout(
+        `https://restapi.amap.com/v3/place/around?location=${gcj.lng.toFixed(6)},${gcj.lat.toFixed(6)}&radius=500&types=风景名胜|餐饮服务|住宿服务|体育休闲服务|购物服务&key=${geoKey}&offset=5&extensions=all`,
+        {}, 8000
       );
       const data = await resp.json();
       if (data.status === '1' && data.pois?.length > 0) {
+        source = '高德';
         html = data.pois.map(poi => {
+          // ─── 防御性类型处理 ───
+          const _str = (v) => typeof v === 'string' ? v : (Array.isArray(v) ? v.join(', ') : '');
+          const _trim = (v) => _str(v).trim();
+
           const dist = poi.distance ? `${poi.distance}m` : '';
-          const type = poi.type ? poi.type.split(';')[0] : '';
-          const tel = (poi.tel && poi.tel.trim()) ? `<span style="color:#6366f1">📞 ${poi.tel.trim()}</span>` : '';
+          const type = _trim(poi.type).split(';')[0];
+          const telStr = _trim(poi.tel);
+          const tel = telStr ? `<span style="color:#6366f1">📞 ${telStr}</span>` : '';
           const ratingVal = parseFloat(poi.biz_ext?.rating);
           const rating = (ratingVal > 0) ? `<span>⭐ ${ratingVal}</span>` : '';
           const costVal = parseFloat(poi.biz_ext?.cost);
@@ -363,42 +442,31 @@ async function _handleMapPoiClick(e, mapInstance) {
           const photos = poi.photos?.[0]?.url
             ? `<div style="margin-top:4px"><img src="${poi.photos[0].url}" style="width:100%;border-radius:6px;max-height:120px;object-fit:cover" loading="lazy"></div>`
             : '';
-          const ts = poi.timestamp ? new Date(poi.timestamp.replace(/-/g, '/')) : null;
-          let staleness = '';
-          if (ts) {
-            const days = Math.floor((Date.now() - ts.getTime()) / (1000 * 60 * 60 * 24));
-            if (days > 365) staleness = '<span style="color:#ef4444">📡 数据已超过1年未更新</span>';
-            else if (days > 180) staleness = '<span style="color:#f59e0b">📡 数据半年前更新</span>';
-            else if (days > 30) staleness = `<span style="color:#94a3b8">📡 ${days}天前更新</span>`;
-          }
-          const missingFields = [];
-          if (!ratingVal || ratingVal <= 0) missingFields.push('评分');
-          if (!costVal || costVal <= 0) missingFields.push('价格');
-          if (!(poi.tel && poi.tel.trim())) missingFields.push('电话');
-          if (!openTime) missingFields.push('营业时间');
-          const completenessHint = missingFields.length >= 3
-            ? '<div style="font-size:11px;color:#f59e0b;margin-top:2px">⚠️ 信息不完整，建议到高德/大众点评确认</div>'
-            : '';
+          const name = _trim(poi.name) || '未知地点';
+          const address = _trim(poi.address);
 
           return `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9">
-            <div style="font-weight:600;color:#1e293b;font-size:14px">${poi.name}</div>
-            <div style="font-size:12px;color:#64748b;margin-top:2px">${type}${dist ? ' · ' + dist : ''}${poi.address ? ' · ' + poi.address : ''}</div>
+            <div style="font-weight:600;color:#1e293b;font-size:14px">${name}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px">${type}${dist ? ' · ' + dist : ''}${address ? ' · ' + address : ''}</div>
             <div style="font-size:12px;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap">${rating}${cost}${tel}</div>
             ${hours}${photos}
-            <div style="font-size:10px;color:#94a3b8;margin-top:2px;display:flex;justify-content:space-between;align-items:center">
-              <span>来源：高德地图</span>${staleness}
-            </div>
-            ${completenessHint}
           </div>`;
         }).join('');
         html = `<div style="max-height:280px;overflow-y:auto">${html}</div>`;
+      } else if (data.info) {
+        console.warn('[POI] 高德返回错误:', data.info);
       }
-    } else {
-      const resp = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1&accept-language=zh`
+    }
+
+    // 高德失败或无 Key 时，fallback 到 Nominatim
+    if (!html) {
+      const resp = await fetchWithTimeout(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1&accept-language=zh`,
+        {}, 6000
       );
       const data = await resp.json();
       if (data && data.display_name && !data.error) {
+        source = 'OSM';
         const name = data.name || data.address?.road || data.address?.suburb || '';
         html = `<div style="padding:4px 0">
           <div style="font-weight:600;color:#1e293b;font-size:14px">${name}</div>
@@ -408,23 +476,25 @@ async function _handleMapPoiClick(e, mapInstance) {
       }
     }
 
-    // 写入缓存（有结果存 html，无结果存 null）
-    _poiCache.set(key, html || null);
-    if (_poiCache.size > 100) {
-      const oldest = _poiCache.keys().next().value;
-      _poiCache.delete(oldest);
-    }
-
-    // 只有有结果才弹窗
     if (html) {
-      L.popup({ maxWidth: 300, className: 'poi-click-popup' })
+      _poiCache.set(key, { html, _ts: now });
+      if (_poiCache.size > 100) {
+        const oldest = _poiCache.keys().next().value;
+        _poiCache.delete(oldest);
+      }
+      L.popup({ maxWidth: 320, className: 'poi-click-popup' })
         .setLatLng([lat, lng])
         .setContent(html)
         .openOn(mapInstance);
+    } else {
+      // 空结果也缓存，但带时间戳以便过期重试
+      _poiCache.set(key, { html: '', _ts: now });
+      showToast('该位置暂未找到 POI 信息', 2500, 'warning');
     }
   } catch (err) {
-    // 静默失败，不弹窗不报错，只打印日志
     console.warn('[POI] 查询失败:', err?.message || err);
+    // 网络错误不缓存，让用户可以重试
+    showToast('查询失败，请检查网络或 API Key', 3000, 'error');
   }
 }
 
@@ -707,28 +777,28 @@ function setupMapInteractions() {
         if (query && pageMapInstance) {
           const geoKey = getAmapGeoKey();
           if (geoKey) {
-            // 使用高德 POI 搜索（比地理编码更适合搜景点）
-            fetch(`https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&types=风景名胜|餐饮服务|住宿服务&key=${geoKey}&offset=3`)
+            // 使用高德 POI 搜索（返回 GCJ-02 坐标，需转 WGS-84）
+            fetchWithTimeout(`https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&types=风景名胜|餐饮服务|住宿服务&key=${geoKey}&offset=3`, {}, 8000)
               .then(r => r.json())
               .then(data => {
                 if (data.status === '1' && data.pois?.length > 0) {
-                  // 优先选景点类型
                   const poi = data.pois.find(p => p.type?.includes('风景名胜')) || data.pois[0];
                   const loc = poi.location.split(',');
-                  const lng = parseFloat(loc[0]);
-                  const lat = parseFloat(loc[1]);
-                  pageMapInstance.setView([lat, lng], 15);
-                  L.marker([lat, lng]).addTo(pageMapInstance)
+                  const gcjLng = parseFloat(loc[0]);
+                  const gcjLat = parseFloat(loc[1]);
+                  const wgs = gcj02ToWgs84(gcjLat, gcjLng);
+                  pageMapInstance.setView([wgs.lat, wgs.lng], 15);
+                  L.marker([wgs.lat, wgs.lng]).addTo(pageMapInstance)
                     .bindPopup(`<b>${poi.name}</b><br>${poi.address || poi.cityname || ''}`)
                     .openPopup();
                 } else {
-                  alert('未找到该地点');
+                  showToast('未找到该地点', 2500, 'warning');
                 }
               })
-              .catch(() => alert('搜索失败，请稍后重试'));
+              .catch(() => showToast('搜索失败，请稍后重试', 3000, 'error'));
           } else {
             // 无高德 Key 时使用 Nominatim
-            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`)
+            fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {}, 8000)
               .then(r => r.json())
               .then(data => {
                 if (data.length > 0) {
@@ -739,10 +809,10 @@ function setupMapInteractions() {
                     .bindPopup(data[0].display_name || query)
                     .openPopup();
                 } else {
-                  alert('未找到该地点');
+                  showToast('未找到该地点', 2500, 'warning');
                 }
               })
-              .catch(() => alert('搜索失败，请稍后重试'));
+              .catch(() => showToast('搜索失败，请稍后重试', 3000, 'error'));
           }
         }
       }
@@ -784,15 +854,7 @@ function renderTripOnPageMap(tripPlan) {
         const attrName = attr.nameZh || attr.name || '景点';
         const marker = L.marker([loc.latitude, loc.longitude], { icon, interactive: true }).bindPopup(popupHtml, { maxWidth: 280 });
         marker.addTo(pageMapInstance);
-        // 使用原生 DOM 事件绕过 Leaflet 事件委托
-        if (marker._icon) {
-          marker._icon.style.cursor = 'pointer';
-          marker._icon.addEventListener('click', function(e) {
-            e.stopPropagation();
-            marker.openPopup();
-            scrollChatToAttraction(attrName);
-          });
-        }
+        marker.on('click', () => scrollChatToAttraction(attrName));
         pageMapLayers.push(marker);
         allCoords.push([loc.latitude, loc.longitude]);
         markerCount++;
@@ -856,10 +918,6 @@ function renderTripOnPageMap(tripPlan) {
                     const spMarker = L.marker([sp.location.latitude, sp.location.longitude], { icon: spIcon, interactive: true })
                       .bindPopup('<div class="map-popup"><div class="popup-title">' + sp.name + '</div><div class="popup-meta"><span>' + sp.type + '</span><span>' + (sp.estimatedCost > 0 ? '¥'+sp.estimatedCost : '免费') + '</span></div></div>', { maxWidth: 240 });
                     spMarker.addTo(pageMapInstance);
-                    if (spMarker._icon) {
-                      spMarker._icon.style.cursor = 'pointer';
-                      spMarker._icon.addEventListener('click', function(e) { e.stopPropagation(); spMarker.openPopup(); });
-                    }
                     pageMapLayers.push(spMarker);
                     allCoords.push([sp.location.latitude, sp.location.longitude]);
                     supplyPointCount++;
@@ -877,10 +935,6 @@ function renderTripOnPageMap(tripPlan) {
                 wpPopup += '</div>';
                 const wpMarker = L.marker([wp.location.latitude, wp.location.longitude], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
                 wpMarker.addTo(pageMapInstance);
-                if (wpMarker._icon) {
-                  wpMarker._icon.style.cursor = 'pointer';
-                  wpMarker._icon.addEventListener('click', function(e) { e.stopPropagation(); wpMarker.openPopup(); });
-                }
                 pageMapLayers.push(wpMarker);
                 allCoords.push([wp.location.latitude, wp.location.longitude]);
               }
@@ -907,11 +961,7 @@ function renderTripOnPageMap(tripPlan) {
             html: '<div class="city-marker" style="animation-delay:' + (ci * 100) + 'ms">' + c.city + (c.days ? ' · '+c.days+'天' : '') + '</div>',
             iconSize: [100, 28], iconAnchor: [50, 14],
           });
-          const cityMarker = L.marker(center, { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
-          if (cityMarker._icon) {
-            cityMarker._icon.style.cursor = 'pointer';
-            cityMarker._icon.addEventListener('click', function(e) { e.stopPropagation(); cityMarker.openPopup(); });
-          }
+          L.marker(center, { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
           pageMapLayers.push(cityMarker);
           allCoords.push(center);
         }

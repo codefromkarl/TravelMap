@@ -566,12 +566,16 @@ test.describe("导出功能", () => {
     const exportButtons = await page.evaluate(() => ({
       hasExportMd: !!document.getElementById("btn-export-md"),
       hasExportPdf: !!document.getElementById("btn-export-pdf"),
-      hasShareLink: !!document.getElementById("btn-share-link"),
+      hasShareImage: !!document.getElementById("btn-share-image"),
+      hasShareLink: !!document.getElementById("btn-share-link-new"),
+      hasShareQR: !!document.getElementById("btn-share-qr"),
     }));
 
     expect(exportButtons.hasExportMd).toBe(true);
     expect(exportButtons.hasExportPdf).toBe(true);
+    expect(exportButtons.hasShareImage).toBe(true);
     expect(exportButtons.hasShareLink).toBe(true);
+    expect(exportButtons.hasShareQR).toBe(true);
   });
 
   test("导出按钮默认应禁用", async ({ page }) => {
@@ -580,7 +584,7 @@ test.describe("导出功能", () => {
     const buttonsDisabled = await page.evaluate(() => {
       const md = document.getElementById("btn-export-md");
       const pdf = document.getElementById("btn-export-pdf");
-      const share = document.getElementById("btn-share-link");
+      const share = document.getElementById("btn-share-link-new");
       return {
         mdDisabled: md?.classList.contains("disabled-ghost"),
         pdfDisabled: pdf?.classList.contains("disabled-ghost"),

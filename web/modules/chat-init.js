@@ -68,8 +68,17 @@ export async function initApp() {
 
   // ─── Agent 事件监听 ──────────────────────────────────
   let lastTripContentInner = "";
+  let planTimeout = null;
+  function resetToolbarAfterError() {
+    window._hidePlanningIndicator?.();
+    document.getElementById("export-toolbar")?.classList.add("visible");
+    ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+      document.getElementById(id)?.classList.remove("disabled-ghost");
+    });
+  }
   _agent.subscribe((event) => {
     if (event.type === "agent_end") {
+      if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
       window._hidePlanningIndicator?.();
       const msgs = _agent.state.messages;
       for (let i = msgs.length - 1; i >= 0; i--) {
@@ -78,7 +87,7 @@ export async function initApp() {
             lastTripContentInner = msgs[i].content;
             setLastTripContent(msgs[i].content);
             document.getElementById("export-toolbar")?.classList.add("visible");
-            ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-map"].forEach(id => {
+            ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
               document.getElementById(id)?.classList.remove("disabled-ghost");
             });
           }
@@ -90,10 +99,20 @@ export async function initApp() {
     if (event.type === "turn_start") {
       window._showPlanningIndicator?.('正在规划行程...');
       document.getElementById("export-toolbar")?.classList.remove("visible");
-      ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-map"].forEach(id => {
+      ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
         document.getElementById(id)?.classList.add("disabled-ghost");
       });
       setCurrentTripId(null);
+      if (planTimeout) clearTimeout(planTimeout);
+      planTimeout = setTimeout(() => {
+        resetToolbarAfterError();
+        showToast("请求超时，请重试", 4000, 'warning');
+      }, 60000);
+    }
+    if (event.type === "error" || event.type === "agent_error") {
+      if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
+      resetToolbarAfterError();
+      console.error("[ChatInit] Agent error:", event);
     }
   });
 
