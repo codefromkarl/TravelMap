@@ -33,6 +33,12 @@ export {
   isSearchValid,
   runParallelSearch,
 } from "./services/search-orchestrator.js";
+export type { SearchTransportParams } from "./services/transport-service.js";
+export {
+  clearTransportCache,
+  enrichTransferDays,
+  searchIntercityTransport,
+} from "./services/transport-service.js";
 export { searchWeather } from "./services/weather-service.js";
 export {
   createCompanionTools,
@@ -40,4 +46,4 @@ export {
   createSearchTools,
   createTools,
 } from "./tools/index.js";
-export type { DayPlan, TripPlan, TripRequest } from "./types/trip.js";
+export type { DayPlan, TransportOption, TripPlan, TripRequest } from "./types/trip.js";

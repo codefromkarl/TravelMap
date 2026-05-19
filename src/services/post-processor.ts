@@ -12,6 +12,7 @@ import type { TravelerProfile, TripPlan } from "../types/trip.js";
 import { enrichTripWithLiveLinks } from "./action-link-service.js";
 import { calculateBudget } from "./budget-service.js";
 import { enrichDayMeals } from "./restaurant-service.js";
+import { enrichTransferDays } from "./transport-service.js";
 
 // ─── 后处理配置 ──────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ export interface PostProcessorConfig {
   enableActionLinks?: boolean;
   /** 是否启用餐厅推荐丰富 */
   enableRestaurantEnrich?: boolean;
+  /** 是否启用城际交通方案丰富（为移动日填充火车/航班方案） */
+  enableTransportEnrich?: boolean;
   /** 出行人群画像，用于按人数精确计算预算 */
   travelers?: TravelerProfile;
 }
@@ -65,6 +68,7 @@ export async function postProcessTripPlan(
     budgetLimit,
     enableActionLinks = true,
     enableRestaurantEnrich = false,
+    enableTransportEnrich = false,
     travelers,
   } = config;
 
@@ -79,6 +83,15 @@ export async function postProcessTripPlan(
       enriched = { ...enriched, days: enrichedDays };
     } catch (err) {
       console.warn("[PostProcessor] 餐厅推荐丰富失败:", err);
+    }
+  }
+
+  // 0.5 城际交通方案丰富（在预算计算之前）
+  if (enableTransportEnrich) {
+    try {
+      enriched = await enrichTransferDays(enriched);
+    } catch (err) {
+      console.warn("[PostProcessor] 城际交通方案丰富失败:", err);
     }
   }
 

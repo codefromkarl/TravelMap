@@ -164,6 +164,34 @@ export interface TripRequest {
   travelers?: TravelerProfile;
 }
 
+// ─── 城际交通方案 ────────────────────────────────────────
+
+/** 城际交通方案 */
+export interface TransportOption {
+  /** 交通类型 */
+  type: "train" | "flight" | "bus";
+  /** 班次号（如 G7590, MU5123） */
+  code: string;
+  /** 出发时间 */
+  departureTime: string;
+  /** 到达时间 */
+  arrivalTime: string;
+  /** 历时（分钟） */
+  durationMinutes: number;
+  /** 价格（元） */
+  price: number;
+  /** 出发站/机场 */
+  departureStation: string;
+  /** 到达站/机场 */
+  arrivalStation: string;
+  /** 座位类型/舱位（如"二等座"/"经济舱"） */
+  seatType?: string;
+  /** 预订链接 */
+  bookingUrl?: string;
+  /** 数据来源 */
+  source: "trvl" | "amap" | "mock";
+}
+
 // ─── trvl CLI 数据类型 ────────────────────────────────────
 
 /** trvl 航班搜索结果 */

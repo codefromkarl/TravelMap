@@ -21,6 +21,7 @@ import { searchHotelsTool } from "./hotels.js";
 import { planMultiCityTool } from "./multi-city.js";
 import { searchRestaurantsTool } from "./restaurants.js";
 import { enrichSupplyDetailsTool } from "./supply-enrich.js";
+import { searchIntercityTransportTool } from "./transport.js";
 import { searchWeatherTool } from "./weather.js";
 
 export { generateActionLinksTool } from "./action-links.js";
@@ -32,6 +33,7 @@ export { searchHotelsTool } from "./hotels.js";
 export { planMultiCityTool } from "./multi-city.js";
 export { searchRestaurantsTool } from "./restaurants.js";
 export { enrichSupplyDetailsTool } from "./supply-enrich.js";
+export { searchIntercityTransportTool } from "./transport.js";
 export { searchWeatherTool } from "./weather.js";
 
 // ─── costTier 自动注册 ─────────────────────────────────────
@@ -70,6 +72,7 @@ export function createPlanningTools(): AgentTool[] {
     companionQATool,
     planMultiCityTool,
     enrichSupplyDetailsTool,
+    searchIntercityTransportTool,
   ];
 }
 
