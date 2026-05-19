@@ -138,6 +138,57 @@
     pi-chat-panel {
       display: block;
       height: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    /* ── 防止 Markdown 宽内容撑开对话面板 ── */
+    #map-chat-body { min-width: 0; }
+
+    /* pi-chat-panel 全链都是 Light DOM，直接选真实标签名 */
+    assistant-message,
+    user-message,
+    markdown-block {
+      max-width: 100%;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
+    /* 消息内容层限制溢出 */
+    agent-interface .overflow-y-auto {
+      min-width: 0;
+      overflow-x: hidden; /* 防止横向溢出撑开父容器 */
+    }
+    agent-interface .max-w-3xl {
+      min-width: 0;
+      max-width: 100% !important; /* 覆盖 Tailwind 的 768px，适应窄面板 */
+    }
+
+    /* 表格、代码块、长链接横向滚动 */
+    markdown-block .overflow-x-auto,
+    assistant-message .overflow-x-auto,
+    user-message .overflow-x-auto {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    markdown-block pre,
+    assistant-message pre,
+    user-message pre {
+      overflow-x: auto;
+      max-width: 100%;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    markdown-block a,
+    assistant-message a,
+    user-message a {
+      word-break: break-all;
+    }
+
+    /* 代码块容器 */
+    code-block > div {
+      max-width: 100%;
     }
 
 
@@ -1524,3 +1575,73 @@
       color: var(--color-text-muted);
       font-size: var(--text-base);
     }
+
+    /* ─── 分享弹窗 ─────────────────────────────────────── */
+    #share-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+    #share-modal-overlay.open { display: flex; }
+    #share-modal {
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 16px;
+      width: 480px;
+      max-width: 90vw;
+      max-height: 90vh;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    #share-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    #share-modal-header h2 {
+      font-size: 17px;
+      font-weight: 600;
+    }
+    #share-modal-body {
+      padding: 20px 24px;
+      text-align: center;
+      min-height: 100px;
+      display: flex;
+      justify-content: center;
+    }
+    #share-modal-body img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+    #share-modal-footer {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      padding: 16px 24px;
+      border-top: 1px solid var(--color-border-subtle);
+    }
+    .share-action-btn {
+      background: var(--color-accent-primary, #6366f1);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .share-action-btn:hover { background: var(--color-accent-hover, #4f46e5); }
+    .share-action-btn.secondary {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+      border: 1px solid var(--color-border-subtle);
+    }
+    .share-action-btn.secondary:hover { background: var(--color-bg-tertiary); }
