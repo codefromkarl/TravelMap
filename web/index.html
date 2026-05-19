@@ -512,19 +512,19 @@
     // ═══════════════════════════════════════════════════════
 
     // ─── 自初始化模块（执行 side-effect） ────────────────
-    import './modules/storage.js?v=2';
-    import './modules/panels.js?v=2';
-    import './modules/auth.js?v=2';
-    import './modules/travelers.js?v=2';
-    import './modules/export.js?v=2';
-    import './modules/history.js?v=2';
-    import './modules/map.js?v=2';
-    import './modules/model-config.js?v=2';
-    import { initPageMap } from './modules/map.js?v=2';
+    import './modules/storage.js';
+    import './modules/panels.js';
+    import './modules/auth.js';
+    import './modules/travelers.js';
+    import './modules/export.js';
+    import './modules/history.js';
+    import './modules/map.js';
+    import './modules/model-config.js';
+    import { initPageMap } from './modules/map.js';
 
     // ─── 启动应用 ────────────────────────────────────────
-    import { initApp } from './modules/chat-init.js?v=2';
-    import { detectProxyMode, checkAuth } from './modules/auth.js?v=2';
+    import { initApp } from './modules/chat-init.js';
+    import { detectProxyMode, checkAuth } from './modules/auth.js';
 
     // 代理模式检测 + 认证
     detectProxyMode();

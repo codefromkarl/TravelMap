@@ -233,6 +233,18 @@ export function createMockTrvlHotelResult(
 
 // ─── 城际交通工厂 ──────────────────────────────────────────
 
+export function createMockTravelerProfile(overrides?: Partial<TravelerProfile>): TravelerProfile {
+  return {
+    adults: 2,
+    seniors: 0,
+    children: 0,
+    infants: 0,
+    pregnant: false,
+    mobilityImpaired: false,
+    ...overrides,
+  };
+}
+
 export function createMockTransportOption(overrides?: Partial<TransportOption>): TransportOption {
   return {
     type: "train",
