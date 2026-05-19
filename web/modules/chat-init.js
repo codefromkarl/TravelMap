@@ -155,6 +155,10 @@ export async function initApp() {
             document.getElementById("btn-map")?.classList.remove("disabled-ghost");
             if (window.currentPage === "page-map") {
               if (typeof window._initPageMap === "function") window._initPageMap();
+              // 使用动画渲染（如果可用），否则 fallback 到普通渲染
+              if (typeof window._renderTripAnimated === "function") {
+                window._renderTripAnimated(details.tripPlan);
+              }
             }
             const hasSupplies = details.tripPlan.days?.some(d =>
               d.attractions?.some(a =>

@@ -12,6 +12,7 @@
 import type { TravelerProfile, TripPlan } from "../types/trip.js";
 import { enrichTripWithLiveLinks } from "./action-link-service.js";
 import { calculateBudget } from "./budget-service.js";
+import { getAttractionImages } from "./image-service.js";
 import {
   createDefaultPipeline,
   type PostProcessConfig as PipelineConfig,
@@ -38,6 +39,8 @@ export interface PostProcessorConfig {
   enableHotelEnrich?: boolean;
   /** 出行人群画像 */
   travelers?: TravelerProfile;
+  /** 是否启用景点图片丰富（需配置 Unsplash/Pexels API Key） */
+  enableImageEnrich?: boolean;
 }
 
 export interface PostProcessorResult {
@@ -95,6 +98,31 @@ export async function postProcessTripPlan(
     budgetCheck: budgetCheckStep?.budgetCheck,
     consistencyCheck: consistencyCheckStep?.consistency,
   };
+}
+
+// ─── 图片丰富（独立步骤，在 pipeline 外执行）───────────────
+
+/** 为行程中的景点添加图片（需配置图片 API Key） */
+export async function enrichTripImages(tripPlan: TripPlan): Promise<TripPlan> {
+  const enriched = structuredClone(tripPlan);
+
+  for (const day of enriched.days) {
+    for (const attr of day.attractions) {
+      if (!attr.images || attr.images.length === 0) {
+        try {
+          attr.images = await getAttractionImages(
+            attr.nameZh || attr.name,
+            day.city || enriched.city,
+          );
+        } catch {
+          // 图片丰富失败不阻塞行程
+          attr.images = [];
+        }
+      }
+    }
+  }
+
+  return enriched;
 }
 
 // ─── 快捷函数 ──────────────────────────────────────────────

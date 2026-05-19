@@ -36,6 +36,13 @@ export interface Location {
 }
 
 /** 景点信息 */
+/** 景点图片 */
+export interface AttractionImage {
+  url: string;
+  source: "xhs" | "unsplash" | "pexels";
+  alt?: string;
+}
+
 export interface Attraction {
   name: string;
   nameZh: string;
@@ -55,6 +62,8 @@ export interface Attraction {
   routes?: import("./route.js").AttractionRoute[];
   /** 当前选中的路线 ID */
   selectedRouteId?: string;
+  /** 景点图片（由 image-service 填充） */
+  images?: AttractionImage[];
 }
 
 /** 餐厅信息（来自 restaurant-service） */
