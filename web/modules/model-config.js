@@ -3,6 +3,7 @@ import { I18N } from './i18n.js';
 import { buildSystemPrompt } from './prompt.js';
 import { getModel } from "@earendil-works/pi-ai";
 import { getAppStorage } from "@earendil-works/pi-web-ui";
+import { config } from './config.js';
 
 // ─── 模型配置弹窗 ──────────────────────────────────
 document.getElementById('btn-open-model')?.addEventListener('click', () => {
@@ -39,7 +40,14 @@ export function loadModelConfig() {
   }
 
   const keyInput = document.getElementById('cfg-apikey');
-  if (keyInput) keyInput.value = apiKey;
+  const keyRow = keyInput?.closest('.setting-row');
+  if (provider === 'deepseek-local') {
+    if (keyInput) keyInput.value = config.deepseekLocal.apiKey;
+    if (keyRow) keyRow.style.display = 'none';
+  } else {
+    if (keyRow) keyRow.style.display = '';
+    if (keyInput) keyInput.value = localStorage.getItem(`api-key-${provider}`) || '';
+  }
 
   setInputValue('cfg-google-maps', localStorage.getItem('api-key-google-maps'));
   setInputValue('cfg-amap-web', localStorage.getItem('api-key-amap-web'));
@@ -50,6 +58,9 @@ export function loadModelConfig() {
   setInputValue('cfg-xhs-tikhub', localStorage.getItem('api-key-xhs-tikhub'));
   setInputValue('cfg-xhs-crawler-base', localStorage.getItem('xhs-crawler-base') || 'http://localhost:8080');
   setInputValue('cfg-xhs-crawler-token', localStorage.getItem('api-key-xhs-crawler-token'));
+
+  const thinkingSelect = document.getElementById('cfg-thinking-level');
+  if (thinkingSelect) thinkingSelect.value = localStorage.getItem('travel-agent-thinking') || 'medium';
 }
 
 function setInputValue(id, value) {
@@ -81,7 +92,14 @@ document.getElementById('cfg-provider')?.addEventListener('change', (e) => {
   const provider = e.target.value;
   updateModelOptions(provider);
   const keyInput = document.getElementById('cfg-apikey');
-  if (keyInput) keyInput.value = localStorage.getItem(`api-key-${provider}`) || '';
+  const keyRow = keyInput?.closest('.setting-row');
+  if (provider === 'deepseek-local') {
+    if (keyInput) keyInput.value = config.deepseekLocal.apiKey;
+    if (keyRow) keyRow.style.display = 'none';
+  } else {
+    if (keyRow) keyRow.style.display = '';
+    if (keyInput) keyInput.value = localStorage.getItem(`api-key-${provider}`) || '';
+  }
   if (provider === 'custom') {
     setInputValue('cfg-custom-url', localStorage.getItem('custom-llm-url'));
     setInputValue('cfg-custom-model', localStorage.getItem('travel-agent-model') || '');
@@ -119,8 +137,20 @@ document.getElementById('btn-save-model')?.addEventListener('click', () => {
   saveInput('cfg-xhs-crawler-base', 'xhs-crawler-base');
   saveInput('cfg-xhs-crawler-token', 'api-key-xhs-crawler-token');
 
+  const thinkingLevel = document.getElementById('cfg-thinking-level')?.value || 'medium';
+  localStorage.setItem('travel-agent-thinking', thinkingLevel);
+
   try {
-    if (provider === 'custom') {
+    if (provider === 'deepseek-local') {
+      agent.state.model = {
+        id: modelId || config.deepseekLocal.defaultModel, name: 'DeepSeek V4 Flash', api: 'openai-completions',
+        provider: 'deepseek',
+        baseUrl: config.deepseekLocal.baseUrl,
+        reasoning: true, input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128000, maxTokens: 8192,
+      };
+    } else if (provider === 'custom') {
       const customUrl = localStorage.getItem('custom-llm-url');
       if (customUrl && modelId) {
         agent.state.model = {
@@ -135,6 +165,7 @@ document.getElementById('btn-save-model')?.addEventListener('click', () => {
       agent.state.model = newModel;
     }
     agent.state.systemPrompt = buildSystemPrompt(currentLang);
+    agent.state.thinkingLevel = thinkingLevel;
   } catch (err) {
     console.warn('Failed to update model:', err);
   }

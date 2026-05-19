@@ -1,4 +1,4 @@
-import { showToast, getAmapKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js';
+import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js';
 import { I18N } from './i18n.js';
 import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js';
 
@@ -36,6 +36,11 @@ function renderTripOnMap(tripPlan) {
       ? { maxZoom: 18, subdomains: ['1','2','3','4'] }
       : { attribution: '© OpenStreetMap contributors', maxZoom: 18 };
     L.tileLayer(tileUrl, tileOpts).addTo(leafletMap);
+
+    // 侧边栏地图也支持 POI 点击反查（节流+缓存由共享函数处理）
+    leafletMap.on('click', async (e) => {
+      await _handleMapPoiClick(e, leafletMap);
+    });
   }
   clearMapLayers();
 
@@ -300,11 +305,139 @@ document.getElementById("btn-enrich-supplies")?.addEventListener("click", async 
 window._renderTripOnMap = renderTripOnMap;
 window._renderTripOnMapPanel = renderTripOnMap;
 
+// ─── 共享 POI 点击反查（节流 + 缓存） ────────────────────────
+function _gridKey(lat, lng) {
+  // 将经纬度对齐到约200m网格，同格复用缓存
+  return Math.round(lat / _POI_GRID) + ',' + Math.round(lng / _POI_GRID);
+}
+
+async function _handleMapPoiClick(e, mapInstance) {
+  // 跳过 marker/polyline 等已有元素的点击
+  if (e.originalEvent?.target?.closest?.('.leaflet-marker-icon, .leaflet-interactive, .supply-marker, .custom-marker')) return;
+
+  const now = Date.now();
+  if (now - _poiLastTime < _POI_THROTTLE_MS) return;
+  _poiLastTime = now;
+
+  const { lat, lng } = e.latlng;
+  if (!lat || !lng) return;
+
+  // 缩放级别太低（视野覆盖整个城市级别）时不查询
+  if (mapInstance.getZoom() < 12) return;
+
+  const key = _gridKey(lat, lng);
+
+  // 缓存命中
+  if (_poiCache.has(key)) {
+    const cached = _poiCache.get(key);
+    if (!cached) return; // 空结果缓存，静默跳过
+    L.popup({ maxWidth: 300, className: 'poi-click-popup' })
+      .setLatLng([lat, lng])
+      .setContent(cached)
+      .openOn(mapInstance);
+    return;
+  }
+
+  // ─── 先请求，拿到结果才弹窗 ──────────────────────
+  try {
+    let html = '';
+    const geoKey = getAmapGeoKey();
+
+    if (geoKey) {
+      const resp = await fetch(
+        `https://restapi.amap.com/v3/place/around?location=${lng},${lat}&radius=500&types=风景名胜|餐饮服务|住宿服务|体育休闲服务|购物服务&key=${geoKey}&offset=5&extensions=all`
+      );
+      const data = await resp.json();
+      if (data.status === '1' && data.pois?.length > 0) {
+        html = data.pois.map(poi => {
+          const dist = poi.distance ? `${poi.distance}m` : '';
+          const type = poi.type ? poi.type.split(';')[0] : '';
+          const tel = (poi.tel && poi.tel.trim()) ? `<span style="color:#6366f1">📞 ${poi.tel.trim()}</span>` : '';
+          const ratingVal = parseFloat(poi.biz_ext?.rating);
+          const rating = (ratingVal > 0) ? `<span>⭐ ${ratingVal}</span>` : '';
+          const costVal = parseFloat(poi.biz_ext?.cost);
+          const cost = (costVal > 0) ? `<span>💰 ¥${costVal}/人</span>` : '';
+          const rawOpenTime = poi.biz_ext?.open_time;
+          const openTime = Array.isArray(rawOpenTime) ? rawOpenTime.join(' ') : (typeof rawOpenTime === 'string' ? rawOpenTime.trim() : '');
+          const hours = openTime ? `<div style="color:#94a3b8;font-size:12px;margin-top:2px">🕐 ${openTime}</div>` : '';
+          const photos = poi.photos?.[0]?.url
+            ? `<div style="margin-top:4px"><img src="${poi.photos[0].url}" style="width:100%;border-radius:6px;max-height:120px;object-fit:cover" loading="lazy"></div>`
+            : '';
+          const ts = poi.timestamp ? new Date(poi.timestamp.replace(/-/g, '/')) : null;
+          let staleness = '';
+          if (ts) {
+            const days = Math.floor((Date.now() - ts.getTime()) / (1000 * 60 * 60 * 24));
+            if (days > 365) staleness = '<span style="color:#ef4444">📡 数据已超过1年未更新</span>';
+            else if (days > 180) staleness = '<span style="color:#f59e0b">📡 数据半年前更新</span>';
+            else if (days > 30) staleness = `<span style="color:#94a3b8">📡 ${days}天前更新</span>`;
+          }
+          const missingFields = [];
+          if (!ratingVal || ratingVal <= 0) missingFields.push('评分');
+          if (!costVal || costVal <= 0) missingFields.push('价格');
+          if (!(poi.tel && poi.tel.trim())) missingFields.push('电话');
+          if (!openTime) missingFields.push('营业时间');
+          const completenessHint = missingFields.length >= 3
+            ? '<div style="font-size:11px;color:#f59e0b;margin-top:2px">⚠️ 信息不完整，建议到高德/大众点评确认</div>'
+            : '';
+
+          return `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9">
+            <div style="font-weight:600;color:#1e293b;font-size:14px">${poi.name}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px">${type}${dist ? ' · ' + dist : ''}${poi.address ? ' · ' + poi.address : ''}</div>
+            <div style="font-size:12px;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap">${rating}${cost}${tel}</div>
+            ${hours}${photos}
+            <div style="font-size:10px;color:#94a3b8;margin-top:2px;display:flex;justify-content:space-between;align-items:center">
+              <span>来源：高德地图</span>${staleness}
+            </div>
+            ${completenessHint}
+          </div>`;
+        }).join('');
+        html = `<div style="max-height:280px;overflow-y:auto">${html}</div>`;
+      }
+    } else {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1&accept-language=zh`
+      );
+      const data = await resp.json();
+      if (data && data.display_name && !data.error) {
+        const name = data.name || data.address?.road || data.address?.suburb || '';
+        html = `<div style="padding:4px 0">
+          <div style="font-weight:600;color:#1e293b;font-size:14px">${name}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px">📍 ${data.display_name}</div>
+          <div style="font-size:11px;color:#f59e0b;margin-top:4px">💡 配置高德地图 Key 可获取更丰富的 POI 信息</div>
+        </div>`;
+      }
+    }
+
+    // 写入缓存（有结果存 html，无结果存 null）
+    _poiCache.set(key, html || null);
+    if (_poiCache.size > 100) {
+      const oldest = _poiCache.keys().next().value;
+      _poiCache.delete(oldest);
+    }
+
+    // 只有有结果才弹窗
+    if (html) {
+      L.popup({ maxWidth: 300, className: 'poi-click-popup' })
+        .setLatLng([lat, lng])
+        .setContent(html)
+        .openOn(mapInstance);
+    }
+  } catch (err) {
+    // 静默失败，不弹窗不报错，只打印日志
+    console.warn('[POI] 查询失败:', err?.message || err);
+  }
+}
+
 // ─── 全屏地图页面 ────────────────────────────────────────
 let pageMapInstance = null;
 let pageMapLayers = [];
 let pageMapCurrentLayer = 'standard';
 let pageMapTileLayers = {};
+let _poiPopup = null; // 地图点击 POI 反查弹窗
+let _poiCache = new Map(); // 经纬度 → POI 结果缓存（避免重复请求）
+let _poiLastTime = 0; // 上次 POI 请求时间（节流）
+const _POI_THROTTLE_MS = 800; // 两次点击最短间隔
+const _POI_GRID = 0.002; // 约200m 网格精度，同一格内复用缓存
 
 export function initPageMap() {
   const container = document.getElementById('page-map-container');
@@ -347,7 +480,7 @@ export function initPageMap() {
           })
         : null;
 
-      pageMapTileLayers.terrain = L.tileLayer('https://tile{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+      pageMapTileLayers.terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
         maxZoom: 17, subdomains: ['a','b','c'],
       });
 
@@ -377,7 +510,84 @@ export function initPageMap() {
 
 window._initPageMap = initPageMap;
 
+// ─── 实时规划指示器 ────────────────────────────────────
+let _planningMarker = null;
+
+export function showPlanningIndicator(text) {
+  if (!pageMapInstance) return;
+  hidePlanningIndicator();
+  const center = pageMapInstance.getCenter();
+  const icon = L.divIcon({
+    className: 'planning-indicator',
+    html: '<div class="planning-pulse"></div><div class="planning-text">' + (text || '正在规划行程...') + '</div>',
+    iconSize: [220, 80],
+    iconAnchor: [110, 40],
+  });
+  _planningMarker = L.marker(center, { icon, interactive: false, zIndexOffset: 1000 }).addTo(pageMapInstance);
+}
+
+export function hidePlanningIndicator() {
+  if (_planningMarker && pageMapInstance) {
+    pageMapInstance.removeLayer(_planningMarker);
+    _planningMarker = null;
+  }
+}
+window._showPlanningIndicator = showPlanningIndicator;
+window._hidePlanningIndicator = hidePlanningIndicator;
+
 function setupMapInteractions() {
+  // ─── 左侧面板拖拽调整宽度 ────────────────────────────
+  (function initPanelResizer() {
+    const resizer = document.getElementById('panel-resizer');
+    const leftPanel = document.getElementById('map-chat-panel');
+    if (!resizer || !leftPanel) return;
+
+    // 恢复上次保存的宽度
+    const savedWidth = localStorage.getItem('travel-map-chat-width');
+    if (savedWidth) {
+      const w = parseInt(savedWidth, 10);
+      if (w >= 280 && w <= window.innerWidth * 0.6) {
+        leftPanel.style.width = w + 'px';
+      }
+    }
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      startX = e.clientX;
+      startWidth = leftPanel.offsetWidth;
+      resizer.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      // 防止 iframe/web component 内部捕获事件
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const dx = e.clientX - startX;
+      let newWidth = startWidth + dx;
+      const minW = 280;
+      const maxW = Math.min(window.innerWidth * 0.6, window.innerWidth - 320);
+      newWidth = Math.max(minW, Math.min(maxW, newWidth));
+      leftPanel.style.width = newWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isResizing) return;
+      isResizing = false;
+      resizer.classList.remove('resizing');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem('travel-map-chat-width', String(leftPanel.offsetWidth));
+      // 拖拽完成后通知 Leaflet 重绘
+      if (pageMapInstance) pageMapInstance.invalidateSize();
+    });
+  })();
+
   document.getElementById('btn-map-routes')?.addEventListener('click', () => {
     document.getElementById('page-map-routes')?.classList.toggle('show');
     document.getElementById('btn-map-routes')?.classList.toggle('active');
@@ -424,17 +634,45 @@ function setupMapInteractions() {
     }
   });
 
-  pageMapInstance.on('click', () => {
+  // ─── 地图点击 POI 反查 ─────────────────────────────────
+  pageMapInstance.on('click', async (e) => {
     document.getElementById('map-layer-switcher')?.classList.remove('show');
+    await _handleMapPoiClick(e, pageMapInstance);
   });
 
   // 快捷提示点击
   document.querySelectorAll('#map-chat-welcome .quick-prompt').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', async () => {
       const prompt = el.dataset.prompt;
-      if (chatPanel?.agentInterface && prompt) {
-        chatPanel.agentInterface.sendMessage(prompt);
-        document.getElementById('map-chat-welcome').style.display = 'none';
+      if (!prompt) {
+        showToast('提示内容为空', 2500, 'warning');
+        return;
+      }
+      if (!chatPanel?.agentInterface) {
+        showToast('聊天组件未初始化，请刷新页面', 3000, 'error');
+        return;
+      }
+
+      // 1. 立即隐藏欢迎区
+      const welcome = document.getElementById('map-chat-welcome');
+      if (welcome) welcome.style.display = 'none';
+
+      // 2. 在聊天面板中插入用户消息占位（即时视觉反馈）
+      const chatBody = document.getElementById('map-chat-body');
+      if (chatBody) {
+        const userBubble = document.createElement('div');
+        userBubble.className = 'quick-prompt-user-msg';
+        userBubble.innerHTML = `<div class="qp-msg-content">${prompt}</div>`;
+        chatBody.appendChild(userBubble);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+
+      // 3. 发送消息给 Agent
+      try {
+        await chatPanel.agentInterface.sendMessage(prompt);
+      } catch (err) {
+        console.error('[QuickPrompt] 发送失败:', err);
+        showToast(`发送失败: ${err.message}`, 3000, 'error');
       }
     });
   });
@@ -459,6 +697,57 @@ function setupMapInteractions() {
   });
 
   document.getElementById('btn-map-back')?.addEventListener('click', () => {});
+
+  // 地图搜索功能（高德 POI 搜索 + Nominatim 备选）
+  const searchInput = document.getElementById('map-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const query = searchInput.value.trim();
+        if (query && pageMapInstance) {
+          const geoKey = getAmapGeoKey();
+          if (geoKey) {
+            // 使用高德 POI 搜索（比地理编码更适合搜景点）
+            fetch(`https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&types=风景名胜|餐饮服务|住宿服务&key=${geoKey}&offset=3`)
+              .then(r => r.json())
+              .then(data => {
+                if (data.status === '1' && data.pois?.length > 0) {
+                  // 优先选景点类型
+                  const poi = data.pois.find(p => p.type?.includes('风景名胜')) || data.pois[0];
+                  const loc = poi.location.split(',');
+                  const lng = parseFloat(loc[0]);
+                  const lat = parseFloat(loc[1]);
+                  pageMapInstance.setView([lat, lng], 15);
+                  L.marker([lat, lng]).addTo(pageMapInstance)
+                    .bindPopup(`<b>${poi.name}</b><br>${poi.address || poi.cityname || ''}`)
+                    .openPopup();
+                } else {
+                  alert('未找到该地点');
+                }
+              })
+              .catch(() => alert('搜索失败，请稍后重试'));
+          } else {
+            // 无高德 Key 时使用 Nominatim
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`)
+              .then(r => r.json())
+              .then(data => {
+                if (data.length > 0) {
+                  const lat = parseFloat(data[0].lat);
+                  const lon = parseFloat(data[0].lon);
+                  pageMapInstance.setView([lat, lon], 14);
+                  L.marker([lat, lon]).addTo(pageMapInstance)
+                    .bindPopup(data[0].display_name || query)
+                    .openPopup();
+                } else {
+                  alert('未找到该地点');
+                }
+              })
+              .catch(() => alert('搜索失败，请稍后重试'));
+          }
+        }
+      }
+    });
+  }
 }
 
 function renderTripOnPageMap(tripPlan) {
@@ -479,18 +768,31 @@ function renderTripOnPageMap(tripPlan) {
       if (loc && loc.latitude && loc.longitude && (loc.latitude !== 0 || loc.longitude !== 0)) {
         const icon = L.divIcon({
           className: 'custom-marker',
-          html: '<div class="attraction-marker">' + (attrIdx + 1) + '</div>',
+          html: '<div class="attraction-marker" style="animation-delay:' + ((dayIdx * 4 + attrIdx) * 60) + 'ms">' + (attrIdx + 1) + '</div>',
           iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -20],
         });
         const popupHtml = '<div class="map-popup">' +
           '<div class="popup-title">' + (attr.nameZh || attr.name || '景点') + '</div>' +
-          '<div class="popup-city">📍 ' + dayCity + '</div>' +
+          (attr.description ? '<div class="popup-desc">' + attr.description + '</div>' : '') +
+          '<div class="popup-city">📍 ' + (attr.address || dayCity) + '</div>' +
           '<div class="popup-meta">' +
           (attr.visitDuration ? '<span>⏱ ' + attr.visitDuration + '分钟</span>' : '') +
-          (attr.ticketPrice ? '<span>🎫 ¥' + attr.ticketPrice + '</span>' : '') +
-          '</div></div>';
-        const marker = L.marker([loc.latitude, loc.longitude], { icon }).bindPopup(popupHtml, { maxWidth: 280 });
+          (attr.ticketPrice !== undefined ? '<span>🎫 ' + (attr.ticketPrice > 0 ? '¥' + attr.ticketPrice : '免费') + '</span>' : '') +
+          '</div>' +
+          (attr.tips ? '<div class="popup-tips">💡 ' + attr.tips + '</div>' : '') +
+          '</div>';
+        const attrName = attr.nameZh || attr.name || '景点';
+        const marker = L.marker([loc.latitude, loc.longitude], { icon, interactive: true }).bindPopup(popupHtml, { maxWidth: 280 });
         marker.addTo(pageMapInstance);
+        // 使用原生 DOM 事件绕过 Leaflet 事件委托
+        if (marker._icon) {
+          marker._icon.style.cursor = 'pointer';
+          marker._icon.addEventListener('click', function(e) {
+            e.stopPropagation();
+            marker.openPopup();
+            scrollChatToAttraction(attrName);
+          });
+        }
         pageMapLayers.push(marker);
         allCoords.push([loc.latitude, loc.longitude]);
         markerCount++;
@@ -513,6 +815,16 @@ function renderTripOnPageMap(tripPlan) {
               dashArray: riskLevel === 3 ? '10,6' : null,
             });
             polyline.addTo(pageMapInstance);
+            // 路线 snakeIn 画入动画
+            requestAnimationFrame(() => {
+              const pathEl = polyline._path;
+              if (pathEl && pathEl.getTotalLength) {
+                const len = pathEl.getTotalLength();
+                pathEl.style.strokeDasharray = len;
+                pathEl.style.strokeDashoffset = len;
+                pathEl.style.animation = 'snakeIn 1.2s ease-out ' + (routeCount * 150) + 'ms forwards';
+              }
+            });
             pageMapLayers.push(polyline);
             routeCount++;
 
@@ -520,7 +832,7 @@ function renderTripOnPageMap(tripPlan) {
               if (wp.location && (wp.location.latitude !== 0 || wp.location.longitude !== 0)) {
                 const wpIcon = L.divIcon({
                   className: 'custom-marker',
-                  html: '<div class="waypoint-marker"></div>',
+                  html: '<div class="waypoint-marker" style="animation-delay:' + ((dayIdx * 4 + attrIdx + i) * 40) + 'ms"></div>',
                   iconSize: [12, 12], iconAnchor: [6, 6],
                 });
                 let wpPopup = '<div class="map-popup"><div class="popup-title">' + (i+1) + '. ' + wp.name + '</div>';
@@ -538,12 +850,16 @@ function renderTripOnPageMap(tripPlan) {
                     if (accuracy === 'unknown') continue;
                     const spIcon = L.divIcon({
                       className: 'custom-marker',
-                      html: '<div style="width:12px;height:12px;border-radius:50%;background:' + color + ';border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+                      html: '<div class="supply-marker" style="width:12px;height:12px;border-radius:50%;background:' + color + ';border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);animation:markerPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;"></div>',
                       iconSize: [12, 12], iconAnchor: [6, 6],
                     });
-                    const spMarker = L.marker([sp.location.latitude, sp.location.longitude], { icon: spIcon })
+                    const spMarker = L.marker([sp.location.latitude, sp.location.longitude], { icon: spIcon, interactive: true })
                       .bindPopup('<div class="map-popup"><div class="popup-title">' + sp.name + '</div><div class="popup-meta"><span>' + sp.type + '</span><span>' + (sp.estimatedCost > 0 ? '¥'+sp.estimatedCost : '免费') + '</span></div></div>', { maxWidth: 240 });
                     spMarker.addTo(pageMapInstance);
+                    if (spMarker._icon) {
+                      spMarker._icon.style.cursor = 'pointer';
+                      spMarker._icon.addEventListener('click', function(e) { e.stopPropagation(); spMarker.openPopup(); });
+                    }
                     pageMapLayers.push(spMarker);
                     allCoords.push([sp.location.latitude, sp.location.longitude]);
                     supplyPointCount++;
@@ -559,8 +875,12 @@ function renderTripOnPageMap(tripPlan) {
                   wpPopup += '</div>';
                 }
                 wpPopup += '</div>';
-                const wpMarker = L.marker([wp.location.latitude, wp.location.longitude], { icon: wpIcon }).bindPopup(wpPopup, { maxWidth: 280 });
+                const wpMarker = L.marker([wp.location.latitude, wp.location.longitude], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
                 wpMarker.addTo(pageMapInstance);
+                if (wpMarker._icon) {
+                  wpMarker._icon.style.cursor = 'pointer';
+                  wpMarker._icon.addEventListener('click', function(e) { e.stopPropagation(); wpMarker.openPopup(); });
+                }
                 pageMapLayers.push(wpMarker);
                 allCoords.push([wp.location.latitude, wp.location.longitude]);
               }
@@ -579,15 +899,20 @@ function renderTripOnPageMap(tripPlan) {
       const cityLine = L.polyline(cityPath, { color: '#6366f1', weight: 3, opacity: 0.5, dashArray: '12,8' });
       cityLine.addTo(pageMapInstance);
       pageMapLayers.push(cityLine);
-      tripPlan.cities.forEach(c => {
+      tripPlan.cities.forEach((c, ci) => {
         const center = CITY_CENTERS[c.city];
         if (center) {
           const cityIcon = L.divIcon({
             className: 'custom-marker',
-            html: '<div class="city-marker">' + c.city + (c.days ? ' · '+c.days+'天' : '') + '</div>',
+            html: '<div class="city-marker" style="animation-delay:' + (ci * 100) + 'ms">' + c.city + (c.days ? ' · '+c.days+'天' : '') + '</div>',
             iconSize: [100, 28], iconAnchor: [50, 14],
           });
-          pageMapLayers.push(L.marker(center, { icon: cityIcon }).addTo(pageMapInstance));
+          const cityMarker = L.marker(center, { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
+          if (cityMarker._icon) {
+            cityMarker._icon.style.cursor = 'pointer';
+            cityMarker._icon.addEventListener('click', function(e) { e.stopPropagation(); cityMarker.openPopup(); });
+          }
+          pageMapLayers.push(cityMarker);
           allCoords.push(center);
         }
       });
@@ -616,21 +941,83 @@ function renderTripOnPageMap(tripPlan) {
   renderRoutePanel(routePanelData);
 }
 
+// ─── 对话定位辅助函数 ──────────────────────────────────
+function scrollChatToAttraction(name) {
+  if (!name) return false;
+  const chatBody = document.getElementById('map-chat-body');
+  const messages = chatPanel?.shadowRoot?.querySelectorAll('chat-message')
+                || chatBody?.querySelectorAll('chat-message')
+                || document.querySelectorAll('chat-message');
+  for (const msg of messages) {
+    const text = msg.textContent || '';
+    if (text.includes(name)) {
+      msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      msg.style.transition = 'box-shadow 0.3s, background 0.3s';
+      msg.style.boxShadow = 'inset 3px 0 0 var(--color-accent-primary)';
+      msg.style.background = 'rgba(99,102,241,0.06)';
+      setTimeout(() => {
+        msg.style.boxShadow = '';
+        msg.style.background = '';
+      }, 2000);
+      return true;
+    }
+  }
+  return false;
+}
+
+function scrollChatToDay(dayNum) {
+  const chatBody = document.getElementById('map-chat-body');
+  const messages = chatPanel?.shadowRoot?.querySelectorAll('chat-message')
+                || chatBody?.querySelectorAll('chat-message')
+                || document.querySelectorAll('chat-message');
+  const patterns = [
+    new RegExp('第\\s*' + dayNum + '\\s*天'),
+    new RegExp('Day\\s*' + dayNum + '\\b', 'i'),
+    new RegExp('\\b' + dayNum + '\\s*日'),
+  ];
+  for (const msg of messages) {
+    const text = msg.textContent || '';
+    if (patterns.some(p => p.test(text))) {
+      msg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      msg.style.transition = 'box-shadow 0.3s, background 0.3s';
+      msg.style.boxShadow = 'inset 3px 0 0 var(--color-accent-primary)';
+      msg.style.background = 'rgba(99,102,241,0.06)';
+      setTimeout(() => {
+        msg.style.boxShadow = '';
+        msg.style.background = '';
+      }, 2000);
+      return true;
+    }
+  }
+  return false;
+}
+
 function renderRoutePanel(data) {
   const body = document.getElementById('route-panel-body');
   if (!body) return;
   body.innerHTML = data.map(day => '<div class="route-day-group">' +
-    '<div class="route-day-label">Day ' + day.dayNum + ' · ' + day.city + '</div>' +
-    day.attractions.map(attr => '<div class="route-attr-item" data-lat="' + (attr.lat||'') + '" data-lng="' + (attr.lng||'') + '">' +
+    '<div class="route-day-label" data-day="' + day.dayNum + '">Day ' + day.dayNum + ' · ' + day.city + '</div>' +
+    day.attractions.map(attr => '<div class="route-attr-item" data-lat="' + (attr.lat||'') + '" data-lng="' + (attr.lng||'') + '" data-name="' + (attr.name||'') + '">' +
       '<span class="attr-dot"></span><span>' + attr.name + '</span>' +
       (attr.duration ? '<span class="attr-duration">' + attr.duration + 'min</span>' : '') +
     '</div>').join('') +
   '</div>').join('');
 
+  // Day 标题点击 → 对话定位到对应天
+  body.querySelectorAll('.route-day-label').forEach(label => {
+    label.style.cursor = 'pointer';
+    label.addEventListener('click', () => {
+      const dayNum = parseInt(label.dataset.day, 10);
+      scrollChatToDay(dayNum);
+    });
+  });
+
   body.querySelectorAll('.route-attr-item').forEach(item => {
     item.addEventListener('click', () => {
       const lat = parseFloat(item.dataset.lat);
       const lng = parseFloat(item.dataset.lng);
+      const name = item.dataset.name;
+      // 1. 地图定位
       if (lat && lng && pageMapInstance) {
         pageMapInstance.setView([lat, lng], 16, { animate: true });
         pageMapLayers.forEach(layer => {
@@ -640,6 +1027,8 @@ function renderRoutePanel(data) {
           }
         });
       }
+      // 2. 对话定位（新增）
+      if (name) scrollChatToAttraction(name);
     });
   });
 }

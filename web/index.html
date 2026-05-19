@@ -27,6 +27,10 @@
   <meta name="twitter:title" content="旅图 TravelMap — AI 旅行规划助手">
   <meta name="twitter:description" content="AI 驱动的智能旅行规划。输入目的地和偏好，自动生成行程路线、景点推荐、住宿建议和天气预报。">
 
+  <script>
+    // Polyfill: 防止 OpenAI SDK 等库在浏览器中访问 process 报错
+    window.process = window.process || { env: {}, versions: {}, browser: true };
+  </script>
   <script type="importmap">
     {
       "imports": {
@@ -83,7 +87,7 @@
         </div>
         <div class="header-actions">
           <button class="header-action-btn disabled-ghost" id="btn-map" title="生成行程后可用"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></button>
-          <button class="header-action-btn" id="travelers-btn" title="设置出行人群"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
+
           <div id="quota-bar">
           <div class="quota-user">
             <img id="quota-avatar" src="" alt="">
@@ -221,6 +225,7 @@
           <div class="setting-row">
             <label data-i18n="providerLabel">服务商</label>
             <select id="cfg-provider">
+              <option value="deepseek-local" selected>DeepSeek 本地 (免费)</option>
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic</option>
               <option value="google">Google</option>
@@ -319,6 +324,15 @@
             <label>Crawler Token</label>
             <input type="password" id="cfg-xhs-crawler-token" placeholder="crawler token..." autocomplete="off">
           </div>
+          <div class="setting-row">
+            <label data-i18n="thinkingLevelLabel">思考程度</label>
+            <select id="cfg-thinking-level">
+              <option value="off">关闭</option>
+              <option value="low">低</option>
+              <option value="medium" selected>中（默认）</option>
+              <option value="high">高</option>
+            </select>
+          </div>
         </div>
 
         <button class="save-settings-btn" id="btn-save-model" data-i18n="saveSettings">保存配置</button>
@@ -362,15 +376,12 @@
         </div>
       </div>
 
+      <!-- 拖拽分割线 -->
+      <div id="panel-resizer" title="拖拽调整宽度"></div>
+
       <!-- 右侧：地图区域 -->
       <div id="map-right-area">
         <div id="page-map-container">
-          <!-- 空状态提示 -->
-          <div class="map-empty-overlay" id="page-map-empty">
-            <div class="empty-icon">🗺️</div>
-            <div class="empty-title" data-i18n="mapEmptyTitle">探索你的旅行路线</div>
-            <div class="empty-desc" data-i18n="mapEmptyHint">在左侧输入旅行需求，生成计划后地图将实时展示行程路线</div>
-          </div>
         </div>
 
         <!-- 地图工具栏 -->
@@ -460,6 +471,7 @@
     import './modules/history.js';
     import './modules/map.js';
     import './modules/model-config.js';
+    import { initPageMap } from './modules/map.js';
 
     // ─── 启动应用 ────────────────────────────────────────
     import { initApp } from './modules/chat-init.js';
@@ -469,8 +481,12 @@
     detectProxyMode();
     checkAuth();
 
-    // 初始化
-    initApp();
+    // 初始化（await 确保完成后再初始化地图）
+    initApp().then(() => {
+      initPageMap();
+    }).catch(err => {
+      console.error('[App] 初始化失败:', err);
+    });
   </script>
 </body>
 </html>

@@ -35,7 +35,8 @@ export const STORE_NAME = "trips";
 export const SUPPLY_STORE_NAME = "supplyPoints";
 
 // 高德地图默认 Key（仅白名单域名 + localhost 使用）
-export const _DEFAULT_AMAP_KEY = 'e134de721c4969afee0b5b82f2a232a4';
+export const _DEFAULT_AMAP_KEY = 'e134de721c4969afee0b5b82f2a232a4'; // Web端(JS API) - 地图瓦片
+export const _DEFAULT_AMAP_GEO_KEY = '74301f4873f7e09e18c9e39bf65c6256'; // Web服务 - 地理编码
 export const _ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'codefromkarl.xyz', 'www.codefromkarl.xyz'];
 
 export function getAmapKey() {
@@ -44,6 +45,14 @@ export function getAmapKey() {
   const host = location.hostname;
   const allowed = _ALLOWED_HOSTS.some(h => host === h || host.endsWith('.' + h));
   return allowed ? _DEFAULT_AMAP_KEY : '';
+}
+
+export function getAmapGeoKey() {
+  const userKey = localStorage.getItem('api-key-amap-geo');
+  if (userKey) return userKey;
+  const host = location.hostname;
+  const allowed = _ALLOWED_HOSTS.some(h => host === h || host.endsWith('.' + h));
+  return allowed ? _DEFAULT_AMAP_GEO_KEY : '';
 }
 
 // ─── 补给点类型颜色 ─────────────────────────────────────
@@ -89,6 +98,7 @@ export const LLM_HOSTS = {
 
 // ─── 预设模型列表 ──────────────────────────────────────
 export const PROVIDER_MODELS = {
+  'deepseek-local': ['deepseek-v4-flash', 'deepseek-v4-flash-nothinking', 'deepseek-v4-pro', 'deepseek-v4-pro-nothinking'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o3-mini'],
   anthropic: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022'],
   google: ['gemini-2.5-pro', 'gemini-2.5-flash'],

@@ -2,7 +2,7 @@
 
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModel } from "@earendil-works/pi-ai";
-import { getAppStorage } from "@earendil-works/pi-web-ui";
+import { config, resolveApiKey } from './config.js';
 import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
   currentLang, setCurrentLang, showToast,
@@ -19,11 +19,23 @@ import { saveTrip, listTrips } from './db.js';
 
 export async function initApp() {
   // ─── 读取 provider/model 配置 ─────────────────────────
-  const provider = localStorage.getItem("travel-agent-provider") || "openai";
-  const modelId = localStorage.getItem("travel-agent-model") || "gpt-4o";
+  // 默认使用本地 ds2api 的 DeepSeek（免费，无需用户配置 API Key）
+  const ds = config.deepseekLocal;
+  const provider = localStorage.getItem("travel-agent-provider") || "deepseek-local";
+  const modelId = localStorage.getItem("travel-agent-model") || ds.defaultModel;
 
   let model;
-  if (provider === "custom") {
+  if (provider === "deepseek-local" || (!localStorage.getItem("travel-agent-provider") && !localStorage.getItem("travel-agent-model"))) {
+    // 默认：本地 ds2api DeepSeek
+    model = {
+      id: ds.defaultModel, name: "DeepSeek V4 Flash", api: "openai-completions",
+      provider: "deepseek",
+      baseUrl: ds.baseUrl,
+      reasoning: true, input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128000, maxTokens: 8192,
+    };
+  } else if (provider === "custom") {
     const customUrl = localStorage.getItem("custom-llm-url");
     model = {
       id: modelId, name: modelId, api: "openai-completions",
@@ -42,14 +54,11 @@ export async function initApp() {
     initialState: {
       systemPrompt: buildSystemPrompt(currentLang),
       model,
-      thinkingLevel: "medium",
+      thinkingLevel: localStorage.getItem("travel-agent-thinking") || "medium",
       tools: [...ALL_TOOLS],
       messages: [],
     },
-    getApiKey: (prov) => {
-      if (isProxyMode) return 'proxy';
-      return localStorage.getItem(`api-key-${prov}`) || undefined;
-    },
+    getApiKey: (prov) => resolveApiKey(prov),
   });
   setAgent(_agent);
 
@@ -61,6 +70,7 @@ export async function initApp() {
   let lastTripContentInner = "";
   _agent.subscribe((event) => {
     if (event.type === "agent_end") {
+      window._hidePlanningIndicator?.();
       const msgs = _agent.state.messages;
       for (let i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i].role === "assistant" && typeof msgs[i].content === "string" && msgs[i].content.length > 100) {
@@ -78,6 +88,7 @@ export async function initApp() {
       autoSaveTrip();
     }
     if (event.type === "turn_start") {
+      window._showPlanningIndicator?.('正在规划行程...');
       document.getElementById("export-toolbar")?.classList.remove("visible");
       ["btn-export-md", "btn-export-pdf", "btn-share-link", "btn-map"].forEach(id => {
         document.getElementById(id)?.classList.add("disabled-ghost");
@@ -121,20 +132,18 @@ export async function initApp() {
   const chatPanelEl = document.getElementById("chat");
   let panelInstance = null;
   if (chatPanelEl) {
-    panelInstance = await chatPanelEl.setAgent(_agent, {
-      onApiKeyRequired: async (prov) => {
-        // 共享体验模式下直接放行
-        if (isProxyMode()) return true;
-        // 否则提示用户配置 API Key
-        const key = prompt(`请输入 ${prov} API Key:`);
-        if (key) {
-          localStorage.setItem(`api-key-${prov}`, key);
-          await getAppStorage().providerKeys.set(prov, key);
+    try {
+      panelInstance = await chatPanelEl.setAgent(_agent, {
+        onApiKeyRequired: async (prov) => {
           return true;
-        }
-        return false;
-      },
-    });
+        },
+        toolsFactory: () => [...ALL_TOOLS],
+      });
+      // setAgent() 不 return this，用 DOM 元素作为 fallback
+      if (!panelInstance) panelInstance = chatPanelEl;
+    } catch (err) {
+      console.error('[ChatInit] setAgent 失败:', err);
+    }
   }
   setChatPanel(panelInstance);
 
@@ -145,6 +154,7 @@ export async function initApp() {
   // 禁用附件
   if (panelInstance?.agentInterface) {
     panelInstance.agentInterface.enableAttachments = false;
+    panelInstance.agentInterface.enableThinkingSelector = false;
   }
 
   // ─── MutationObserver 检测首条消息 → 隐藏欢迎 ────────
@@ -192,7 +202,7 @@ export async function initApp() {
   initWelcome();
 
   // ─── 全屏地图 ─────────────────────────────────────────
-  initPageMap();
+  // 由 index.html 在 DOM 就绪后调用
 
   // ─── MutationObserver 初始化 placeholder ──────────────
   const chatContainer = document.getElementById("map-chat-body");

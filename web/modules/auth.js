@@ -1,4 +1,5 @@
-import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, I18N, currentLang } from './context.js';
+import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js';
+import { I18N } from './i18n.js';
 
 // ─── 代理模式常量 ──────────────────────────────────────
 const PROXY_BASE = '/api/chat';
