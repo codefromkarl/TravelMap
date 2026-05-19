@@ -35,7 +35,14 @@ jobs:
             exit 0
           fi
           echo "🧹 Purging Cloudflare CDN cache for zone $ZONE_ID ..."
-          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
+          RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
             -H "Authorization: Bearer ${API_TOKEN}" \
             -H "Content-Type: application/json" \
-            --data '{"purge_everything":true}' | jq -r '.success // "purge failed"'
+            --data '{"purge_everything":true}')
+          echo "Response: $RESPONSE"
+          echo "$RESPONSE" | jq -r '.success // false'
+          if [ "$(echo "$RESPONSE" | jq -r '.success // false')" != "true" ]; then
+            echo "❌ Purge failed. Errors:"
+            echo "$RESPONSE" | jq -r '.errors[]?.message // "Unknown error"'
+            echo "💡 Please ensure your API Token has 'Zone:Cache Purge' permission."
+          fi
