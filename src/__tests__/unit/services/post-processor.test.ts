@@ -40,6 +40,14 @@ vi.mock("../../../services/action-link-service.js", () => ({
   })),
 }));
 
+vi.mock("../../../services/restaurant-service.js", () => ({
+  enrichDayMeals: vi.fn(async (day) => day),
+}));
+
+vi.mock("../../../services/transport-service.js", () => ({
+  enrichTransferDays: vi.fn(async (trip) => trip),
+}));
+
 describe("PostProcessor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -124,6 +132,28 @@ describe("PostProcessor", () => {
       expect(result.budgetCalculated).toBe(true);
       expect(result.linksGenerated).toBe(false);
       expect(result.tripPlan.budget).toBeDefined();
+    });
+
+    it("餐厅丰富失败时不应抛错，应继续后续处理", async () => {
+      const tripPlan = createMockTripPlan();
+      const { enrichDayMeals } = await import("../../../services/restaurant-service.js");
+      vi.mocked(enrichDayMeals).mockRejectedValueOnce(new Error("restaurant error"));
+
+      const result = await postProcessTripPlan(tripPlan, { enableRestaurantEnrich: true });
+
+      expect(result.budgetCalculated).toBe(true);
+      expect(result.linksGenerated).toBe(true);
+    });
+
+    it("城际交通丰富失败时不应抛错，应继续后续处理", async () => {
+      const tripPlan = createMockTripPlan();
+      const { enrichTransferDays } = await import("../../../services/transport-service.js");
+      vi.mocked(enrichTransferDays).mockRejectedValueOnce(new Error("transport error"));
+
+      const result = await postProcessTripPlan(tripPlan, { enableTransportEnrich: true });
+
+      expect(result.budgetCalculated).toBe(true);
+      expect(result.linksGenerated).toBe(true);
     });
   });
 
