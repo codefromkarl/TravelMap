@@ -1,5 +1,9 @@
-import { agent, currentLang, showToast, EXPORT_STORAGE_KEY } from './context.js';
+import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js';
 import { I18N } from './i18n.js';
+import {
+  generateShareImage, generateShareLink, generateQRCode,
+  downloadImage, loadSharedTripFromHash
+} from './share.js';
 
 // ─── 导出服务 ─────────────────────────────────────────
 export function getLastAssistantContent() {
@@ -138,8 +142,162 @@ document.getElementById("btn-export-pdf")?.addEventListener("click", () => {
   exportPDF(content);
 });
 
-document.getElementById("btn-share-link")?.addEventListener("click", () => {
-  const content = getLastAssistantContent();
-  if (!content) { showToast("没有可导出的行程内容", 2500, 'warning'); return; }
-  createShareLink(content);
+// ─── 分享按钮绑定 ─────────────────────────────────────
+
+function getShareTripPlan() {
+  // 优先使用全局解析好的 TripPlan
+  if (window._lastTripPlan) return window._lastTripPlan;
+  return null;
+}
+
+let isShareModalGenerating = false;
+
+async function openShareModal(type) {
+  if (isShareModalGenerating) return;
+  isShareModalGenerating = true;
+  const overlay = document.getElementById('share-modal-overlay');
+  const header = document.getElementById('share-modal-header').querySelector('h2');
+  const imgContainer = document.getElementById('share-preview-image');
+  const qrContainer = document.getElementById('share-qr-container');
+  const imgEl = document.getElementById('share-preview-img');
+  const qrEl = document.getElementById('share-qr-img');
+  const downloadBtn = document.getElementById('btn-download-share-image');
+
+  if (!overlay) return;
+
+  // Reset
+  imgContainer.style.display = 'none';
+  qrContainer.style.display = 'none';
+
+  const tripPlan = getShareTripPlan();
+  if (!tripPlan) {
+    const dict = I18N[currentLang] || I18N.zh;
+    showToast(dict.shareLoadError || '⚠️ 没有可分享的行程内容', 2500, 'warning');
+    return;
+  }
+
+  const dict = I18N[currentLang] || I18N.zh;
+
+  try {
+  if (type === 'image') {
+    header.textContent = dict.shareModalTitle || '📸 分享预览';
+    // 尝试先生成二维码放在卡片上
+    let qrDataUrl = null;
+    try {
+      const linkUrl = generateShareLink(tripPlan);
+      if (linkUrl) {
+        qrDataUrl = generateQRCode(linkUrl);
+      }
+    } catch (e) { /* ignore */ }
+
+    const dataUrl = await generateShareImage(tripPlan, qrDataUrl);
+    if (dataUrl) {
+      imgEl.src = dataUrl;
+      imgContainer.style.display = 'block';
+      downloadBtn.style.display = 'inline-block';
+      downloadBtn.onclick = () => {
+        downloadImage(dataUrl, `旅行计划-${tripPlan.city || 'travel'}.png`);
+        showToast(dict.shareImageDownloaded || '✅ 图片已下载', 2500, 'success');
+      };
+      overlay.classList.add('open');
+      showToast(dict.shareImageGenerated || '✅ 分享图片已生成', 2500, 'success');
+    }
+  } else if (type === 'qr') {
+    let qrDataUrl = null;
+    let linkUrl = '';
+    try {
+      linkUrl = generateShareLink(tripPlan);
+      if (linkUrl) {
+        qrDataUrl = generateQRCode(linkUrl);
+      }
+    } catch (e) { /* ignore */ }
+
+    if (!qrDataUrl && linkUrl) {
+      // QR 容量不足，回退到短链接模式
+      const tripId = crypto.randomUUID();
+      const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || '{}');
+      stored[tripId] = {
+        content: linkUrl,
+        title: `旅行计划`,
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem(EXPORT_STORAGE_KEY, JSON.stringify(stored));
+      const shortUrl = new URL(window.location.href);
+      shortUrl.searchParams.set('trip', tripId);
+      qrDataUrl = generateQRCode(shortUrl.toString());
+      showToast('行程较长，已使用短链接生成二维码', 3000, 'warning');
+    }
+    header.textContent = dict.shareQR || '📱 二维码';
+    if (qrDataUrl) {
+      qrEl.src = qrDataUrl;
+      qrContainer.style.display = 'block';
+      imgContainer.style.display = 'none';
+      downloadBtn.style.display = 'inline-block';
+      downloadBtn.onclick = () => {
+        downloadImage(qrDataUrl, `qrcode-${tripPlan.city || 'travel'}.png`);
+        showToast(dict.shareImageDownloaded || '✅ 图片已下载', 2500, 'success');
+      };
+      overlay.classList.add('open');
+      showToast(dict.shareQRGenerated || '✅ 二维码已生成', 2500, 'success');
+    } else {
+      showToast(dict.shareLoadError || '⚠️ 二维码生成失败，链接过长', 2500, 'warning');
+    }
+  }
+  } finally {
+    isShareModalGenerating = false;
+  }
+}
+
+function closeShareModal() {
+  const overlay = document.getElementById('share-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+// 分享图片
+document.getElementById('btn-share-image')?.addEventListener('click', () => {
+  openShareModal('image');
+});
+
+// 分享链接（新）
+document.getElementById('btn-share-link-new')?.addEventListener('click', () => {
+  const tripPlan = getShareTripPlan();
+  if (!tripPlan) {
+    const dict = I18N[currentLang] || I18N.zh;
+    showToast(dict.shareLoadError || '⚠️ 没有可分享的行程内容', 2500, 'warning');
+    return;
+  }
+  const url = generateShareLink(tripPlan);
+  if (url) {
+    navigator.clipboard.writeText(url).then(() => {
+      const dict = I18N[currentLang] || I18N.zh;
+      showToast(dict.shareLinkCopied || '🔗 链接已复制到剪贴板', 2500, 'success');
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      const dict = I18N[currentLang] || I18N.zh;
+      showToast(dict.shareLinkCopied || '🔗 链接已复制到剪贴板', 2500, 'success');
+    });
+  }
+});
+
+// 二维码
+document.getElementById('btn-share-qr')?.addEventListener('click', () => {
+  openShareModal('qr');
+});
+
+// 关闭分享弹窗
+document.getElementById('btn-close-share-modal')?.addEventListener('click', closeShareModal);
+document.getElementById('btn-close-share-modal-2')?.addEventListener('click', closeShareModal);
+document.getElementById('share-modal-overlay')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeShareModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const overlay = document.getElementById('share-modal-overlay');
+    if (overlay?.classList.contains('open')) closeShareModal();
+  }
 });
