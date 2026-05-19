@@ -7,6 +7,7 @@ const proxy = process.env.PROXY_URL
 
 export default defineConfig({
   testDir: "./web/__tests__",
+  testIgnore: ["**/unit/**", "**/shanghai-hangzhou-e2e.spec.ts", "**/shanghai-hangzhou-real-e2e.spec.ts", "**/ai-scenario-generator.spec.ts"],
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,

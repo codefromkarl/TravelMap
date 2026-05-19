@@ -44,7 +44,7 @@ test.describe("上海 → 杭州 真实 LLM 旅行规划 E2E", () => {
       agent.state.tools = [];
 
       // 简化 system prompt
-      agent.state.systemPrompt = `你是「旅图」，一位专业且贴心的私人旅行管家。
+      agent.state.systemPrompt = `你是「TravelMap」，一位专业且贴心的私人旅行管家。
 
 当用户请求生成旅行计划时，请直接输出完整计划，不要反问用户信息。
 如果某些信息不确定，基于常识给出保守建议。

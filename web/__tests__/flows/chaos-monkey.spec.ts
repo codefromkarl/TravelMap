@@ -24,11 +24,9 @@ function setupErrorCollector(page: import("@playwright/test").Page) {
 
 // 检查页面健康状态
 async function assertPageHealthy(page: import("@playwright/test").Page) {
-  // 关键元素仍存在
   const hasApp = await page.locator("#app").count();
   expect(hasApp).toBe(1);
 
-  // 无致命 JS 错误（排除已知的 importmap 网络错误）
   const bodyVisible = await page.locator("body").isVisible();
   expect(bodyVisible).toBe(true);
 }
@@ -39,7 +37,6 @@ test.describe("Chaos Monkey — 随机点击", () => {
     await page.goto("index.html");
 
     for (let i = 0; i < 30; i++) {
-      // 获取所有可见可点击元素
       const clickable = await page.evaluate(() => {
         const all = document.querySelectorAll("*");
         const visible: Array<{ x: number; y: number; tag: string }> = [];
@@ -68,17 +65,15 @@ test.describe("Chaos Monkey — 随机点击", () => {
         await page.mouse.click(target.x, target.y);
       }
 
-      // 每 10 次检查一次健康状态
       if (i % 10 === 9) {
         await assertPageHealthy(page);
       }
     }
 
-    // 最终检查：无致命错误
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
+        !e.includes("esm.sh")
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -104,7 +99,7 @@ test.describe("Chaos Monkey — 随机键盘", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
+        !e.includes("esm.sh")
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -140,8 +135,7 @@ test.describe("Chaos Monkey — 随机输入文字", () => {
     await page.goto("index.html");
 
     for (const input of testInputs) {
-      // 尝试在页面上输入
-      await page.keyboard.press("Tab"); // 聚焦到某元素
+      await page.keyboard.press("Tab");
       await page.keyboard.type(input, { delay: 5 });
 
       await assertPageHealthy(page);
@@ -151,7 +145,7 @@ test.describe("Chaos Monkey — 随机输入文字", () => {
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
+        !e.includes("esm.sh")
     );
     expect(criticalErrors).toEqual([]);
   });
@@ -165,8 +159,8 @@ test.describe("Chaos Monkey — 视口变化", () => {
     { w: 375, h: 812 },
     { w: 320, h: 568 },
     { w: 2560, h: 1440 },
-    { w: 100, h: 100 },     // 极小（header 允许溢出）
-    { w: 4000, h: 1000 },   // 极宽
+    { w: 100, h: 100 },
+    { w: 4000, h: 1000 },
   ];
 
   test("各种视口尺寸下页面不应崩溃", async ({ page }) => {
@@ -176,11 +170,10 @@ test.describe("Chaos Monkey — 视口变化", () => {
 
       await assertPageHealthy(page);
 
-      // header 不应溢出（极小视口 100x100 除外）
       const overflow = await page.evaluate(() => {
         const header = document.querySelector("header");
         if (!header) return false;
-        return header.scrollWidth > header.clientWidth + 2; // 允许 2px 误差
+        return header.scrollWidth > header.clientWidth + 2;
       });
       if (vp.w >= 320) {
         expect(overflow, `视口 ${vp.w}x${vp.h} header 溢出`).toBe(false);
@@ -191,7 +184,6 @@ test.describe("Chaos Monkey — 视口变化", () => {
   test("运行时动态缩放视口不应崩溃", async ({ page }) => {
     await page.goto("index.html");
 
-    // 快速切换视口
     for (let i = 0; i < 10; i++) {
       const w = 320 + Math.floor(Math.random() * 1600);
       const h = 400 + Math.floor(Math.random() * 800);

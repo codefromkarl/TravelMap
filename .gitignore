@@ -3,6 +3,7 @@ dist/
 coverage/
 .env
 .env.local
+web/config.local.js
 *.log
 .trellis/.developer
 .trellis/.current-task

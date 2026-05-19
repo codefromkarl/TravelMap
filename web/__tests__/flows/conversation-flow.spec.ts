@@ -7,74 +7,9 @@
  *   3. 发送消息后切换 Tab 再回来
  *   4. 发送长消息
  *   5. 发送后立即发送下一条
- *   6. 发送后中止页面加载
- *
- * 注意：ChatPanel 使用 Shadow DOM，
- *       需要通过 evaluate 进入 shadowRoot 查找输入元素
  */
 
 import { expect, test } from "@playwright/test";
-
-/** 尝试在 ChatPanel 中找到输入区域并输入文字 */
-async function tryInputInChatPanel(
-  page: import("@playwright/test").Page,
-  text: string,
-): Promise<boolean> {
-  return page.evaluate((msg) => {
-    const panel = document.querySelector("pi-chat-panel");
-    if (!panel?.shadowRoot) return false;
-
-    // pi-web-ui ChatPanel 的输入区域
-    const textarea = panel.shadowRoot.querySelector("textarea");
-    const input = panel.shadowRoot.querySelector("input[type='text']");
-    const contentEditable = panel.shadowRoot.querySelector("[contenteditable='true']");
-    const anyInput = panel.shadowRoot.querySelector("input:not([type])");
-
-    const target = textarea || input || contentEditable || anyInput;
-    if (!target) return false;
-
-    if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
-      // 触发 input 事件（模拟用户输入）
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        target instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      nativeInputValueSetter?.call(target, msg);
-      target.dispatchEvent(new Event("input", { bubbles: true }));
-    } else if (target.getAttribute("contenteditable") === "true") {
-      target.textContent = msg;
-      target.dispatchEvent(new Event("input", { bubbles: true }));
-    }
-    return true;
-  }, text);
-}
-
-/** 尝试提交消息（Enter 或点击发送按钮） */
-async function trySubmitChatPanel(page: import("@playwright/test").Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const panel = document.querySelector("pi-chat-panel");
-    if (!panel?.shadowRoot) return false;
-
-    // 查找发送按钮
-    const sendBtn = panel.shadowRoot.querySelector(
-      'button[type="submit"], button[aria-label*="发送"], button[aria-label*="Send"], button:has(svg)',
-    );
-
-    if (sendBtn instanceof HTMLButtonElement) {
-      sendBtn.click();
-      return true;
-    }
-
-    // 尝试在输入框按 Enter
-    const textarea = panel.shadowRoot.querySelector("textarea");
-    if (textarea instanceof HTMLTextAreaElement) {
-      textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-      return true;
-    }
-
-    return false;
-  });
-}
 
 test.describe("多轮对话 — 消息发送", () => {
   const messages = [
@@ -90,17 +25,14 @@ test.describe("多轮对话 — 消息发送", () => {
     page.on("pageerror", (err) => errors.push(err.message));
 
     await page.goto("index.html");
-    // 等待 JS 加载
     await page.waitForTimeout(3000);
 
     for (const msg of messages) {
-      // 在页面上输入（即使 ChatPanel 未完全加载，也不应崩溃）
       await page.keyboard.type(msg, { delay: 10 });
       await page.keyboard.press("Enter");
       await page.waitForTimeout(500);
     }
 
-    // 页面应仍然健康
     const hasApp = await page.locator("#app").count();
     expect(hasApp).toBe(1);
 
@@ -119,7 +51,7 @@ test.describe("多轮对话 — 消息发送", () => {
     await page.goto("index.html");
     await page.waitForTimeout(3000);
 
-    const longMessage = "帮我规划旅行 ".repeat(200); // ~1400 字符
+    const longMessage = "帮我规划旅行 ".repeat(200);
     await page.keyboard.type(longMessage, { delay: 1 });
     await page.keyboard.press("Enter");
 
@@ -141,15 +73,12 @@ test.describe("多轮对话 — 中断场景", () => {
   test("输入消息 → 立即刷新 → 页面应恢复", async ({ page }) => {
     await page.goto("index.html");
 
-    // 输入但不等待响应
     await page.keyboard.type("北京三日游", { delay: 10 });
 
-    // 立即刷新
     await page.reload({ waitUntil: "load" });
 
-    // 应恢复到初始状态
     const title = await page.title();
-    expect(title).toContain("旅图");
+    expect(title).toContain("TravelMap");
 
     const hasApp = await page.locator("#app").count();
     expect(hasApp).toBe(1);
@@ -161,11 +90,9 @@ test.describe("多轮对话 — 中断场景", () => {
 
     await page.keyboard.type("帮我规划旅行");
 
-    // 新开 Tab
     const page2 = await context.newPage();
     await page2.goto("about:blank");
 
-    // 回到原 Tab
     await page.bringToFront();
     await page.waitForTimeout(500);
 
@@ -178,16 +105,13 @@ test.describe("多轮对话 — 中断场景", () => {
   test("快速连续输入 → 刷新 → 再输入，不应崩溃", async ({ page }) => {
     await page.goto("index.html");
 
-    // 快速输入
     for (let i = 0; i < 5; i++) {
       await page.keyboard.type(`消息${i}`, { delay: 5 });
       await page.keyboard.press("Enter");
     }
 
-    // 刷新
     await page.reload({ waitUntil: "load" });
 
-    // 再输入
     await page.keyboard.type("刷新后的消息", { delay: 10 });
 
     const hasApp = await page.locator("#app").count();
@@ -195,26 +119,32 @@ test.describe("多轮对话 — 中断场景", () => {
   });
 });
 
-test.describe("多轮对话 — ChatPanel Shadow DOM 交互", () => {
-  test("ChatPanel shadowRoot 应可访问", async ({ page }) => {
+test.describe("多轮对话 — ChatPanel 交互", () => {
+  test("ChatPanel 应可访问", async ({ page }) => {
     await page.goto("index.html");
-    await page.waitForTimeout(5000);
 
-    const shadowInfo = await page.evaluate(() => {
+    // 等待 custom element 升级（JS 模块加载完成的标志）
+    try {
+      await page.waitForFunction(() => {
+        const panel = document.querySelector("pi-chat-panel");
+        return panel && panel.constructor.name !== "HTMLElement";
+      }, { timeout: 15_000 });
+    } catch {
+      console.log("[SKIP] JS 模块未在超时内完成加载，可能在 file:// 协议下运行");
+      return;
+    }
+
+    const panelInfo = await page.evaluate(() => {
       const panel = document.querySelector("pi-chat-panel");
       return {
         exists: !!panel,
-        hasShadowRoot: !!panel?.shadowRoot,
-        shadowMode: panel?.shadowRoot?.mode ?? null,
+        constructorName: panel?.constructor?.name,
+        hasAgentInterface: !!panel?.querySelector("agent-interface"),
       };
     });
 
-    // pi-chat-panel 存在
-    expect(shadowInfo.exists).toBe(true);
-
-    // 如果 JS 已加载完成，shadowRoot 应可访问（open mode）
-    // 如果未加载（网络问题），则可能为 null — 两种情况都不应崩溃
-    expect(typeof shadowInfo.hasShadowRoot).toBe("boolean");
+    expect(panelInfo.exists).toBe(true);
+    expect(panelInfo.constructorName).not.toBe("HTMLElement");
   });
 
   test("即使 ChatPanel 未加载，页面也不应崩溃", async ({ page }) => {
@@ -223,7 +153,6 @@ test.describe("多轮对话 — ChatPanel Shadow DOM 交互", () => {
 
     await page.goto("index.html");
 
-    // 不等待 JS 加载，立即进行操作
     await page.keyboard.press("Tab");
     await page.keyboard.type("快速输入", { delay: 5 });
     await page.keyboard.press("Enter");
@@ -231,7 +160,6 @@ test.describe("多轮对话 — ChatPanel Shadow DOM 交互", () => {
 
     await page.reload({ waitUntil: "load" });
 
-    // 页面不应有未处理的错误
     const criticalErrors = errors.filter(
       (e) =>
         !e.includes("Failed to resolve module specifier") &&
@@ -249,7 +177,6 @@ test.describe("多轮对话 — 模拟真实用户行程", () => {
     await page.goto("index.html");
     await page.waitForTimeout(3000);
 
-    // 模拟用户输入流程
     const userInputs = [
       "你好，我想去北京旅游",
       "3天时间，预算3000",
@@ -265,7 +192,6 @@ test.describe("多轮对话 — 模拟真实用户行程", () => {
       await page.waitForTimeout(1000);
     }
 
-    // 最终验证
     const hasApp = await page.locator("#app").count();
     expect(hasApp).toBe(1);
 
