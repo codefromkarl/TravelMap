@@ -14,6 +14,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "src/__tests__/**/*.test.ts",
       "web/__tests__/unit/**/*.test.ts",
+      "web/modules/__tests__/**/*.test.js",
     ],
 
     // 覆盖率配置
