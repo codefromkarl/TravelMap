@@ -284,3 +284,56 @@ lint + typecheck 通过。
 ### Next Steps
 
 - None - task complete
+
+---
+
+## Session 6: 免费旅游数据源集成 + 多源融合去重 (2026-05-19)
+
+**任务**: 部署项目到 Cloudflare Pages，测试小红书 API 接入（风控安全），集成免费旅游数据源并实现同名景点去重融合。
+
+**完成事项**:
+
+1. **Cloudflare Pages 部署** ✅
+   - Production: https://travel-agent-ebl.pages.dev
+   - 66 个文件上传，wrangler 部署成功
+
+2. **小红书 Crawler 自部署** ✅
+   - MediaCrawler API 本地启动 (localhost:8080)
+   - TravelAgent crawler adapter 验证通过（10 条北京攻略笔记）
+   - 发现 Cookie 过期问题（需重新扫码登录），但缓存数据可用
+   - TikHub 付费路由确认无法使用免费额度
+
+3. **4 个免费数据源集成** ✅
+   - `free-sources/wikivoyage-adapter.ts` — 旅行攻略 API，`{{see}}` 模板解析
+   - `free-sources/opentripmap-adapter.ts` — 全球 POI 数据库（需注册免费 Key）
+   - `free-sources/qunar-adapter.ts` — 去哪儿门票页（HTML 解析）
+   - `free-sources/wikipedia-adapter.ts` — 景点百科（地理搜索+关键词搜索）
+   - `free-sources/index.ts` — 统一入口，并行搜索编排，30min LRU 缓存
+
+4. **融合去重引擎** ✅ (`free-sources/fusion-engine.ts`)
+   - 名称相似度：编辑距离 + 别名映射表（故宫/紫禁城自动合并）
+   - 坐标距离：Haversine 公式，500m 内视为同一景点
+   - 多源合并：价格优先级（去哪儿>OTM>Wikivoyage>Wikipedia），坐标加权平均，描述拼接去重
+
+5. **架构集成** ✅
+   - `multi-source-service.ts` 新增 L1.5 层（Google Places → **免费数据源** → UGC）
+   - `mergeStructuredSources()` 融合结构化数据
+   - `config.ts` 新增 `openTripMapApiKey` 配置
+
+**测试结果**:
+- 融合引擎 15 个单元测试全部通过
+- 84 个 agent 测试全部通过
+- 类型检查 ✅ Lint ✅
+
+**已知问题**:
+- Wikivoyage/Wikipedia 国内网络不稳定（偶尔超时）
+- 去哪儿页面结构变化时需要更新正则
+- OpenTripMap 需要注册免费 Key
+- 小红书 MediaCrawler Cookie 已过期，需重新登录
+
+**关键文件**:
+- `src/services/free-sources/` — 7 个新文件
+- `src/services/multi-source-service.ts` — 新增 L1.5 层
+- `src/__tests__/unit/services/free-sources.test.ts` — 融合引擎测试
+
+**Commit**: `77aad19 feat: 集成4个免费旅游数据源 + 多源融合去重引擎`
