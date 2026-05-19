@@ -4,6 +4,29 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TravelMap — AI Travel Planner</title>
+
+  <!-- SEO Meta -->
+  <meta name="description" content="旅图 TravelMap — AI 驱动的智能旅行规划助手。输入目的地和偏好，自动生成行程路线、景点推荐、住宿建议、天气预报和预算规划。免费体验。">
+  <meta name="keywords" content="AI旅行规划,旅行助手,行程规划,旅游攻略,AI旅游,智能行程,旅行路线,景点推荐,酒店推荐,旅图,TravelMap">
+  <meta name="author" content="codefromkarl">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://travel.codefromkarl.xyz/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="旅图 TravelMap — AI 旅行规划助手">
+  <meta property="og:description" content="AI 驱动的智能旅行规划。输入目的地和偏好，自动生成行程路线、景点推荐、住宿建议和天气预报。">
+  <meta property="og:url" content="https://travel.codefromkarl.xyz/">
+  <meta property="og:site_name" content="旅图 TravelMap">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:locale:alternate" content="ja_JP">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="旅图 TravelMap — AI 旅行规划助手">
+  <meta name="twitter:description" content="AI 驱动的智能旅行规划。输入目的地和偏好，自动生成行程路线、景点推荐、住宿建议和天气预报。">
+
   <script type="importmap">
     {
       "imports": {
@@ -1419,6 +1442,30 @@
   <link rel="stylesheet" href="./pi-web-ui.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "旅图 TravelMap",
+    "url": "https://travel.codefromkarl.xyz",
+    "description": "AI 驱动的智能旅行规划助手",
+    "applicationCategory": "TravelApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "CNY"
+    },
+    "author": {
+      "@type": "Organization",
+      "name": "codefromkarl",
+      "url": "https://github.com/codefromkarl"
+    },
+    "inLanguage": ["zh-CN", "en", "ja"]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#chat-container" data-i18n="skipLink">跳到聊天区</a>
@@ -1659,7 +1706,6 @@
         </div>
 
         <button class="save-settings-btn" id="btn-save-model" data-i18n="saveSettings">保存配置</button>
-        <button class="save-settings-btn" id="btn-save-model" data-i18n="saveSettings">保存配置</button>
         </div>
       </div>
     </div>
@@ -1772,7 +1818,7 @@
 
   <!-- Footer -->
   <footer id="site-footer" style="display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 20px;font-size:12px;color:var(--color-text-muted);background:var(--color-bg-surface);border-top:1px solid var(--color-border-subtle);flex-shrink:0">
-    <span>© 2025 旅图 TravelMap</span>
+    <span>© 2025 TravelMap</span>
     <span style="color:var(--color-border-default)">·</span>
     <a href="https://github.com/codefromkarl/TravelMap" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:4px;color:var(--color-text-muted);text-decoration:none;transition:color 0.15s">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub
@@ -1850,6 +1896,16 @@
       for (const m of ['get', 'set', 'delete', 'keys', 'has', 'clear']) {
         if (!store[m]) store[m] = (...args) => _backend[m](cfg.name, ...args);
       }
+      // getAll 方法：遍历所有 key 并返回值数组
+      store.getAll = async () => {
+        const keys = await _backend.keys(cfg.name);
+        const results = [];
+        for (const key of keys) {
+          const val = await _backend.get(cfg.name, key);
+          if (val) results.push(val);
+        }
+        return results;
+      };
       return store;
     };
     setAppStorage(new AppStorage(
@@ -1873,7 +1929,7 @@
     })();
 
     // ─── System Prompt ────────────────────────────────────
-    const SYSTEM_PROMPT = `你是「旅图」，一位专业且贴心的私人旅行管家。
+    const SYSTEM_PROMPT = `你是「TravelMap」，一位专业且贴心的私人旅行管家。
 
 你的职责是根据用户的需求，利用工具搜索景点、天气、酒店信息，
 然后统筹规划出一份完整的旅行行程。
@@ -2586,7 +2642,7 @@
       if (!content.trim().startsWith("#")) {
         const date = new Date().toLocaleDateString("zh-CN");
         return `# 🗺️ 旅行计划
-> 由「旅图」AI 旅行规划助手生成 · ${date}
+> 由「TravelMap」AI 旅行规划助手生成 · ${date}
 
 ---
 
@@ -2626,7 +2682,7 @@ ${content}
         .replace(/\n\n/g, "</p><p>")
         .split("\n").map(line => line.startsWith("<") ? line : (line.trim() ? `<p>${line}</p>` : "")).join("\n");
       printEl.innerHTML = `<h1 style="text-align:center;margin-bottom:4px;">🗺️ 旅行计划</h1>
-<p style="text-align:center;color:#666;font-size:11pt;margin-bottom:20px;">由「旅图」AI 生成 · ${new Date().toLocaleDateString("zh-CN")}</p>
+<p style="text-align:center;color:#666;font-size:11pt;margin-bottom:20px;">由「TravelMap」AI 生成 · ${new Date().toLocaleDateString("zh-CN")}</p>
 ${html}`;
       window.print();
       showToast("请选择「另存为 PDF」", 2500, 'warning');
@@ -2764,6 +2820,11 @@ ${trip.content}`,
       },
     });
 
+    // 暂时禁用附件功能（未经测试验证）
+    if (chatPanel?.agentInterface) {
+      chatPanel.agentInterface.enableAttachments = false;
+    }
+
     // 用户发送第一条消息时隐藏欢迎提示（监听 chat panel 内部变化）
     const welcomeHint = document.getElementById('map-chat-welcome');
     if (chatPanel && welcomeHint) {
@@ -2803,14 +2864,14 @@ ${trip.content}`,
         promptCard2: "🏛️ 北京 5 日文化之旅，预算 5000 元",
         promptCard3: "🐼 成都周边 3 天自驾游，大熊猫基地 + 都江堰",
         promptCard4: "⛰️ 上海出发黄山 2 日游，高铁往返",
-        welcomeTitle: "欢迎使用旅图 ✨",
+        welcomeTitle: "欢迎使用 TravelMap ✨",
         welcomeDesc: "告诉我你的旅行需求，我会为你规划完美行程。你也可以点击下方示例快速开始：",
         promptPlaceholder: "描述你的旅行计划...",
         exportDisabled: "生成行程后可用",
         closePanel: "关闭",
-        navTrip: "规划旅程",
+        navTrip: "旅图助手",
         navModel: "模型配置",
-        navMap: "旅游地图",
+        navMap: "旅图",
         mapPageTitle: "旅游地图",
         mapChatTitle: "旅图助手",
         mapChatWelcome: "告诉我你的旅行计划",
@@ -2885,11 +2946,11 @@ ${trip.content}`,
         promptPlaceholder: "Describe your travel plan...",
         exportDisabled: "Available after generating itinerary",
         closePanel: "Close",
-        navTrip: "Trip Planner",
+        navTrip: "TravelMap Assistant",
         navModel: "Model Config",
-        navMap: "Travel Map",
+        navMap: "TravelMap",
         mapPageTitle: "Travel Map",
-        mapChatTitle: "Travel Assistant",
+        mapChatTitle: "TravelMap Assistant",
         mapChatWelcome: "Tell me your travel plan",
         mapChatWelcomeDesc: "Enter your requirements below, the map will update in real-time",
         mapEmptyTitle: "Explore Your Travel Routes",
@@ -2962,9 +3023,9 @@ ${trip.content}`,
         promptPlaceholder: "旅行計画を入力...",
         exportDisabled: "旅程生成後に利用可能",
         closePanel: "閉じる",
-        navTrip: "旅行プラン",
+        navTrip: "旅図アシスタント",
         navModel: "モデル設定",
-        navMap: "旅行マップ",
+        navMap: "旅図",
         mapPageTitle: "旅行マップ",
         mapChatTitle: "旅図アシスタント",
         mapChatWelcome: "旅行プランを教えてください",
