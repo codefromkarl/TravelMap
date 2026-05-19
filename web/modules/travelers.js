@@ -65,6 +65,8 @@ export function updateSystemPromptWithPreferences() {
 }
 
 export function initTravelersPanel() {
+  // 确保面板默认关闭，防止遮挡核心交互区域
+  document.getElementById("travelers-panel")?.classList.remove("open");
   const t = loadTravelersFromStorage();
   if (t) {
     setCurrentTravelers(t);

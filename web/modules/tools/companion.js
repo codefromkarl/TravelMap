@@ -54,6 +54,14 @@ export const companionQATool = {
   }),
   execute: async (_id, params) => {
     const { question, tripPlan } = params;
+    // 同步行程数据到地图（解耦对 generate_action_links 的单点依赖）
+    if (tripPlan && tripPlan.days) {
+      window._lastTripPlan = tripPlan;
+      document.getElementById("btn-map")?.classList.remove("disabled-ghost");
+      if (window.currentPage === "page-map" && typeof window._initPageMap === "function") {
+        window._initPageMap();
+      }
+    }
     const lines = [`**Q**: ${question}`, ""];
     const allAttractions = tripPlan.days?.flatMap(d => d.attractions || []) || [];
     const matched = allAttractions.filter(a =>

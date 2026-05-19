@@ -36,6 +36,14 @@ export const enrichSupplyDetailsTool = {
   }),
   execute: async (_id, params) => {
     const { tripPlan } = params;
+    // 同步行程数据到地图（解耦对 generate_action_links 的单点依赖）
+    if (tripPlan && tripPlan.days) {
+      window._lastTripPlan = tripPlan;
+      document.getElementById("btn-map")?.classList.remove("disabled-ghost");
+      if (window.currentPage === "page-map" && typeof window._initPageMap === "function") {
+        window._initPageMap();
+      }
+    }
     const lines = ["## 🍴 补给详情", ""];
     let totalSupplyPoints = 0;
     let exactCount = 0;

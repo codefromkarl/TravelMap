@@ -206,3 +206,81 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: 分派修复 4 个遗留任务 — coverage/env/perf/web-functions
+
+**Date**: 2026-05-19
+**Task**: 分派修复 4 个遗留任务 — coverage/env/perf/web-functions
+**Branch**: `main`
+
+### Summary
+
+完成 4 个遗留任务的修复与归档：
+1. env-validation — 确认 validateConfig/printConfigWarnings/getDataSource 已实现，归档。
+2. coverage-thresholds — 新增 geocode/post-processor/restaurants/attractions 测试，全局覆盖行 90.5% 分支 79.6%，阈值全通过，归档。
+3. test-perf-fake-timers — http-client 测试环境 baseDelay 0，总测试时间 9.3s → 4.8s，归档。
+4. test-web-functions — 新增 auth handlers (login/logout/status/callback) 单元测试 13 个，归档。
+新增测试文件 5 个，修改 2 个，总测试数 841 个，全部通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bd7f848` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 8: 追踪基础设施 — logger + trace-context + error-utils
+
+**Date**: 2026-05-19
+**Task**: 追踪基础设施 — logger + trace-context + error-utils
+**Branch**: `main`
+
+### Summary
+
+建立轻量追踪基础设施，解决 debug 定位困难问题：
+1. src/services/logger.ts — 自研结构化日志（level/JSON/pretty/child/redact/零依赖）
+2. src/services/trace-context.ts — AsyncLocalStorage + 显式 fallback，支持 Node.js + Workers
+3. src/services/error-utils.ts — withContext() / createServiceError() 错误增强
+4. 批次 1 迁移：http-client.ts + travel-agent.ts 替换裸 console.*
+5. web/functions/_lib/logger.js — Workers 兼容版
+6. 新增 20 个测试（logger/trace-context/error-utils），882 测试全部通过。
+lint + typecheck 通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fd7b0bb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

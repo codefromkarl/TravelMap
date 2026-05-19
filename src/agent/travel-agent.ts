@@ -34,6 +34,7 @@ import {
   type PromptPhase,
   STEERING_PROMPT_DIFF,
 } from "./prompts.js";
+import { ReviewAgent, type ReviewResult } from "./review-agent.js";
 import { findLatestPlanInMessages, mergeTripPlanDiff } from "./trip-plan-parser.js";
 
 export interface TravelAgentOptions {
@@ -49,6 +50,12 @@ export interface TravelAgentOptions {
    * 默认 true（推荐开启以节省 token）
    */
   preSearch?: boolean;
+  /**
+   * 启用行程审查 — 编排后自动用 ReviewAgent 检查行程质量
+   * 发现 error 级别问题时自动调用 steer() 修复（最多 1 轮）
+   * 默认 true
+   */
+  reviewEnabled?: boolean;
   /**
    * 编排后处理配置 — 自动计算预算和生成行动链接
    * 默认启用（节省 2-4 次 LLM 调用）
@@ -81,8 +88,11 @@ export class TravelAgent {
   private preSearch: boolean;
   private postProcessConfig: PostProcessorConfig | null;
   private messageCompressionConfig: CompressorOptions | null;
+  private reviewer: ReviewAgent;
   /** 最近一次后处理的结果 */
   private lastProcessedPlan: TripPlan | null = null;
+  /** 最近一次审查结果 */
+  private lastReview: ReviewResult | null = null;
   /** 当前行程的出行人群画像 */
   private travelers: import("../types/trip.js").TravelerProfile | undefined;
 
@@ -96,6 +106,7 @@ export class TravelAgent {
       threshold: 8,
       preserveRounds: 1,
     };
+    this.reviewer = new ReviewAgent({ enabled: options.reviewEnabled ?? true });
 
     // 启动时验证环境变量，打印降级提示（仅首次构造时调用）
     printConfigWarningsOnce();
@@ -398,6 +409,27 @@ export class TravelAgent {
       travelers: this.travelers,
     };
     const result = await postProcessTripPlan(tripPlan, config);
+
+    // 行程质量审查 + 自动修复
+    const review = await this.reviewer.review(result.tripPlan, this.travelers);
+    this.lastReview = review;
+
+    if (!review.passed) {
+      const fixMessage = this.reviewer.generateFixMessage(review.issues);
+      if (fixMessage) {
+        getLogger().info("[TravelAgent] 审查发现错误，自动修复", {
+          issueCount: review.issues.length,
+          score: review.score,
+        });
+
+        // 自动修复 1 轮
+        this.setPromptPhase("steering");
+        this.steer(fixMessage);
+        // 注意：不 await，修复结果需要用户再次调用 finalize() 获取
+        // 或通过 waitForIdle() + finalize() 获取
+      }
+    }
+
     this.lastProcessedPlan = result.tripPlan;
     return result.tripPlan;
   }
@@ -405,6 +437,11 @@ export class TravelAgent {
   /** 获取最近一次后处理的 TripPlan */
   getLastProcessedPlan(): TripPlan | null {
     return this.lastProcessedPlan;
+  }
+
+  /** 获取最近一次审查结果 */
+  getLastReview(): ReviewResult | null {
+    return this.lastReview;
   }
 
   /** 获取费用统计 */
@@ -415,7 +452,9 @@ export class TravelAgent {
   /** 清除对话历史和队列，回到初始状态 */
   reset(): void {
     this.agent.reset();
+    this.reviewer.reset();
     this.lastProcessedPlan = null;
+    this.lastReview = null;
     // 重置 system prompt 到初始阶段
     this.setPromptPhase(this.preSearch ? "search" : "planning");
   }

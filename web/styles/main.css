@@ -437,93 +437,7 @@
     .history-item .item-actions .delete-btn:hover { color: var(--color-danger); border-color: var(--color-danger); }
     #history-empty { text-align: center; padding: 40px 20px; color: var(--color-text-muted); font-size: var(--text-base); }
 
-    /* ─── 地图面板 ─────────────────────────────────────── */
-    #map-panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: 480px;
-      height: 100vh;
-      background: var(--color-bg-surface);
-      border-left: 1px solid var(--color-border-subtle);
-      transform: translateX(100%);
-      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 55;
-      display: flex;
-      flex-direction: column;
-    }
-    #map-panel.open { transform: translateX(0); }
-    #map-panel .panel-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--color-border-subtle);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    #map-panel .panel-header h2 { font-size: var(--text-lg); }
-    #map-panel .close-btn {
-      background: none; border: none; color: var(--color-text-muted); font-size: var(--text-2xl); cursor: pointer;
-    }
-    #map-panel .close-btn:hover { color: var(--color-text-primary); }
-    #map-container { flex: 1; min-height: 0; }
-    #map-panel .map-info {
-      padding: 10px 16px;
-      border-top: 1px solid var(--color-border-subtle);
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-    #map-panel .map-info .legend-dot {
-      width: 8px; height: 8px; border-radius: 50%; display: inline-block;
-    }
-    #map-warnings {
-      padding: 8px 16px;
-      border-top: 1px solid var(--color-border-subtle);
-      font-size: var(--text-xs);
-      color: var(--color-warning);
-      background: rgba(245, 158, 11, 0.04);
-      display: none;
-    }
-    #map-warnings div { margin-bottom: 4px; }
-    #map-warnings div:last-child { margin-bottom: 0; }
-    #map-risk-summary {
-      max-height: 160px;
-      overflow-y: auto;
-      background: var(--color-bg-surface);
-      border-top: 1px solid var(--color-border-subtle);
-      padding: 10px 14px;
-      font-size: var(--text-xs);
-      color: var(--color-text-secondary);
-      display: none;
-    }
-    #map-risk-summary .risk-item {
-      margin-bottom: 8px;
-      padding: 6px 8px;
-      border-radius: var(--radius-sm);
-      background: var(--color-bg-elevated);
-    }
-    #map-risk-summary .risk-item:last-child { margin-bottom: 0; }
-    #map-risk-summary .risk-title {
-      font-weight: 600;
-      color: var(--color-text-primary);
-      margin-bottom: 2px;
-    }
-    #map-risk-summary .risk-badge {
-      display: inline-block;
-      padding: 1px 6px;
-      border-radius: var(--radius-sm);
-      font-size: 11px;
-      font-weight: 600;
-      margin-right: 6px;
-    }
-    #map-risk-summary .risk-badge.low { background: rgba(34, 197, 94, 0.15); color: var(--color-success); }
-    #map-risk-summary .risk-badge.medium { background: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
-    #map-risk-summary .risk-badge.high { background: rgba(239, 68, 68, 0.15); color: var(--color-danger); }
-    #map-risk-summary .risk-detail { margin-top: 4px; line-height: 1.5; }
-    #map-risk-summary .risk-suitability { margin-top: 4px; font-size: 11px; }
-    #map-risk-summary .risk-suitability .not-rec { color: var(--color-danger); }
+    /* ─── 地图面板（已废弃，保留 supply-marker 样式） ── */
     .supply-marker { background: transparent !important; border: none !important; }
     .map-btn {
       background: var(--color-bg-surface);
@@ -538,7 +452,6 @@
     .map-btn:hover { background: var(--color-bg-elevated); }
     .map-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     @media (max-width: 640px) {
-      #map-panel { width: 100vw; }
     }
 
     /* ─── 地图页面（左右分栏：对话+地图） ──────────── */
@@ -1504,7 +1417,6 @@
         margin-left: 56px;
         width: calc(100% - 56px);
       }
-      #map-panel { width: 100vw; }
       #travelers-panel { width: 100vw; }
       #history-panel { width: 100vw; }
       header {
@@ -1596,6 +1508,8 @@
       max-height: 90vh;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     #share-modal-header {
       display: flex;
@@ -1607,12 +1521,31 @@
     #share-modal-header h2 {
       font-size: 17px;
       font-weight: 600;
+      margin: 0;
+    }
+    #share-modal-header .close-btn {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    #share-modal-header .close-btn:hover {
+      color: var(--color-text-primary);
+      background: var(--color-bg-elevated);
     }
     #share-modal-body {
       padding: 20px 24px;
       text-align: center;
       min-height: 100px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
       display: flex;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
     }
     #share-modal-body img {
@@ -1627,6 +1560,7 @@
       justify-content: center;
       padding: 16px 24px;
       border-top: 1px solid var(--color-border-subtle);
+      flex-shrink: 0;
     }
     .share-action-btn {
       background: var(--color-accent-primary, #6366f1);

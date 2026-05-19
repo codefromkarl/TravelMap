@@ -142,11 +142,12 @@ document.getElementById('btn-save-model')?.addEventListener('click', () => {
 
   try {
     if (provider === 'deepseek-local') {
+      const useReasoning = config.deepseekLocal.reasoning !== false;
       agent.state.model = {
         id: modelId || config.deepseekLocal.defaultModel, name: 'DeepSeek V4 Flash', api: 'openai-completions',
         provider: 'deepseek',
         baseUrl: config.deepseekLocal.baseUrl,
-        reasoning: true, input: ['text'],
+        reasoning: useReasoning, input: ['text'],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 128000, maxTokens: 8192,
       };

@@ -177,28 +177,7 @@
         <div id="history-empty">暂无历史行程</div>
       </div>
     </div>
-    <div id="map-panel">
-      <div class="panel-header">
-        <h2>行程地图</h2>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="map-btn" id="btn-enrich-supplies" title="丰富补给详情" style="display:none">🔄 丰富补给</button>
-          <button class="close-btn" id="btn-close-map" aria-label="关闭">✕</button>
-        </div>
-      </div>
-      <div id="map-container"></div>
-      <div id="map-warnings"></div>
-      <div id="map-risk-summary"></div>
-      <div class="map-info">
-        <span><span class="legend-dot" style="background:#3b82f6"></span> 景点</span>
-        <span><span class="legend-dot" style="background:#22c55e"></span> 低风险路线</span>
-        <span><span class="legend-dot" style="background:#f59e0b"></span> 中风险路线</span>
-        <span><span class="legend-dot" style="background:#ef4444"></span> 高风险路线</span>
-        <span><span class="legend-dot" style="background:#f59e0b"></span> 餐饮</span>
-        <span><span class="legend-dot" style="background:#10b981"></span> 商店</span>
-        <span><span class="legend-dot" style="background:#ec4899"></span> 休息</span>
-        <span id="map-status" style="margin-left:auto"></span>
-      </div>
-    </div>
+    <!-- (已清理：侧边栏弹框地图 #map-panel 已废弃，使用全屏 #page-map 替代) -->
     <div id="overlay"></div>
 
     <!-- 登录弹窗 -->
@@ -239,7 +218,7 @@
           <button class="close-btn" id="btn-close-share-modal">✕</button>
         </div>
         <div id="share-modal-body">
-          <div id="share-preview-image">
+          <div id="share-preview-image" style="display:none">
             <img id="share-preview-img" src="" alt="行程卡片预览" style="max-width:400px;height:auto">
           </div>
           <div id="share-qr-container" style="display:none;text-align:center">
@@ -439,6 +418,7 @@
             <span>🔍</span>
             <input type="text" id="map-search-input" placeholder="搜索景点、路线..." data-i18n-placeholder="mapSearchPlaceholder">
           </div>
+          <button class="map-tool-btn" id="btn-enrich-supplies" title="丰富补给详情" style="display:none">🔄</button>
           <button class="map-tool-btn" id="btn-map-routes" title="路线面板">📋</button>
           <button class="map-tool-btn" id="btn-map-layers" title="图层切换">🗺️</button>
           <button class="map-tool-btn" id="btn-map-locate" title="定位">📍</button>

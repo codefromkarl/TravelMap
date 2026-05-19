@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
+- **Total Sessions**: 8
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~208 | Active |
+| `journal-1.md` | ~286 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-05-19 | 追踪基础设施 — logger + trace-context + error-utils | `fd7b0bb` | `main` |
+| 7 | 2026-05-19 | 分派修复 4 个遗留任务 — coverage/env/perf/web-functions | `bd7f848` | `main` |
 | 6 | 2026-05-19 | 补齐 multi-source-service.ts 测试覆盖率到 87.5% | `33fc30d` | `main` |
 | 5 | 2026-05-19 | 测试质量优化：从覆盖率导向转向业务需求导向 | `9f149cb`, `04783d9` | `main` |
 | 4 | 2026-05-18 | UI/UX P2 打磨 — 动画偏好/发送按钮/键盘无障碍/卡片i18n | `cf800ee` | `main` |

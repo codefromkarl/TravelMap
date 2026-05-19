@@ -2,14 +2,16 @@
  * 多数据源景点融合服务
  *
  * L1 结构化: Google Places API（基础景点信息）
+ * L1.5 免费数据源: Wikivoyage + OpenTripMap + 去哪儿 + Wikipedia
  * L2 UGC: 小红书真实笔记搜索 + 本地知识补充
- * 融合策略：结构化数据为基础，UGC 补充真实评价和避坑指南
+ * 融合策略：结构化数据为基础，免费数据源补充，UGC 补充真实评价和避坑指南
  * 搜索结果缓存：相同城市 30 分钟内复用
  */
 
 import { LRUCache } from "lru-cache";
 import type { Attraction } from "../types/trip.js";
 import { config } from "./config.js";
+import { searchFreeSources } from "./free-sources/index.js";
 import { fetchWithTimeout } from "./http-client.js";
 import { getMockAttractions, getMockUGC } from "./mock-data.js";
 import { batchSearchXhsNotes } from "./xhs-service.js";
@@ -67,6 +69,95 @@ function cacheKey(params: AttractionSearchParams): string {
 /** 清除缓存（测试用） */
 export function clearSearchCache(): void {
   searchCache.clear();
+}
+
+// ─── L1 + L1.5 融合 ───────────────────────────────────────
+
+/**
+ * 合并结构化数据源（Google Places + 免费数据源）
+ *
+ * 策略：
+ *   1. 以名称相似度去重
+ *   2. 互补填充：Google 提供坐标/地址，免费源补充价格/评分/描述
+ *   3. 多源合并后保留各来源的置信度信息
+ */
+function mergeStructuredSources(primary: Attraction[], secondary: Attraction[]): Attraction[] {
+  if (primary.length === 0) return secondary;
+  if (secondary.length === 0) return primary;
+
+  const result: Attraction[] = [...primary];
+  const matchedSecondary = new Set<number>();
+
+  // 对每个主要源景点，在次要源中寻找匹配
+  for (let i = 0; i < result.length; i++) {
+    const target = result[i]!;
+
+    for (let j = 0; j < secondary.length; j++) {
+      if (matchedSecondary.has(j)) continue;
+      const candidate = secondary[j]!;
+
+      // 名称相似度检查
+      const na = target.nameZh
+        .replace(/[（(].+?[）)]/g, "")
+        .replace(/\s+/g, "")
+        .toLowerCase();
+      const nb = candidate.nameZh
+        .replace(/[（(].+?[）)]/g, "")
+        .replace(/\s+/g, "")
+        .toLowerCase();
+
+      const isMatch =
+        na === nb ||
+        na.includes(nb) ||
+        nb.includes(na) ||
+        (target.location.latitude !== 0 &&
+          candidate.location.latitude !== 0 &&
+          // 500m 内
+          Math.abs(target.location.latitude - candidate.location.latitude) < 0.005 &&
+          Math.abs(target.location.longitude - candidate.location.longitude) < 0.005);
+
+      if (isMatch) {
+        // 合并：补充缺失字段
+        const merged = { ...target };
+
+        // 价格：优先用免费源（去哪儿通常有真实价格）
+        if (merged.ticketPrice === 0 && candidate.ticketPrice > 0) {
+          merged.ticketPrice = candidate.ticketPrice;
+        }
+
+        // 描述：拼接（不重复）
+        if (
+          candidate.description &&
+          !merged.description.includes(candidate.description.slice(0, 20))
+        ) {
+          merged.description = `${merged.description}；${candidate.description}`.slice(0, 300);
+        }
+
+        // 分类：如果原来是默认的“景点”，用免费源的
+        if (merged.category === "景点" && candidate.category !== "景点") {
+          merged.category = candidate.category;
+        }
+
+        // 英文名：补充
+        if ((!merged.nameEn || merged.nameEn === merged.nameZh) && candidate.nameEn) {
+          merged.nameEn = candidate.nameEn;
+        }
+
+        result[i] = merged;
+        matchedSecondary.add(j);
+        break;
+      }
+    }
+  }
+
+  // 未匹配的次要源景点直接追加
+  for (let j = 0; j < secondary.length; j++) {
+    if (!matchedSecondary.has(j)) {
+      result.push(secondary[j]!);
+    }
+  }
+
+  return result;
 }
 
 // ─── L1: 结构化数据 (Google Places) ──────────────────────
@@ -242,7 +333,20 @@ export async function searchAttractionsMultiSource(
     }
   }
 
-  // Mock 基础数据
+  // L1.5: 免费数据源（Wikivoyage + OTM + 去哪儿 + Wikipedia）
+  // 与 Google Places 合并去重，补充价格、评分、描述等
+  try {
+    const freeResult = await searchFreeSources(params.city, params.preferences);
+    if (freeResult.attractions.length > 0) {
+      // 将免费数据源结果与现有结果合并
+      attractions = mergeStructuredSources(attractions, freeResult.attractions);
+      sources.push(...freeResult.sources.map((s) => `free_${s}`));
+    }
+  } catch (err) {
+    console.warn("[MultiSource] 免费数据源失败:", err instanceof Error ? err.message : err);
+  }
+
+  // Mock 基础数据（仅当以上均无数据时降级）
   if (attractions.length === 0) {
     attractions = getMockAttractions(params);
     sources.push("mock");

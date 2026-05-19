@@ -6,7 +6,12 @@ set -euo pipefail
 #   bash scripts/deploy.sh          → 部署到 production
 #   bash scripts/deploy.sh preview  → 部署到 preview
 
-[[ -f ~/.bashrc ]] && source ~/.bashrc
+# 安全地 source ~/.bashrc（非交互式 shell 中 PS1 等变量可能未定义）
+if [[ -f ~/.bashrc ]]; then
+  set +u
+  source ~/.bashrc 2>/dev/null || true
+  set -u
+fi
 
 # 代理环境绕过（Cloudflare API 走直连更快）
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy
@@ -21,21 +26,49 @@ export CLOUDFLARE_ACCOUNT_ID="df7eff124c99996394244b7e94324ffc"
 PROJECT="travel-agent"
 BRANCH="main"
 DIR="web"
+EXCLUDE_FILES=(
+  "config.local.js"
+  "config.local.example.js"
+)
 
 if [[ "${1:-}" == "preview" ]]; then
   BRANCH="preview"
 fi
 
+# ─── 构建干净的部署目录（排除敏感文件）──────────────────
+DEPLOY_DIR=$(mktemp -d)
+trap "rm -rf $DEPLOY_DIR" EXIT
+
+echo "📦 准备部署目录..."
+rsync -a --exclude='node_modules' "$DIR/" "$DEPLOY_DIR/"
+
+for f in "${EXCLUDE_FILES[@]}"; do
+  if [[ -f "$DEPLOY_DIR/$f" ]]; then
+    echo "   ⛔ 排除: $f"
+    rm "$DEPLOY_DIR/$f"
+  fi
+done
+
+# 寻找 wrangler：优先本地 node_modules，其次全局，最后回退 npx
+WRANGLER=""
+if [[ -x "./node_modules/.bin/wrangler" ]]; then
+  WRANGLER="./node_modules/.bin/wrangler"
+elif command -v wrangler &>/dev/null; then
+  WRANGLER="$(command -v wrangler)"
+else
+  WRANGLER="npx wrangler"
+fi
+
 echo "🚀 Deploying to Cloudflare Pages..."
 echo "   Project: $PROJECT"
 echo "   Branch:  $BRANCH"
-echo "   Dir:     $DIR"
+echo "   Source:  $DIR → $DEPLOY_DIR (cleaned)"
+echo "   Wrangler: $WRANGLER"
 echo ""
 
-npx wrangler pages deploy "$DIR" \
+$WRANGLER pages deploy "$DEPLOY_DIR" \
   --project-name="$PROJECT" \
-  --branch="$BRANCH" \
-  --commit-dirty=true
+  --branch="$BRANCH"
 
 echo ""
 echo "✅ Done!"

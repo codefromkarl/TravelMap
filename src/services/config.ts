@@ -19,6 +19,8 @@ export interface AppConfig {
   openWeatherApiKey: string | undefined;
   /** HTTPS 代理 URL */
   httpsProxy: string | undefined;
+  /** OpenTripMap API Key（免费，5000次/天） */
+  openTripMapApiKey: string | undefined;
 
   // XHS 路由配置
   xhsRouterStrategy: "priority" | "cost" | "all";
@@ -91,6 +93,7 @@ function readFromEnv(): AppConfig {
     amapWebKey: process.env.AMAP_WEB_KEY,
     openWeatherApiKey: process.env.OPENWEATHER_API_KEY,
     httpsProxy: process.env.HTTPS_PROXY,
+    openTripMapApiKey: process.env.OPENTRIPMAP_API_KEY,
 
     xhsRouterStrategy:
       (process.env.XHS_ROUTER_STRATEGY as AppConfig["xhsRouterStrategy"]) ?? "priority",

@@ -1,3 +1,24 @@
+// ─── 修复 text/event-stream 缺少 charset=utf-8 导致中文乱码 ──
+// cli-proxyapi 返回 Content-Type: text/event-stream（无 charset），
+// 浏览器按 HTTP 规范默认 ISO-8859-1 解码流，UTF-8 中文变成乱码。
+// 拦截 fetch，对 SSE 响应强制修正 Content-Type。
+const _origFetch = globalThis.fetch;
+globalThis.fetch = function fixedCharsetFetch(input, init) {
+  return _origFetch.call(this, input, init).then(resp => {
+    const ct = resp.headers.get('content-type') || '';
+    if (ct.includes('text/event-stream') && !ct.includes('charset')) {
+      const headers = new Headers(resp.headers);
+      headers.set('content-type', 'text/event-stream; charset=utf-8');
+      return new Response(resp.body, {
+        status: resp.status,
+        statusText: resp.statusText,
+        headers,
+      });
+    }
+    return resp;
+  });
+};
+
 // ─── ChatPanel 初始化 + Agent 事件监听 ────────────────
 
 import { Agent } from "@earendil-works/pi-agent-core";
@@ -28,11 +49,12 @@ export async function initApp() {
   let model;
   if (provider === "deepseek-local" || (!localStorage.getItem("travel-agent-provider") && !localStorage.getItem("travel-agent-model"))) {
     // 默认：本地 ds2api DeepSeek
+    const useReasoning = ds.reasoning !== false;
     model = {
       id: ds.defaultModel, name: "DeepSeek V4 Flash", api: "openai-completions",
       provider: "deepseek",
       baseUrl: ds.baseUrl,
-      reasoning: true, input: ["text"],
+      reasoning: useReasoning, input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: 128000, maxTokens: 8192,
     };
@@ -95,6 +117,28 @@ export async function initApp() {
           break;
         }
       }
+      // ─── 从 tool results 中提取 tripPlan 并刷新地图 ──
+      for (const msg of msgs) {
+        if (msg.role === "toolResult" && msg.details) {
+          const details = msg.details;
+          if (details && details.tripPlan) {
+            window._lastTripPlan = details.tripPlan;
+            document.getElementById("btn-map")?.classList.remove("disabled-ghost");
+            if (window.currentPage === "page-map") {
+              if (typeof window._initPageMap === "function") window._initPageMap();
+            }
+            const hasSupplies = details.tripPlan.days?.some(d =>
+              d.attractions?.some(a =>
+                a.routes?.some(r => r.waypoints?.some(wp => wp.supplyPoints?.length > 0))
+              )
+            );
+            if (hasSupplies) {
+              document.getElementById("btn-enrich-supplies")?.style.setProperty("display", "inline-block");
+            }
+            break;
+          }
+        }
+      }
       autoSaveTrip();
     }
     if (event.type === "turn_start") {
@@ -114,6 +158,16 @@ export async function initApp() {
       if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
       resetToolbarAfterError();
       console.error("[ChatInit] Agent error:", event);
+      // 提取错误信息提示用户
+      const raw = event.error?.message || event.payload?.error?.message || "";
+      const errMsg = String(raw);
+      if (errMsg.includes("QUOTA") || errMsg.includes("quota") || errMsg.includes("次数已用完") || errMsg.includes("免费体验")) {
+        showToast("免费体验次数已用完，请登录后继续使用", 5000, "warning");
+      } else if (errMsg) {
+        showToast(`计划生成失败：${errMsg}`, 5000, "error");
+      } else {
+        showToast("计划生成失败，请重试", 4000, "error");
+      }
     }
   });
 

@@ -36,7 +36,7 @@ export function closePanel(panelId) {
 }
 
 export function closeAllPanels() {
-  ["travelers-panel", "history-panel", "map-panel"].forEach(id => {
+  ["travelers-panel", "history-panel"].forEach(id => {
     document.getElementById(id)?.classList.remove("open");
   });
   setActivePanel(null);

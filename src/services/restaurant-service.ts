@@ -9,7 +9,7 @@
 
 import type { DayPlan, Location } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
-import { isDomesticCity } from "./dual-map-service.js";
+import { gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
 
 // ─── 类型定义 ──────────────────────────────────────────────
@@ -141,7 +141,8 @@ function amapPoiToRestaurant(poi: AmapPoi): Restaurant {
   if (poi.location) {
     const [lng, lat] = poi.location.split(",").map(Number);
     if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-      location = { latitude: lat, longitude: lng };
+      // 高德返回 GCJ-02，需转为 WGS-84
+      location = gcj02ToWgs84(lat, lng);
     }
   }
 

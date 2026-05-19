@@ -31,9 +31,16 @@ describe("error-utils", () => {
 
   describe("createServiceError", () => {
     it("应创建带上下文和 status 的 Error", () => {
-      const err = createServiceError("API 失败", { service: "google", endpoint: "/places" }, { status: 502 });
+      const err = createServiceError(
+        "API 失败",
+        { service: "google", endpoint: "/places" },
+        { status: 502 },
+      );
       expect(err.message).toBe("API 失败");
-      expect((err as Error & { context: unknown }).context).toEqual({ service: "google", endpoint: "/places" });
+      expect((err as Error & { context: unknown }).context).toEqual({
+        service: "google",
+        endpoint: "/places",
+      });
       expect((err as Error & { status: number }).status).toBe(502);
     });
 

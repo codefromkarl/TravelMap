@@ -18,7 +18,7 @@
 import type { LocationAccuracy, PriceConfidence, SupplyPoint } from "../types/route.js";
 import type { Location } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
-import { dualGeocode, isDomesticCity } from "./dual-map-service.js";
+import { dualGeocode, gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithTimeout } from "./http-client.js";
 import {
   getCachedSupplyPoint,
@@ -159,6 +159,8 @@ async function searchAmapPoi(
 
   const poi = data.pois[0];
   const [lng, lat] = poi.location.split(",").map(Number);
+  // 高德返回 GCJ-02，需转为 WGS-84
+  const wgs84 = gcj02ToWgs84(lat, lng);
   const rawCost = poi.biz_ext?.cost ? Number.parseFloat(poi.biz_ext.cost) : undefined;
   const cost =
     typeof rawCost === "number" && Number.isFinite(rawCost) && rawCost > 0
@@ -169,7 +171,7 @@ async function searchAmapPoi(
     typeof rawRating === "number" && Number.isFinite(rawRating) ? rawRating : undefined;
 
   return {
-    location: { latitude: lat, longitude: lng },
+    location: wgs84,
     address: poi.address,
     poiId: poi.id,
     cost,
