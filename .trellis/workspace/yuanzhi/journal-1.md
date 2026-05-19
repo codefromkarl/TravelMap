@@ -173,3 +173,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: 补齐 multi-source-service.ts 测试覆盖率到 87.5%
+
+**Date**: 2026-05-19
+**Task**: 补齐 multi-source-service.ts 测试覆盖率到 87.5%
+**Branch**: `main`
+
+### Summary
+
+归档 3 个已完成任务（ci-github-actions/test-travel-agent/e2e-portability），创建并执行 05-19-multi-source-coverage 任务：补充 multi-source-service.ts 测试 7 个（Google Places 正常路径/5xx降级/ZERO_RESULTS降级/category映射 + deduplicate同名合并 + UGC空数据local_knowledge降级），行覆盖从 59.4% 提升至 87.5%，函数覆盖 71.4% → 100.0%。lint+typecheck通过，593测试通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `33fc30d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

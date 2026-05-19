@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~175 | Active |
+| `journal-1.md` | ~208 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-05-19 | 补齐 multi-source-service.ts 测试覆盖率到 87.5% | `33fc30d` | `main` |
 | 5 | 2026-05-19 | 测试质量优化：从覆盖率导向转向业务需求导向 | `9f149cb`, `04783d9` | `main` |
 | 4 | 2026-05-18 | UI/UX P2 打磨 — 动画偏好/发送按钮/键盘无障碍/卡片i18n | `cf800ee` | `main` |
 | 3 | 2026-05-18 | UI/UX P0/P1 优化 — 首屏引导 + 面板交互统一 | `f84caa9` | `main` |
