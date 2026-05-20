@@ -101,7 +101,122 @@ Remove `.disabled-ghost` class to enable after itinerary generation.
 - All interactive buttons must have `title` or accessible name
 - Close buttons (✕) need sufficient touch target (min 44×44px)
 - Panels close via: ✕ button, overlay click, Esc key
-- `prefers-reduced-motion` not yet implemented (P2)
+- `prefers-reduced-motion` supported via CSS media query (see below)
+
+---
+
+## Skeleton Screen Pattern
+
+For first-contentful-paint improvement:
+
+```html
+<!-- HTML: place inside the page container -->
+<div id="page-skeleton" class="skeleton-overlay">
+  <div class="skeleton-placeholder">
+    <div class="skeleton-shimmer"></div>
+    <div class="skeleton-icon">🗺️</div>
+    <div class="skeleton-text" data-i18n="skeletonLoading">Loading...</div>
+  </div>
+</div>
+```
+
+```css
+/* CSS: shimmer animation + fade-out transition */
+.skeleton-overlay {
+  position: fixed; inset: 0;
+  z-index: 9999;
+  background: var(--color-bg-base);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.4s ease-out;
+}
+.skeleton-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+.skeleton-shimmer {
+  width: 280px; height: 180px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-surface) 50%, var(--color-bg-elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+```
+
+```js
+// JS: remove after init completes
+const skeleton = document.getElementById('page-skeleton');
+if (skeleton) {
+  skeleton.classList.add('fade-out');
+  setTimeout(() => skeleton.remove(), 500);
+}
+```
+
+---
+
+## Lazy Loading Pattern
+
+For heavy modules (QR code, chart libs), use dynamic import:
+
+```js
+// Instead of: import { heavyFn } from './heavy-module.js';
+let _heavyFn = null;
+async function getHeavyFn() {
+  if (!_heavyFn) {
+    const mod = await import('./heavy-module.js');
+    _heavyFn = mod.heavyFn;
+  }
+  return _heavyFn;
+}
+
+// Usage
+const heavyFn = await getHeavyFn();
+heavyFn(args);
+```
+
+---
+
+## Error Toast Classification
+
+Show user-friendly error messages based on error type:
+
+```js
+function showErrorToast(errMsg) {
+  const msg = errMsg.toLowerCase();
+  if (msg.includes('fetch') || msg.includes('network')) {
+    showToast('🌐 Network error, please check connection', 5000, 'error');
+  } else if (msg.includes('401') || msg.includes('unauthorized')) {
+    showToast('🔑 Invalid API Key', 5000, 'error');
+  } else if (msg.includes('429') || msg.includes('rate limit')) {
+    showToast('⏳ Rate limited, try again later', 5000, 'warning');
+  } else if (msg.includes('timeout')) {
+    showToast('⏱️ Request timed out', 5000, 'warning');
+  } else {
+    showToast(`❌ Error: ${errMsg.slice(0, 60)}`, 5000, 'error');
+  }
+}
+```
+
+---
+
+## prefers-reduced-motion
+
+Always support accessibility:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Skeleton screens degrade to static placeholder */
+  .skeleton-shimmer {
+    animation: none;
+    background: var(--color-bg-elevated);
+  }
+}
+```
 
 ---
 

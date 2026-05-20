@@ -337,3 +337,36 @@ lint + typecheck 通过。
 - `src/__tests__/unit/services/free-sources.test.ts` — 融合引擎测试
 
 **Commit**: `77aad19 feat: 集成4个免费旅游数据源 + 多源融合去重引擎`
+
+
+## Session 9: TravelMap UX 优化 — 骨架屏/错误Toast/QR懒加载/无障碍
+
+**Date**: 2026-05-20
+**Task**: TravelMap UX 优化 — 骨架屏/错误Toast/QR懒加载/无障碍
+**Branch**: `main`
+
+### Summary
+
+完成 5 项 UX 改进：首屏骨架屏（HTML+CSS+JS移除）、错误Toast增强（网络/API/超时/服务器错误分类+三语提示）、QR码生成器懒加载（动态import）、prefers-reduced-motion无障碍支持、修复image-recognize.ts类型错误。更新前端组件规范。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ddf653c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
