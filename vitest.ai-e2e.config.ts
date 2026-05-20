@@ -25,7 +25,7 @@ export default defineConfig({
     ],
 
     // LLM 响应可能较慢
-    testTimeout: 120_000,
+    testTimeout: 180_000,
     hookTimeout: 30_000,
 
     // 串行执行 — 避免并发导致 API 限流

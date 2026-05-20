@@ -16,9 +16,10 @@ globalThis.localStorage = localStorageMock;
 globalThis.location = { hostname: 'localhost' };
 
 // Mock document.getElementById for showToast
-const toastEl = { textContent: '', className: '', _hide: null, classList: { add: vi.fn() } };
+const toastEl = { textContent: '', innerHTML: '', className: '', _hide: null, classList: { add: vi.fn() }, appendChild: vi.fn(), cloneNode: vi.fn() };
 globalThis.document = {
   getElementById: vi.fn((id) => id === 'toast' ? toastEl : null),
+  createElement: vi.fn(() => ({ textContent: '', className: '', appendChild: vi.fn(), addEventListener: vi.fn(), style: {} })),
 };
 
 const ctx = await import('../context.js');
@@ -26,7 +27,7 @@ const ctx = await import('../context.js');
 describe('context.js exports', () => {
   it('exports constants', () => {
     expect(ctx.DB_NAME).toBe('TravelAgentDB');
-    expect(ctx.DB_VERSION).toBe(2);
+    expect(ctx.DB_VERSION).toBe(3);
     expect(ctx.STORE_NAME).toBe('trips');
     expect(ctx.SUPPLY_STORE_NAME).toBe('supplyPoints');
     expect(ctx.EXPORT_STORAGE_KEY).toBeDefined();
@@ -142,7 +143,7 @@ describe('setter functions', () => {
 
 describe('showToast', () => {
   beforeEach(() => {
-    toastEl.textContent = '';
+    toastEl.innerHTML = '';
     toastEl.className = '';
     vi.clearAllMocks();
   });
@@ -151,10 +152,12 @@ describe('showToast', () => {
     expect(typeof ctx.showToast).toBe('function');
   });
 
-  it('sets toast text and class', () => {
+  it('sets toast class and appends text', () => {
     ctx.showToast('Hello');
-    expect(toastEl.textContent).toBe('Hello');
     expect(toastEl.className).toBe('show');
+    expect(toastEl.innerHTML).toBe(''); // mock innerHTML not updated by appendChild
+    expect(document.createElement).toHaveBeenCalledWith('span');
+    expect(toastEl.appendChild).toHaveBeenCalled();
   });
 
   it('adds type class when type is not default', () => {

@@ -34,7 +34,7 @@ export let currentPage = 'page-map';
 export const EXPORT_STORAGE_KEY = "travel-agent-exported-trips";
 export const TRAVELERS_KEY = "travel-agent-travelers";
 export const DB_NAME = "TravelAgentDB";
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const STORE_NAME = "trips";
 export const SUPPLY_STORE_NAME = "supplyPoints";
 
@@ -119,12 +119,30 @@ export const RISK_COLORS = {
 };
 
 // ─── 工具函数 ────────────────────────────────────────────
-export function showToast(msg, duration = 2500, type = 'default') {
+export function showToast(msg, duration = 2500, type = 'default', action = null) {
   const el = document.getElementById("toast");
   if (!el) return;
-  el.textContent = msg;
+  // 清理旧内容
+  el.innerHTML = '';
+  const textNode = document.createElement('span');
+  textNode.textContent = msg;
+  el.appendChild(textNode);
   el.className = 'show';
   if (type !== 'default') el.classList.add(type);
+  // 可选 action 按钮
+  if (action && action.label && action.onClick) {
+    el.classList.add('has-action');
+    const btn = document.createElement('button');
+    btn.textContent = action.label;
+    btn.className = 'toast-action-btn';
+    btn.addEventListener('click', () => {
+      el.className = '';
+      action.onClick();
+    });
+    el.appendChild(btn);
+    // 有 action 时延长显示时间
+    if (duration <= 2500) duration = 6000;
+  }
   clearTimeout(el._hide);
   el._hide = setTimeout(() => el.className = '', duration);
 }

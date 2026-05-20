@@ -77,7 +77,7 @@ export function initTravelersPanel() {
     document.getElementById("t-pregnant").checked = t.pregnant;
     document.getElementById("t-mobility").checked = t.mobilityImpaired;
     document.getElementById("travelers-summary").textContent = formatTravelersText(t);
-    document.getElementById("travelers-btn").classList.add("active");
+    document.getElementById("travelers-btn")?.classList.add("active");
   }
   const p = loadPreferencesFromStorage();
   if (p) {

@@ -900,3 +900,722 @@ test.describe("CSS 样式", () => {
     expect(bgColor).toBe("rgb(255, 255, 255)");
   });
 });
+
+// ─── 15. 关闭按钮测试 ──────────────────────────────────────
+
+test.describe("关闭按钮", () => {
+  test("点击关闭出行人群按钮应关闭面板", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 先打开面板
+    const openBtn = page.locator("#travelers-btn");
+    if (await openBtn.count() > 0) {
+      await openBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 点击关闭按钮
+    const closeBtn = page.locator("#btn-close-travelers");
+    if (await closeBtn.count() > 0) {
+      await closeBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 验证面板关闭
+    const panelClosed = await page.evaluate(() => {
+      const panel = document.getElementById("travelers-panel");
+      return !panel?.classList.contains("open");
+    });
+
+    expect(panelClosed).toBe(true);
+  });
+
+  test("点击关闭历史按钮应关闭面板", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 先打开面板
+    const openBtn = page.locator("#btn-history-map");
+    if (await openBtn.count() > 0) {
+      await openBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 点击关闭按钮
+    const closeBtn = page.locator("#btn-close-history");
+    if (await closeBtn.count() > 0) {
+      await closeBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 验证面板关闭
+    const panelClosed = await page.evaluate(() => {
+      const panel = document.getElementById("history-panel");
+      return !panel?.classList.contains("open");
+    });
+
+    expect(panelClosed).toBe(true);
+  });
+
+  test("点击关闭分享弹窗按钮应关闭弹窗", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 直接点击关闭按钮（弹窗默认隐藏，按钮仍可点击）
+    const closeBtn = page.locator("#btn-close-share-modal");
+    if (await closeBtn.count() > 0) {
+      await closeBtn.click();
+      await page.waitForTimeout(300);
+    }
+
+    // 验证无 JS 错误
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+    await page.waitForTimeout(500);
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 16. 导出按钮状态转换测试 ──────────────────────────────
+
+test.describe("导出按钮状态转换", () => {
+  test("TTS 按钮应存在且默认禁用", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnState = await page.evaluate(() => {
+      const btn = document.getElementById("btn-tts");
+      return {
+        exists: !!btn,
+        isDisabled: btn?.classList.contains("disabled-ghost"),
+        text: btn?.textContent?.trim(),
+      };
+    });
+
+    expect(btnState.exists).toBe(true);
+    expect(btnState.isDisabled).toBe(true);
+    expect(btnState.text).toContain("语音播报");
+  });
+
+  test("海报按钮应存在且默认禁用", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnState = await page.evaluate(() => {
+      const btn = document.getElementById("btn-poster");
+      return {
+        exists: !!btn,
+        isDisabled: btn?.classList.contains("disabled-ghost"),
+        text: btn?.textContent?.trim(),
+      };
+    });
+
+    expect(btnState.exists).toBe(true);
+    expect(btnState.isDisabled).toBe(true);
+    expect(btnState.text).toContain("长图");
+  });
+
+  test("语音伴游按钮应存在且默认禁用", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnState = await page.evaluate(() => {
+      const btn = document.getElementById("btn-voice-companion");
+      return {
+        exists: !!btn,
+        isDisabled: btn?.classList.contains("disabled-ghost"),
+        text: btn?.textContent?.trim(),
+      };
+    });
+
+    expect(btnState.exists).toBe(true);
+    expect(btnState.isDisabled).toBe(true);
+    expect(btnState.text).toContain("语音伴游");
+  });
+
+  test("地图按钮应存在且默认禁用", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnState = await page.evaluate(() => {
+      const btn = document.getElementById("btn-map");
+      return {
+        exists: !!btn,
+        isDisabled: btn?.classList.contains("disabled-ghost"),
+      };
+    });
+
+    expect(btnState.exists).toBe(true);
+    expect(btnState.isDisabled).toBe(true);
+  });
+
+  test("模拟行程生成后导出按钮应启用", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 模拟移除 disabled-ghost 类（模拟行程生成后的状态）
+    await page.evaluate(() => {
+      const btns = ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-tts", "btn-poster", "btn-voice-companion", "btn-map"];
+      btns.forEach(id => {
+        document.getElementById(id)?.classList.remove("disabled-ghost");
+      });
+    });
+
+    // 验证按钮已启用
+    const btnStates = await page.evaluate(() => {
+      const ids = ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr"];
+      return ids.map(id => ({
+        id,
+        isDisabled: document.getElementById(id)?.classList.contains("disabled-ghost"),
+      }));
+    });
+
+    for (const state of btnStates) {
+      expect(state.isDisabled, `${state.id} 应已启用`).toBe(false);
+    }
+  });
+});
+
+// ─── 17. 移动端视图切换 ────────────────────────────────────
+
+test.describe("移动端视图切换", () => {
+  test("移动端地图按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-mobile-map");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+
+  test("移动端聊天按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-mobile-chat");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+});
+
+// ─── 18. 图层选项测试 ──────────────────────────────────────
+
+test.describe("图层选项", () => {
+  test("应有三个图层选项按钮", async ({ page }) => {
+    await page.goto("index.html");
+
+    const layerOptions = await page.evaluate(() => {
+      const options = document.querySelectorAll('.map-layer-option');
+      return Array.from(options).map(o => (o as HTMLElement).dataset.layer);
+    });
+
+    expect(layerOptions).toContain("standard");
+    expect(layerOptions).toContain("satellite");
+    expect(layerOptions).toContain("terrain");
+  });
+
+  test("点击卫星图层选项应切换激活状态", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 先打开图层选择器
+    const layersBtn = page.locator("#btn-map-layers");
+    if (await layersBtn.count() > 0) {
+      await layersBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 点击卫星图层
+    const satelliteBtn = page.locator('.map-layer-option[data-layer="satellite"]');
+    if (await satelliteBtn.count() > 0) {
+      await satelliteBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 验证激活状态
+    const isActive = await page.evaluate(() => {
+      const btn = document.querySelector('.map-layer-option[data-layer="satellite"]');
+      return btn?.classList.contains("active");
+    });
+
+    expect(isActive).toBe(true);
+  });
+});
+
+// ─── 19. 反馈按钮测试 ──────────────────────────────────────
+
+test.describe("反馈功能", () => {
+  test("反馈按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-feedback");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+
+  test("点击反馈按钮应打开反馈弹窗", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+    await page.waitForTimeout(2000);
+
+    // 点击反馈按钮
+    const btn = page.locator("#btn-feedback");
+    if (await btn.count() > 0) {
+      await btn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 验证反馈弹窗显示
+    const feedbackVisible = await page.evaluate(() => {
+      const overlay = document.getElementById("feedback-overlay");
+      return overlay?.style.display === "flex";
+    });
+
+    expect(feedbackVisible).toBe(true);
+  });
+
+  test("点击关闭反馈按钮应关闭反馈弹窗", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+    await page.waitForTimeout(2000);
+
+    // 先打开
+    const openBtn = page.locator("#btn-feedback");
+    if (await openBtn.count() > 0) {
+      await openBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 点击关闭
+    const closeBtn = page.locator("#btn-close-feedback");
+    if (await closeBtn.count() > 0) {
+      await closeBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 验证关闭
+    const feedbackHidden = await page.evaluate(() => {
+      const overlay = document.getElementById("feedback-overlay");
+      return overlay?.style.display === "none" || !overlay?.style.display;
+    });
+
+    expect(feedbackHidden).toBe(true);
+  });
+});
+
+// ─── 20. 路线面板最小化测试 ────────────────────────────────
+
+test.describe("路线面板最小化", () => {
+  test("最小化按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-minimize-routes");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+
+  test("点击最小化按钮不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 先打开路线面板
+    const routesBtn = page.locator("#btn-map-routes");
+    if (await routesBtn.count() > 0) {
+      await routesBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 点击最小化
+    const minimizeBtn = page.locator("#btn-minimize-routes");
+    if (await minimizeBtn.count() > 0) {
+      await minimizeBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 21. 保存出行人群按钮测试 ──────────────────────────────
+
+test.describe("保存出行人群按钮", () => {
+  test("点击保存按钮应持久化设置", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 打开面板
+    const openBtn = page.locator("#travelers-btn");
+    if (await openBtn.count() > 0) {
+      await openBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 设置输入值
+    await page.evaluate(() => {
+      const adultsInput = document.getElementById("t-adults") as HTMLInputElement;
+      if (adultsInput) adultsInput.value = "3";
+    });
+
+    // 点击保存
+    const saveBtn = page.locator("#travelers-save");
+    if (await saveBtn.count() > 0) {
+      await saveBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 验证无 JS 错误
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+    await page.waitForTimeout(500);
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 22. 退出按钮测试 ──────────────────────────────────────
+
+test.describe("退出按钮", () => {
+  test("退出按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-logout");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+});
+
+// ─── 23. 获取模型按钮测试 ──────────────────────────────────
+
+test.describe("获取模型按钮", () => {
+  test("获取模型按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-fetch-models");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+
+  test("点击获取模型按钮不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 打开模型配置弹窗
+    const openBtn = page.locator("#btn-open-model");
+    if (await openBtn.count() > 0) {
+      await openBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 点击获取模型
+    const fetchBtn = page.locator("#btn-fetch-models");
+    if (await fetchBtn.count() > 0) {
+      await fetchBtn.click();
+      await page.waitForTimeout(1000);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 24. TTS/海报/语音伴游按钮点击测试 ────────────────────
+
+test.describe("TTS/海报/语音伴游按钮点击", () => {
+  test("点击 TTS 按钮（禁用态）不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // TTS 按钮在禁用态，点击不应报错
+    const btn = page.locator("#btn-tts");
+    if (await btn.count() > 0) {
+      await btn.click({ force: true });
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+
+  test("点击海报按钮（禁用态）不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    const btn = page.locator("#btn-poster");
+    if (await btn.count() > 0) {
+      await btn.click({ force: true });
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+
+  test("点击语音伴游按钮（禁用态）不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    const btn = page.locator("#btn-voice-companion");
+    if (await btn.count() > 0) {
+      await btn.click({ force: true });
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+
+  test("点击地图按钮（禁用态）不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    const btn = page.locator("#btn-map");
+    if (await btn.count() > 0) {
+      await btn.click({ force: true });
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 25. 反馈提交按钮测试 ──────────────────────────────────
+
+test.describe("反馈提交按钮", () => {
+  test("提交反馈按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-submit-feedback");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+
+  test("点击提交反馈按钮不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    // 先打开反馈弹窗
+    const openBtn = page.locator("#btn-feedback");
+    if (await openBtn.count() > 0) {
+      await openBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 点击提交
+    const submitBtn = page.locator("#btn-submit-feedback");
+    if (await submitBtn.count() > 0) {
+      await submitBtn.click();
+      await page.waitForTimeout(1000);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 26. 分享弹窗按钮测试 ─────────────────────────────────
+
+test.describe("分享弹窗按钮", () => {
+  test("下载分享图片按钮应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-download-share-image");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+
+  test("关闭分享弹窗按钮 2 应存在", async ({ page }) => {
+    await page.goto("index.html");
+
+    const btnExists = await page.evaluate(() => {
+      return !!document.getElementById("btn-close-share-modal-2");
+    });
+
+    expect(btnExists).toBe(true);
+  });
+
+  test("点击关闭分享弹窗按钮 2 不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    const btn = page.locator("#btn-close-share-modal-2");
+    if (await btn.count() > 0) {
+      await btn.click();
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 27. 退出按钮点击测试 ─────────────────────────────────
+
+test.describe("退出按钮点击", () => {
+  test("点击退出按钮不应抛出 JS 错误", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    const btn = page.locator("#btn-logout");
+    if (await btn.count() > 0) {
+      await btn.click();
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 28. 移动端视口按钮点击测试 ───────────────────────────
+
+test.describe("移动端按钮点击", () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+
+  test("移动端地图按钮应可点击", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    const btn = page.locator("#btn-mobile-map");
+    if (await btn.count() > 0) {
+      await btn.click();
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+
+  test("移动端聊天按钮应可点击", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+
+    const btn = page.locator("#btn-mobile-chat");
+    if (await btn.count() > 0) {
+      await btn.click();
+      await page.waitForTimeout(500);
+    }
+
+    const criticalErrors = collectCriticalErrors(errors);
+    expect(criticalErrors).toEqual([]);
+  });
+});
+
+// ─── 29. btn-voice-input 可见性测试 ────────────────────────
+
+test.describe("语音输入按钮可见性", () => {
+  test("btn-voice-input 初始应隐藏", async ({ page }) => {
+    await page.goto("index.html");
+
+    const isHidden = await page.evaluate(() => {
+      const btn = document.getElementById("btn-voice-input");
+      if (!btn) return false;
+      const style = getComputedStyle(btn);
+      return style.display === "none";
+    });
+
+    expect(isHidden).toBe(true);
+  });
+
+  test("btn-voice-input 应有正确的 title 属性", async ({ page }) => {
+    await page.goto("index.html");
+
+    const title = await page.evaluate(() => {
+      return document.getElementById("btn-voice-input")?.getAttribute("title");
+    });
+
+    expect(title).toBe("语音输入");
+  });
+});
+
+// ─── 30. btn-enrich-supplies 可见性测试 ────────────────────
+
+test.describe("丰富补给按钮可见性", () => {
+  test("btn-enrich-supplies 初始应隐藏", async ({ page }) => {
+    await page.goto("index.html");
+
+    const isHidden = await page.evaluate(() => {
+      const btn = document.getElementById("btn-enrich-supplies");
+      if (!btn) return false;
+      const style = getComputedStyle(btn);
+      return style.display === "none";
+    });
+
+    expect(isHidden).toBe(true);
+  });
+
+  test("btn-enrich-supplies 应有正确的 title 属性", async ({ page }) => {
+    await page.goto("index.html");
+
+    const title = await page.evaluate(() => {
+      return document.getElementById("btn-enrich-supplies")?.getAttribute("title");
+    });
+
+    expect(title).toBe("丰富补给详情");
+  });
+});

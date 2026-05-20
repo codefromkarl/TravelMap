@@ -27,6 +27,17 @@ export const searchAttractionsTool = {
         { name: "西湖", nameZh: "西湖", address: "杭州市西湖区", ticketPrice: 0, visitDuration: 240, description: "世界文化遗产，杭州名片", location: { latitude: 30.2485, longitude: 120.1466 } },
         { name: "灵隐寺", nameZh: "灵隐寺", address: "西湖区灵隐路法云弄1号", ticketPrice: 75, visitDuration: 150, description: "千年古刹", location: { latitude: 30.2406, longitude: 120.0984 } },
       ],
+      "西安": [
+        { name: "秦始皇兵马俑博物馆", nameZh: "秦始皇兵马俑博物馆", address: "临潼区秦陵北路", ticketPrice: 120, visitDuration: 240, description: "世界第八大奇迹", location: { latitude: 34.3848, longitude: 109.2734 } },
+        { name: "西安城墙", nameZh: "西安城墙", address: "碑林区南大街", ticketPrice: 54, visitDuration: 120, description: "中国现存最完整的古城墙", location: { latitude: 34.2658, longitude: 108.9541 } },
+        { name: "大雁塔", nameZh: "大雁塔", address: "雁塔区雁塔南路", ticketPrice: 40, visitDuration: 90, description: "唐代著名佛塔", location: { latitude: 34.2189, longitude: 108.9641 } },
+        { name: "陕西历史博物馆", nameZh: "陕西历史博物馆", address: "雁塔区小寨东路91号", ticketPrice: 0, visitDuration: 180, description: "中国第一座大型现代化国家级博物馆", location: { latitude: 34.2317, longitude: 108.9426 } },
+        { name: "钟楼", nameZh: "钟楼", address: "碑林区东西南北四条大街交汇处", ticketPrice: 30, visitDuration: 60, description: "西安标志性建筑", location: { latitude: 34.2658, longitude: 108.9413 } },
+        { name: "鼓楼", nameZh: "鼓楼", address: "碑林区西大街", ticketPrice: 30, visitDuration: 60, description: "明清建筑", location: { latitude: 34.2636, longitude: 108.9400 } },
+        { name: "回民街", nameZh: "回民街", address: "碑林区北院门", ticketPrice: 0, visitDuration: 120, description: "西安著名美食街", location: { latitude: 34.2672, longitude: 108.9386 } },
+        { name: "大唐不夜城", nameZh: "大唐不夜城", address: "雁塔区慈恩路", ticketPrice: 0, visitDuration: 120, description: "盛唐文化主题步行街", location: { latitude: 34.2175, longitude: 108.9636 } },
+        { name: "华清宫", nameZh: "华清宫", address: "临潼区华清路38号", ticketPrice: 120, visitDuration: 120, description: "唐代皇家温泉行宫", location: { latitude: 34.3622, longitude: 109.2984 } },
+      ],
     };
     const attractions = mockData[city] || [
       { name: `${city}中心公园`, nameZh: `${city}中心公园`, address: `${city}市中心`, ticketPrice: 0, visitDuration: 120, description: `${city}主要城市公园`, location: { latitude: 31.23, longitude: 121.47 } },

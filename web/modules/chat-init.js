@@ -1,9 +1,22 @@
 // ─── 修复 text/event-stream 缺少 charset=utf-8 导致中文乱码 ──
 // cli-proxyapi 返回 Content-Type: text/event-stream（无 charset），
 // 浏览器按 HTTP 规范默认 ISO-8859-1 解码流，UTF-8 中文变成乱码。
-// 拦截 fetch，对 SSE 响应强制修正 Content-Type。
+// 拦截 fetch，对 SSE 响应强制修正 Content-Type，并注入 trace headers。
 const _origFetch = globalThis.fetch;
 globalThis.fetch = function fixedCharsetFetch(input, init) {
+  const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+  
+  // ─── 注入 trace headers（仅 LLM API 请求） ─────────
+  const isLlmRequest = url.includes('/v1/chat/completions') || url.includes('/v1/messages') || url.includes('/api/chat');
+  if (isLlmRequest && init && typeof window !== 'undefined' && window.__traceAddHeaders) {
+    try {
+      const traceHeaders = window.__traceAddHeaders(init.headers || {});
+      init.headers = traceHeaders;
+    } catch (e) {
+      // trace 模块未加载时忽略
+    }
+  }
+  
   return _origFetch.call(this, input, init).then(resp => {
     const ct = resp.headers.get('content-type') || '';
     if (ct.includes('text/event-stream') && !ct.includes('charset')) {
@@ -26,7 +39,7 @@ import { getModel } from "@earendil-works/pi-ai";
 import { config, resolveApiKey } from './config.js';
 import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
-  currentLang, setCurrentLang, showToast,
+  currentLang, setCurrentLang, showToast, currentTravelers, currentPreferences,
 } from './context.js';
 import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js';
 import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js';
@@ -39,7 +52,8 @@ import { tryRestoreSession } from './session.js';
 import { initTravelersPanel } from './travelers.js';
 import { loadSharedTrip, renderSharedTrips } from './export.js';
 import { loadSharedTripFromHash } from './share.js';
-import { saveTrip, listTrips } from './db.js';
+import { saveTripPlan, listTrips } from './db.js';
+import { addTraceHeaders, extractTraceId } from './trace.js';
 
 export async function initApp() {
   // ─── 读取 provider/model 配置 ─────────────────────────
@@ -103,24 +117,50 @@ export async function initApp() {
   }
 
   /**
-   * 根据错误消息分类显示用户友好的 Toast 提示
+   * 根据错误消息分类显示用户友好的 Toast 提示（带重试按钮）
    */
   function showErrorToast(errMsg) {
+    const isRetryable = (msg) => {
+      const m = msg.toLowerCase();
+      return m.includes('fetch') || m.includes('network') || m.includes('failed to fetch')
+        || m.includes('networkerror') || m.includes('err_connection') || m.includes('timeout')
+        || m.includes('timed out') || m.includes('500') || m.includes('502')
+        || m.includes('503') || m.includes('server error');
+    };
+    const retryAction = isRetryable(errMsg) ? {
+      label: currentLang === 'zh' ? '重试' : currentLang === 'ja' ? '再試行' : 'Retry',
+      onClick: () => {
+        // 重新发送最后一条用户消息
+        const msgs = _agent.state.messages;
+        const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
+        if (lastUserMsg) {
+          const content = typeof lastUserMsg.content === 'string' ? lastUserMsg.content
+            : Array.isArray(lastUserMsg.content) ? lastUserMsg.content.filter(c => c.type === 'text').map(c => c.text).join('') : '';
+          if (content) {
+            // 移除最后的错误消息
+            const lastAssistant = msgs.filter(m => m.role === 'assistant').slice(-1)[0];
+            if (lastAssistant?.errorMessage) msgs.pop();
+            _agent.run(content);
+          }
+        }
+      }
+    } : null;
+
     const msg = errMsg.toLowerCase();
     if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('err_connection')) {
-      showToast(currentLang === 'zh' ? '🌐 网络连接失败，请检查网络后重试' : currentLang === 'ja' ? '🌐 ネットワーク接続に失敗しました' : '🌐 Network error, please check your connection', 5000, 'error');
+      showToast(currentLang === 'zh' ? '🌐 网络连接失败，请检查网络后重试' : currentLang === 'ja' ? '🌐 ネットワーク接続に失敗しました' : '🌐 Network error, please check your connection', 6000, 'error', retryAction);
     } else if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('incorrect api key') || msg.includes('invalid_api_key')) {
       showToast(currentLang === 'zh' ? '🔑 API Key 无效，请在设置中检查' : currentLang === 'ja' ? '🔑 API Key が無効です' : '🔑 Invalid API Key, please check settings', 5000, 'error');
     } else if (msg.includes('429') || msg.includes('rate') || msg.includes('rate limit') || msg.includes('too many requests')) {
       showToast(currentLang === 'zh' ? '⏳ 请求过于频繁，请稍后重试' : currentLang === 'ja' ? '⏳ リクエストが多すぎます' : '⏳ Rate limited, please try again later', 5000, 'warning');
     } else if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort')) {
       if (!msg.includes('user abort')) {
-        showToast(currentLang === 'zh' ? '⏱️ 请求超时，请稍后重试' : currentLang === 'ja' ? '⏱️ リクエストがタイムアウトしました' : '⏱️ Request timed out, please try again', 5000, 'warning');
+        showToast(currentLang === 'zh' ? '⏱️ 请求超时，请稍后重试' : currentLang === 'ja' ? '⏱️ リクエストがタイムアウトしました' : '⏱️ Request timed out, please try again', 6000, 'warning', retryAction);
       }
     } else if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('server error')) {
-      showToast(currentLang === 'zh' ? '🔧 服务器错误，请稍后重试' : currentLang === 'ja' ? '🔧 サーバーエラーです' : '🔧 Server error, please try again later', 5000, 'error');
+      showToast(currentLang === 'zh' ? '🔧 服务器错误，请稍后重试' : currentLang === 'ja' ? '🔧 サーバーエラーです' : '🔧 Server error, please try again later', 6000, 'error', retryAction);
     } else {
-      showToast(currentLang === 'zh' ? `❌ 规划失败：${errMsg.slice(0, 60)}` : `❌ Error: ${errMsg.slice(0, 60)}`, 5000, 'error');
+      showToast(currentLang === 'zh' ? `❌ 规划失败：${errMsg.slice(0, 60)}` : `❌ Error: ${errMsg.slice(0, 60)}`, 5000, 'error', retryAction);
     }
   }
   _agent.subscribe((event) => {
@@ -242,7 +282,10 @@ export async function initApp() {
       const raw = event.error?.message || event.payload?.error?.message || "";
       const errMsg = String(raw);
       if (errMsg.includes("QUOTA") || errMsg.includes("quota") || errMsg.includes("次数已用完") || errMsg.includes("免费体验")) {
-        showToast("免费体验次数已用完，请登录后继续使用", 5000, "warning");
+        showToast("免费体验次数已用完，请登录后继续使用", 6000, "warning", {
+          label: '去登录',
+          onClick: () => { document.getElementById('auth-overlay')?.style.setProperty('display', 'flex'); }
+        });
       } else if (errMsg) {
         showToast(`计划生成失败：${errMsg.slice(0, 80)}`, 5000, "error");
       } else {
@@ -254,30 +297,96 @@ export async function initApp() {
   // ─── 自动保存 ─────────────────────────────────────────
   let saveTimeout = null;
   function autoSaveTrip() {
+    const tripPlan = window._lastTripPlan;
     const msgs = _agent.state.messages;
-    let content = null;
+
+    // 找 assistant 的 markdown 文本
+    let markdown = null;
     for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i].role === "assistant" && typeof msgs[i].content === "string" && msgs[i].content.length > 100) {
-        content = msgs[i].content;
+      if (msgs[i].role === "assistant" && typeof msgs[i].content === "string" && msgs[i].content.length > 50) {
+        markdown = msgs[i].content;
         break;
       }
     }
-    if (!content || content.length < 200) return;
+
+    // 没有 tripPlan 也没有 markdown，不保存
+    if (!tripPlan && !markdown) return;
     if (!currentTripId) setCurrentTripId(crypto.randomUUID());
 
+    // 从 tripPlan 提取元数据（比正则可靠）
+    const city = tripPlan?.city || "";
+    const cities = tripPlan?.cities || (city ? [city] : []);
+    const startDate = tripPlan?.startDate || "";
+    const endDate = tripPlan?.endDate || "";
+    const days = tripPlan?.days?.length || 0;
+
+    // 生成标题
     let title = "未命名行程";
-    const cityMatch = content.match(/(?:目的地|城市)[：:]\s*\*{0,2}([^*\n,，]+)/);
-    if (cityMatch) title = cityMatch[1].trim();
-    else {
-      const hMatch = content.match(/^#+\s*(.+?)(行程|旅行|计划)/m);
+    if (city && days > 0) {
+      title = `${city}${days}日游`;
+    } else if (city) {
+      title = `${city}旅行`;
+    } else if (markdown) {
+      const hMatch = markdown.match(/^#+\s*(.+?)(行程|旅行|计划)/m);
       if (hMatch) title = hMatch[1].trim() + hMatch[2];
     }
-    const summary = content.replace(/[#*\n]/g, " ").substring(0, 100).trim();
+
+    // 摘要
+    let summary = "";
+    if (tripPlan?.overallSuggestions) {
+      summary = tripPlan.overallSuggestions.replace(/[#*\n]/g, " ").substring(0, 100).trim();
+    } else if (markdown) {
+      summary = markdown.replace(/[#*\n]/g, " ").substring(0, 100).trim();
+    }
+
+    // 封面图（第一个景点的第一张图片）
+    let coverImage = "";
+    if (tripPlan?.days?.length > 0) {
+      for (const day of tripPlan.days) {
+        if (day.attractions?.length > 0) {
+          for (const attr of day.attractions) {
+            if (attr.images?.length > 0) {
+              coverImage = attr.images[0].url;
+              break;
+            }
+          }
+          if (coverImage) break;
+        }
+      }
+    }
+
+    // 构建保存对象
+    const trip = {
+      id: currentTripId,
+      title,
+      city,
+      cities,
+      startDate,
+      endDate,
+      days,
+      summary,
+      coverImage,
+      // 结构化行程数据（核心）
+      tripPlan: tripPlan || null,
+      markdown: markdown || "",
+      // 用户上下文（用于微调）
+      travelerProfile: currentTravelers ? { ...currentTravelers } : null,
+      userPreferences: currentPreferences ? { ...currentPreferences } : null,
+      // 对话历史（用于继续对话）
+      messages: msgs.map(m => ({
+        role: m.role,
+        content: typeof m.content === "string" ? m.content
+          : Array.isArray(m.content) ? m.content.filter(c => c.type === "text").map(c => c.text).join("") : "",
+        timestamp: m.timestamp,
+      })),
+      status: "active",
+    };
 
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
-      saveTrip(currentTripId, title, summary, content, _agent.state.messages)
-        .catch(err => console.error("Auto-save failed:", err));
+      saveTripPlan(trip)
+        .then(() => console.log("[AutoSave] 行程已保存:", title))
+        .catch(err => console.error("[AutoSave] 保存失败:", err));
     }, 1000);
   }
 
@@ -310,6 +419,44 @@ export async function initApp() {
   if (panelInstance?.agentInterface) {
     panelInstance.agentInterface.enableAttachments = false;
     panelInstance.agentInterface.enableThinkingSelector = false;
+
+    // ─── 调试：拦截 sendMessage ────────────────────────────
+    const origSendMessage = panelInstance.agentInterface.sendMessage.bind(panelInstance.agentInterface);
+    panelInstance.agentInterface.sendMessage = async function(input, attachments) {
+      console.log('[DEBUG] sendMessage called:', { input: input?.slice(0, 50), isStreaming: _agent.state.isStreaming, hasModel: !!_agent.state.model });
+      try {
+        await origSendMessage(input, attachments);
+        console.log('[DEBUG] sendMessage completed');
+      } catch (err) {
+        console.error('[DEBUG] sendMessage error:', err);
+        showToast(`发送失败: ${err.message}`, 5000, 'error');
+      }
+    };
+
+    // ─── 调试：监听 isStreaming 状态变化 ──────────────────
+    let lastStreaming = _agent.state.isStreaming;
+    setInterval(() => {
+      const current = _agent.state.isStreaming;
+      if (current !== lastStreaming) {
+        console.log('[DEBUG] isStreaming changed:', lastStreaming, '->', current);
+        lastStreaming = current;
+      }
+
+      // 检查 MessageEditor 状态
+      const me = document.querySelector('message-editor');
+      if (me && me.value) {
+        // 只在有输入时检查
+        const btn = me.querySelector('button:not([disabled])');
+        if (!btn && me.value.trim()) {
+          console.log('[DEBUG] MessageEditor state:', {
+            value: me.value?.slice(0, 30),
+            isStreaming: me.isStreaming,
+            processingFiles: me.processingFiles,
+            hasOnSend: typeof me.onSend === 'function',
+          });
+        }
+      }
+    }, 2000);
   }
 
   // ─── MutationObserver 检测首条消息 → 隐藏欢迎 ────────
@@ -574,3 +721,33 @@ export async function initApp() {
     });
   }
 }
+// ─── 全局调试：监听 textarea 和按钮状态 ─────────────────
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  // 检查是否点击了发送按钮
+  if (target.closest('button') && target.closest('message-editor')) {
+    const btn = target.closest('button');
+    console.log('[DEBUG] Button clicked in message-editor:', {
+      disabled: btn.disabled,
+      text: btn.textContent?.trim(),
+      classes: btn.className,
+    });
+  }
+}, true);
+
+// ─── 全局调试：监听所有按钮点击 ─────────────────────────
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) {
+    const me = btn.closest('message-editor') || btn.closest('agent-interface');
+    if (me) {
+      console.log('[DEBUG] Button click detected:', {
+        tag: btn.tagName,
+        disabled: btn.disabled,
+        text: btn.textContent?.trim().slice(0, 20),
+        parent: me.tagName,
+        value: document.querySelector('message-editor')?.value?.slice(0, 30),
+      });
+    }
+  }
+}, true);

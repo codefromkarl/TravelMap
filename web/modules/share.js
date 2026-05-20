@@ -725,7 +725,7 @@ export async function generateTripPoster(tripPlan) {
         try {
           const img = await loadImage(attr.images[0].url);
           ctx.save();
-          roundRect(ctx, timeLineX + 24, itemY, 60, 45, 4);
+          roundRectForPoster(ctx, timeLineX + 24, itemY, 60, 45, 4);
           ctx.clip();
           ctx.drawImage(img, timeLineX + 24, itemY, 60, 45);
           ctx.restore();
@@ -778,7 +778,7 @@ function loadImage(url) {
 }
 
 /** Canvas 圆角矩形辅助 */
-function roundRect(ctx, x, y, w, h, r) {
+function roundRectForPoster(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);

@@ -53,8 +53,9 @@ const MAX_BODY = 256 * 1024;
 const COMMON_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, X-Turn-Info",
+  "Access-Control-Allow-Headers": "Content-Type, X-Turn-Info, x-trace-id, x-session-id",
   "Access-Control-Allow-Credentials": "true",
+  "Access-Control-Expose-Headers": "x-trace-id, X-Quota-Remaining",
 };
 
 function jsonResponse(status, data) {
@@ -79,6 +80,11 @@ export function onRequest(context) {
 // ─── 主处理 POST ────────────────────────────────────────────
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // ── 提取 traceId ──
+  const traceId = request.headers.get('x-trace-id') || `trace_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const sessionId = request.headers.get('x-session-id') || 'unknown';
+  console.log(`[ChatProxy] traceId=${traceId} sessionId=${sessionId}`);
 
   // ── 环境变量 ──
   const apiKey = env.LLM_API_KEY || env.OPENAI_API_KEY || "";
@@ -163,7 +169,7 @@ export async function onRequestPost(context) {
     // 用量头（让前端知道剩余配额）
     const user = kv ? await getUser(kv, payload.sub) : null;
     const remaining = user ? FREE_TIER.maxApiCalls - (user.usage?.apiCalls || 0) : FREE_TIER.maxApiCalls;
-    const usageHeaders = { "X-Quota-Remaining": String(Math.max(0, remaining)) };
+    const usageHeaders = { "X-Quota-Remaining": String(Math.max(0, remaining)), "x-trace-id": traceId };
 
     if (isStream && upstream.body) {
       return new Response(upstream.body, {

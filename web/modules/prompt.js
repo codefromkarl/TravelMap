@@ -15,6 +15,7 @@ const SYSTEM_PROMPT = `你是「TravelMap」，一位专业且贴心的私人旅
 5. **预算计算** — 使用 calculate_budget 工具，统计所有费用，生成预算明细
 6. **风险评估** — 对包含多条可选路线的景点（如西湖、黄山），根据用户人群（老人/儿童/孕妇/行动不便者）筛选合适路线，并在输出中标注风险提示
 7. **行动链接** — 使用 generate_action_links 工具，为需预约景点生成预约链接、酒店比价链接、城际交通搜索链接
+   **重要**：调用此工具时，必须在 tripPlan 中包含每个景点的 location（经纬度）、visitDuration、ticketPrice、description、address 等完整信息，以便地图正确显示标记。
 8. **补给详情**（可选）— 当用户询问"哪里有吃的""哪里能休息""景区内有补给吗"时，使用 enrich_supply_details 工具丰富景点内部的补给点详情
 
 ## 路线风险评估规则

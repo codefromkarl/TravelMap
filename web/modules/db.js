@@ -6,10 +6,24 @@ export function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
+      const oldVersion = e.oldVersion;
+
+      // trips store：v1 创建，v3 增加索引
       if (!db.objectStoreNames.contains(STORE_NAME)) {
+        // 首次创建
         const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
         store.createIndex("updatedAt", "updatedAt");
+        store.createIndex("city", "city");
+        store.createIndex("status", "status");
+      } else if (oldVersion < 3) {
+        // v2 → v3: 删除旧 store 重建（清空旧数据，因为结构变了）
+        db.deleteObjectStore(STORE_NAME);
+        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
+        store.createIndex("updatedAt", "updatedAt");
+        store.createIndex("city", "city");
+        store.createIndex("status", "status");
       }
+
       if (!db.objectStoreNames.contains(SUPPLY_STORE_NAME)) {
         const supplyStore = db.createObjectStore(SUPPLY_STORE_NAME, { keyPath: "cacheKey" });
         supplyStore.createIndex("updatedAt", "updatedAt");
@@ -22,6 +36,38 @@ export function openDB() {
 }
 
 // ─── 行程 CRUD ────────────────────────────────────────
+
+/**
+ * 保存行程（新版本：结构化数据）
+ * @param {object} trip - 完整行程对象
+ */
+export async function saveTripPlan(trip) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const now = new Date().toISOString();
+    const getReq = store.get(trip.id);
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+      const record = {
+        ...trip,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+        status: trip.status || existing?.status || "active",
+      };
+      const putReq = store.put(record);
+      putReq.onsuccess = () => resolve(record);
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+/**
+ * 保存行程（兼容旧接口）
+ * @deprecated 使用 saveTripPlan 替代
+ */
 export async function saveTrip(id, title, summary, content, messages) {
   const db = await openDB();
   return new Promise((resolve, reject) => {

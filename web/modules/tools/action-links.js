@@ -20,10 +20,33 @@ export const generateActionLinksTool = {
           name: Type.String(),
           nameZh: Type.String(),
           reservationRequired: Type.Optional(Type.Boolean()),
+          location: Type.Optional(Type.Object({
+            latitude: Type.Number(),
+            longitude: Type.Number(),
+          })),
+          visitDuration: Type.Optional(Type.Number()),
+          ticketPrice: Type.Optional(Type.Number()),
+          description: Type.Optional(Type.String()),
+          address: Type.Optional(Type.String()),
+          tips: Type.Optional(Type.String()),
         })),
         hotel: Type.Optional(Type.Object({
           name: Type.String(),
+          location: Type.Optional(Type.Object({
+            latitude: Type.Number(),
+            longitude: Type.Number(),
+          })),
         })),
+        meals: Type.Optional(Type.Array(Type.Object({
+          type: Type.String(),
+          restaurant: Type.Optional(Type.Object({
+            name: Type.String(),
+            location: Type.Optional(Type.Object({
+              latitude: Type.Number(),
+              longitude: Type.Number(),
+            })),
+          })),
+        }))),
       })),
     }),
   }),

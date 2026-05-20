@@ -41,7 +41,6 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://localhost:${PORT}`);
 
   // ─── 代理 esm.sh 请求 ──────────────────────────────
-  // ─── 代理 esm.sh 请求 ──────────────────────────────
   // /esm/* → 代理到 esm.sh
   // /@* → 也代理到 esm.sh（esm.sh 内部的绝对路径引用）
   const isEsmProxy = url.pathname.startsWith("/esm/") || url.pathname.startsWith("/@");
