@@ -1,9 +1,19 @@
 import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js';
 import { I18N } from './i18n.js';
 import {
-  generateShareImage, generateShareLink, generateQRCode,
+  generateShareImage, generateShareLink,
   downloadImage, loadSharedTripFromHash
 } from './share.js';
+
+// QR 码生成器懒加载
+let _generateQRCode = null;
+async function getQRCodeGenerator() {
+  if (!_generateQRCode) {
+    const mod = await import('./share.js');
+    _generateQRCode = mod.generateQRCode;
+  }
+  return _generateQRCode;
+}
 
 // ─── 导出服务 ─────────────────────────────────────────
 export function getLastAssistantContent() {
@@ -154,6 +164,7 @@ async function openShareModal(type) {
   const dict = I18N[currentLang] || I18N.zh;
 
   try {
+  const generateQRCode = await getQRCodeGenerator();
   if (type === 'image') {
     header.textContent = dict.shareModalTitle || '📸 分享预览';
     // 尝试先生成二维码放在卡片上

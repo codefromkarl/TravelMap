@@ -48,6 +48,8 @@ export const I18N = {
     legendLowRisk: "低风险",
     legendMidRisk: "中风险",
     legendHighRisk: "高风险",
+    // ─── 骨架屏 ───────────────────────────────
+    skeletonLoading: "正在加载地图...",
     enrichSupplies: "丰富补给",
     modelConfigTitle: "⚙️ 模型配置",
     providerSection: "AI 服务商",
@@ -139,6 +141,8 @@ export const I18N = {
     legendMidRisk: "Mid Risk",
     legendHighRisk: "High Risk",
     enrichSupplies: "Enrich Supplies",
+    // ─── Skeleton ──────────────────────────────
+    skeletonLoading: "Loading map...",
     modelConfigTitle: "⚙️ Model Configuration",
     providerSection: "AI Provider",
     providerLabel: "Provider",
@@ -229,6 +233,8 @@ export const I18N = {
     legendMidRisk: "中リスク",
     legendHighRisk: "高リスク",
     enrichSupplies: "補給を豊富に",
+    // ─── スケルトン ──────────────────────────
+    skeletonLoading: "地図を読み込み中...",
     modelConfigTitle: "⚙️ モデル設定",
     providerSection: "AIプロバイダー",
     providerLabel: "プロバイダー",

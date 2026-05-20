@@ -28,6 +28,8 @@ import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
   currentLang, setCurrentLang, showToast,
 } from './context.js';
+import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js';
+import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js';
 import { ALL_TOOLS } from './tools/index.js';
 import { buildSystemPrompt } from './prompt.js';
 import { initWelcome } from './welcome.js';
@@ -95,9 +97,31 @@ export async function initApp() {
   function resetToolbarAfterError() {
     window._hidePlanningIndicator?.();
     document.getElementById("export-toolbar")?.classList.add("visible");
-    ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+    ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
       document.getElementById(id)?.classList.remove("disabled-ghost");
     });
+  }
+
+  /**
+   * 根据错误消息分类显示用户友好的 Toast 提示
+   */
+  function showErrorToast(errMsg) {
+    const msg = errMsg.toLowerCase();
+    if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('err_connection')) {
+      showToast(currentLang === 'zh' ? '🌐 网络连接失败，请检查网络后重试' : currentLang === 'ja' ? '🌐 ネットワーク接続に失敗しました' : '🌐 Network error, please check your connection', 5000, 'error');
+    } else if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('incorrect api key') || msg.includes('invalid_api_key')) {
+      showToast(currentLang === 'zh' ? '🔑 API Key 无效，请在设置中检查' : currentLang === 'ja' ? '🔑 API Key が無効です' : '🔑 Invalid API Key, please check settings', 5000, 'error');
+    } else if (msg.includes('429') || msg.includes('rate') || msg.includes('rate limit') || msg.includes('too many requests')) {
+      showToast(currentLang === 'zh' ? '⏳ 请求过于频繁，请稍后重试' : currentLang === 'ja' ? '⏳ リクエストが多すぎます' : '⏳ Rate limited, please try again later', 5000, 'warning');
+    } else if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort')) {
+      if (!msg.includes('user abort')) {
+        showToast(currentLang === 'zh' ? '⏱️ 请求超时，请稍后重试' : currentLang === 'ja' ? '⏱️ リクエストがタイムアウトしました' : '⏱️ Request timed out, please try again', 5000, 'warning');
+      }
+    } else if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('server error')) {
+      showToast(currentLang === 'zh' ? '🔧 服务器错误，请稍后重试' : currentLang === 'ja' ? '🔧 サーバーエラーです' : '🔧 Server error, please try again later', 5000, 'error');
+    } else {
+      showToast(currentLang === 'zh' ? `❌ 规划失败：${errMsg.slice(0, 60)}` : `❌ Error: ${errMsg.slice(0, 60)}`, 5000, 'error');
+    }
   }
   _agent.subscribe((event) => {
     if (event.type === "agent_end") {
@@ -112,17 +136,7 @@ export async function initApp() {
         resetToolbarAfterError();
         const errMsg = lastAssistant.errorMessage;
         console.error("[ChatInit] Agent run failure:", errMsg);
-        if (errMsg.includes("fetch") || errMsg.includes("network") || errMsg.includes("Failed to fetch") || errMsg.includes("NetworkError")) {
-          showToast("网络连接失败，请检查网络或 API Key", 5000, "error");
-        } else if (errMsg.includes("401") || errMsg.includes("Unauthorized") || errMsg.includes("Incorrect API key")) {
-          showToast("API Key 无效，请检查配置", 5000, "error");
-        } else if (errMsg.includes("429") || errMsg.includes("rate") || errMsg.includes("Rate limit")) {
-          showToast("API 请求过于频繁，请稍后重试", 5000, "warning");
-        } else if (errMsg.includes("Abort") || errMsg.includes("abort")) {
-          // 用户主动中断，不提示错误
-        } else {
-          showToast(`规划失败：${errMsg.slice(0, 80)}`, 5000, "error");
-        }
+        showErrorToast(errMsg);
         return;
       }
 
@@ -137,7 +151,7 @@ export async function initApp() {
               lastTripContentInner = content;
               setLastTripContent(content);
               document.getElementById("export-toolbar")?.classList.add("visible");
-              ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+              ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
                 document.getElementById(id)?.classList.remove("disabled-ghost");
               });
             }
@@ -177,7 +191,7 @@ export async function initApp() {
     if (event.type === "turn_start") {
       window._showPlanningIndicator?.('正在规划行程...');
       document.getElementById("export-toolbar")?.classList.remove("visible");
-      ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map"].forEach(id => {
+      ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
         document.getElementById(id)?.classList.add("disabled-ghost");
       });
       setCurrentTripId(null);
@@ -371,4 +385,192 @@ export async function initApp() {
 
   // ─── 会话恢复 ─────────────────────────────────────────
   tryRestoreSession();
+
+  // ─── 语音播报按钮 ───────────────────────────────────────
+  const btnTts = document.getElementById('btn-tts');
+  if (btnTts && isTTSSupported()) {
+    btnTts.addEventListener('click', () => {
+      const { isPlaying, isPaused } = getState();
+
+      if (isPlaying) {
+        pause();
+        return;
+      }
+      if (isPaused) {
+        resume();
+        return;
+      }
+
+      // 获取行程数据并生成播报文本
+      const tripPlan = window._lastTripPlan;
+      if (!tripPlan) {
+        showToast('请先生成行程', 3000, 'warning');
+        return;
+      }
+
+      const speechText = generateSpeechText(tripPlan);
+      if (!speechText) {
+        showToast('无法生成播报内容', 3000, 'warning');
+        return;
+      }
+
+      speak(speechText, {
+        onStart: () => showToast('开始播报行程', 2000),
+        onEnd: () => showToast('播报结束', 2000),
+      });
+    });
+  } else if (btnTts) {
+    // 不支持 TTS 时隐藏按钮
+    btnTts.style.display = 'none';
+  }
+
+  // ─── 语音输入按钮 ───────────────────────────────────────
+  const btnVoice = document.getElementById('btn-voice-input');
+  if (btnVoice && isSTTSupported()) {
+    // 显示语音输入按钮
+    btnVoice.style.display = 'flex';
+
+    // 初始化语音识别
+    initRecognition({
+      onStart: () => {
+        showToast('🎤 正在聆听...', 2000);
+      },
+      onResult: (text, isFinal) => {
+        if (isFinal) {
+          // 最终结果：填入输入框
+          const textarea = document.querySelector('message-editor textarea')
+            || document.querySelector('#chat textarea')
+            || document.querySelector('textarea');
+          if (textarea) {
+            const currentValue = textarea.value || '';
+            const separator = currentValue && !currentValue.endsWith(' ') ? ' ' : '';
+            textarea.value = currentValue + separator + text;
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.focus();
+          }
+        } else {
+          // 中间结果：显示提示
+          const interimEl = document.getElementById('stt-interim-text');
+          if (interimEl) {
+            interimEl.textContent = `🎤 ${text}`;
+            interimEl.style.display = 'block';
+          }
+        }
+      },
+      onEnd: () => {
+        const interimEl = document.getElementById('stt-interim-text');
+        if (interimEl) interimEl.style.display = 'none';
+      },
+      onError: (errMsg) => {
+        showToast(errMsg, 3000, 'warning');
+      },
+    });
+
+    // 按钮点击事件
+    btnVoice.addEventListener('click', () => {
+      const { isListening } = getSTTState();
+      if (isListening) {
+        stopListening();
+      } else {
+        startListening();
+      }
+    });
+  } else if (btnVoice) {
+    // 不支持 STT 时隐藏按钮
+    btnVoice.style.display = 'none';
+  }
+
+  // 创建临时识别文本元素
+  const interimDiv = document.createElement('div');
+  interimDiv.id = 'stt-interim-text';
+  interimDiv.style.cssText = `
+    display: none;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--color-text-muted, #888);
+    font-style: italic;
+    background: var(--color-bg-elevated);
+    border-top: 1px solid var(--color-border-subtle);
+  `;
+  const chatBody = document.getElementById('map-chat-body');
+  if (chatBody) chatBody.appendChild(interimDiv);
+
+  // ─── 移除骨架屏 ──────────────────────────────────────
+  const skeleton = document.getElementById('map-skeleton');
+  if (skeleton) {
+    skeleton.classList.add('fade-out');
+    setTimeout(() => skeleton.remove(), 500);
+  }
+
+  // ─── 攻略长图按钮 ───────────────────────────────────────
+  const btnPoster = document.getElementById('btn-poster');
+  if (btnPoster) {
+    btnPoster.addEventListener('click', async () => {
+      const tripPlan = window._lastTripPlan;
+      if (!tripPlan) {
+        showToast('请先生成行程', 3000, 'warning');
+        return;
+      }
+
+      showToast('正在生成攻略长图...', 3000);
+
+      try {
+        // 动态导入 share 模块
+        const { generateTripPoster, downloadImage } = await import('./share.js');
+        const dataUrl = await generateTripPoster(tripPlan);
+        if (dataUrl) {
+          downloadImage(dataUrl, `旅图_${tripPlan.city || '攻略'}_${tripPlan.days?.length || 0}日游.png`);
+          showToast('攻略长图已生成', 3000, 'success');
+        } else {
+          showToast('生成失败，请重试', 3000, 'error');
+        }
+      } catch (err) {
+        console.error('[Poster] Generate failed:', err);
+        showToast('生成失败: ' + (err.message || '未知错误'), 3000, 'error');
+      }
+    });
+  }
+
+  // ─── 语音伴游按钮 ───────────────────────────────────────
+  const btnCompanion = document.getElementById('btn-voice-companion');
+  if (btnCompanion) {
+    // 动态导入语音伴游模块
+    import('./voice-companion.js').then(({ startVoiceCompanion, stopVoiceCompanion, getCompanionState, setTripPlanForCompanion }) => {
+      btnCompanion.style.display = 'flex';
+
+      btnCompanion.addEventListener('click', () => {
+        const { isActive } = getCompanionState();
+
+        if (isActive) {
+          stopVoiceCompanion();
+          showToast('语音伴游已结束', 2000);
+        } else {
+          const tripPlan = window._lastTripPlan;
+          if (!tripPlan) {
+            showToast('请先生成行程', 3000, 'warning');
+            return;
+          }
+
+          setTripPlanForCompanion(tripPlan);
+
+          startVoiceCompanion({
+            onQuestion: (text) => {
+              showToast(`🎤 ${text}`, 2000);
+            },
+            onError: (errMsg) => {
+              showToast(errMsg, 3000, 'warning');
+            },
+            onStateChange: ({ isActive, state }) => {
+              // 更新按钮状态
+            },
+          });
+
+          showToast('语音伴游已启动，请开始提问', 3000, 'success');
+        }
+      });
+    }).catch(() => {
+      // 语音伴游模块加载失败，隐藏按钮
+      btnCompanion.style.display = 'none';
+    });
+  }
 }

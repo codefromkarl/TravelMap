@@ -238,6 +238,57 @@
     .export-btn:hover { background: var(--color-bg-elevated); color: var(--color-text-primary); }
     .export-btn:active { background: var(--color-bg-surface); }
 
+    /* TTS 按钮播放状态 */
+    #btn-tts.playing {
+      background: var(--color-accent, #3b82f6);
+      color: white;
+      animation: tts-pulse 1.5s ease-in-out infinite;
+    }
+    #btn-tts.paused {
+      background: var(--color-bg-elevated);
+      border-color: var(--color-accent, #3b82f6);
+    }
+    @keyframes tts-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    #btn-tts .tts-icon {
+      font-size: 14px;
+    }
+
+    /* 语音输入按钮 */
+    .voice-input-btn {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--color-border-default);
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+    .voice-input-btn:hover {
+      background: var(--color-bg-surface);
+      border-color: var(--color-accent, #3b82f6);
+    }
+    .voice-input-btn.listening {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: white;
+      animation: mic-pulse 1s ease-in-out infinite;
+    }
+    @keyframes mic-pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+
     #toast {
       position: fixed;
       bottom: 24px;
@@ -1744,3 +1795,70 @@
     .meal-cost { color: var(--color-text-secondary); font-size: 12px; }
     .meal-walk { color: var(--color-text-muted); font-size: 12px; }
     .restaurant-marker { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #fbbf24); color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 8px rgba(245,158,11,0.4); animation: markerPopIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+    /* ─── R3: 首屏加载骨架屏 ─────────────────────────── */
+    .map-skeleton-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 9999;
+      background: var(--color-bg-base);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.4s ease-out;
+    }
+    .map-skeleton-overlay.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .skeleton-map-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .skeleton-map-shimmer {
+      width: 280px;
+      height: 180px;
+      border-radius: 12px;
+      background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-surface) 50%, var(--color-bg-elevated) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    .skeleton-map-icon {
+      font-size: 48px;
+      animation: skeletonPulse 2s ease-in-out infinite;
+    }
+    .skeleton-map-text {
+      font-size: 14px;
+      color: var(--color-text-muted);
+    }
+    @keyframes skeletonPulse {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
+    /* ─── R5: 无障碍 — prefers-reduced-motion ───────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      /* 骨架屏降级为静态占位 */
+      .skeleton-map-shimmer {
+        animation: none;
+        background: var(--color-bg-elevated);
+      }
+      .skeleton-map-icon {
+        animation: none;
+        opacity: 0.8;
+      }
+      /* 现有 skeleton-line 也降级 */
+      .skeleton-line,
+      .skeleton-circle {
+        animation: none;
+        background: var(--color-bg-elevated);
+      }
+    }
