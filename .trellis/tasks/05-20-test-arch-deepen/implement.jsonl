@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Testing requirements and forbidden patterns"}
+{"file": ".trellis/spec/backend/testing-strategy.md", "reason": "Test layer strategy and mock routing rules"}
+{"file": ".trellis/spec/backend/testing-roadmap.md", "reason": "Test iteration plan (Phase 1-4)"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error handling patterns for service layer"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend code quality standards"}

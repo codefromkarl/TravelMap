@@ -5,6 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { searchIntercityTransportTool } from "../../../tools/transport.js";
+import { createMockTransportOption } from "../../mocks/fixtures.js";
 
 // Mock transport-service
 vi.mock("../../../services/transport-service.js", async (importOriginal) => {
@@ -23,7 +24,7 @@ const mockedSearch = vi.mocked(searchIntercityTransport);
 describe("searchIntercityTransportTool", () => {
   it("应返回格式化的交通方案", async () => {
     mockedSearch.mockResolvedValue([
-      {
+      createMockTransportOption({
         type: "train" as const,
         code: "G7590",
         departureTime: "08:30",
@@ -34,7 +35,7 @@ describe("searchIntercityTransportTool", () => {
         arrivalStation: "上海虹桥站",
         seatType: "二等座",
         source: "amap",
-      },
+      }),
     ]);
 
     const result = await searchIntercityTransportTool.execute("tc-1", {

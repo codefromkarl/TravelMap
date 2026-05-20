@@ -36,7 +36,9 @@ export function createMockLocation(overrides?: Partial<{ latitude: number; longi
   return { latitude: 39.9163, longitude: 116.3972, ...overrides };
 }
 
-export function createMockAttraction(overrides?: Partial<Attraction>): Attraction {
+export function createMockAttraction(
+  overrides?: Record<string, unknown>,
+): Attraction & Record<string, unknown> {
   return {
     name: "测试景点",
     nameZh: "测试景点",
@@ -49,6 +51,8 @@ export function createMockAttraction(overrides?: Partial<Attraction>): Attractio
     ticketPrice: 50,
     reservationRequired: false,
     reservationTips: "",
+    ugcReviews: [],
+    sources: ["mock"],
     ...overrides,
   };
 }
@@ -80,13 +84,20 @@ export function createMockRestaurant(overrides?: Partial<Restaurant>): Restauran
   };
 }
 
-export function createMockHotel(overrides?: Partial<Hotel>): Hotel {
+export function createMockHotel(overrides?: Partial<Hotel>): Hotel & Record<string, unknown> {
   return {
     name: "测试酒店",
     address: "测试城市中心路1号",
     priceRange: "300-500",
     rating: 4.5,
     estimatedCost: 400,
+    price: 298,
+    distance: 1000,
+    walkMinutes: 12,
+    transitAccessible: true,
+    tags: [],
+    source: "mock",
+    location: createMockLocation(),
     ...overrides,
   };
 }

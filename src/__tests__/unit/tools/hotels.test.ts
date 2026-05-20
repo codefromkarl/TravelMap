@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { searchHotelsTool } from "../../../tools/hotels.js";
 import { createEnvStub } from "../../helpers/env.js";
+import { createMockHotel } from "../../mocks/fixtures.js";
 
 const env = createEnvStub();
 
@@ -77,19 +78,14 @@ describe("search_hotels tool", () => {
       // afterEach 清除 mock 后重置默认 mock 实现
       mockedSearch.mockResolvedValue({
         hotels: [
-          {
+          createMockHotel({
             name: "测试酒店",
             rating: 4.2,
-            price: 298,
-            priceRange: "¥298",
             address: "杭州西湖区",
+            priceRange: "¥298",
             location: { latitude: 30.27, longitude: 120.15 },
-            distance: 1200,
-            walkMinutes: 15,
-            transitAccessible: true,
-            tags: ["免费WiFi"],
-            source: "mock",
-          },
+            estimatedCost: 298,
+          }) as any,
         ],
         source: "mock",
       });

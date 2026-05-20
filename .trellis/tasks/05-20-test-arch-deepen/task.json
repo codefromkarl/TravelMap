@@ -1,7 +1,7 @@
 {
-  "id": "pipeline-parallel",
-  "name": "pipeline-parallel",
-  "title": "后处理 Pipeline 并行化",
+  "id": "test-arch-deepen",
+  "name": "test-arch-deepen",
+  "title": "测试系统架构深化：5 项推进计划",
   "description": "",
   "status": "in_progress",
   "dev_type": null,

@@ -5,22 +5,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { searchRestaurantsTool } from "../../../tools/restaurants.js";
 import { createEnvStub } from "../../helpers/env.js";
+import { createMockRestaurant } from "../../mocks/fixtures.js";
 
 const env = createEnvStub();
 
 vi.mock("../../../services/restaurant-service.js", () => ({
   searchNearbyRestaurants: vi.fn(async () => ({
     restaurants: [
-      {
+      createMockRestaurant({
         name: "Mock餐厅",
         rating: 4,
         averageCost: 50,
         distance: 100,
         walkMinutes: 5,
         cuisine: "中餐",
-        location: { latitude: 30, longitude: 120 },
-        source: "mock",
-      },
+      }),
     ],
     source: "mock",
   })),

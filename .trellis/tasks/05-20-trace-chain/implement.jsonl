@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "日志规范：traceId 集成、URL 脱敏、structured logging 字段定义"}
+{"file": ".trellis/spec/check-quick.md", "reason": "快速检查清单：lint/typecheck/test 命令、跨层一致性检查"}

@@ -4,6 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { searchAttractionsTool } from "../../../tools/attractions.js";
+import { createMockAttraction } from "../../mocks/fixtures.js";
 
 vi.mock("../../../services/multi-source-service.js", () => ({
   searchAttractionsMultiSource: vi.fn(),
@@ -11,7 +12,7 @@ vi.mock("../../../services/multi-source-service.js", () => ({
 
 import { searchAttractionsMultiSource } from "../../../services/multi-source-service.js";
 
-const mockedSearch = vi.mocked(searchAttractionsMultiSource);
+const mockedSearch = vi.mocked(searchAttractionsMultiSource) as any;
 
 describe("search_attractions tool", () => {
   it("应定义正确的 name 和 label", () => {
@@ -26,7 +27,7 @@ describe("search_attractions tool", () => {
   it("正常执行应返回景点列表", async () => {
     mockedSearch.mockResolvedValue({
       attractions: [
-        {
+        createMockAttraction({
           nameZh: "西湖",
           nameEn: "West Lake",
           name: "西湖",
@@ -34,13 +35,8 @@ describe("search_attractions tool", () => {
           ticketPrice: 0,
           visitDuration: 180,
           description: "杭州著名景点",
-          reservationRequired: false,
-          reservationTips: "",
-          ugcReviews: [],
-          sources: ["mock"],
-          category: "attraction",
           location: { latitude: 30.25, longitude: 120.15 },
-        },
+        }),
       ],
       sources: ["mock"],
       fromCache: false,
@@ -60,7 +56,7 @@ describe("search_attractions tool", () => {
   it("缓存数据应标注缓存标记", async () => {
     mockedSearch.mockResolvedValue({
       attractions: [
-        {
+        createMockAttraction({
           nameZh: "故宫",
           nameEn: "Forbidden City",
           name: "故宫",
@@ -68,13 +64,8 @@ describe("search_attractions tool", () => {
           ticketPrice: 60,
           visitDuration: 240,
           description: "明清皇宫",
-          reservationRequired: false,
-          reservationTips: "",
-          ugcReviews: [],
-          sources: ["mock"],
-          category: "attraction",
           location: { latitude: 39.9, longitude: 116.4 },
-        },
+        }),
       ],
       sources: ["mock"],
       fromCache: true,
@@ -90,7 +81,7 @@ describe("search_attractions tool", () => {
   it("需预约景点应显示预约提示", async () => {
     mockedSearch.mockResolvedValue({
       attractions: [
-        {
+        createMockAttraction({
           nameZh: "兵马俑",
           nameEn: "Terracotta Army",
           name: "兵马俑",
@@ -100,11 +91,8 @@ describe("search_attractions tool", () => {
           description: "世界第八大奇迹",
           reservationRequired: true,
           reservationTips: "提前3天在官方小程序预约",
-          ugcReviews: [],
-          sources: ["mock"],
-          category: "attraction",
           location: { latitude: 34.4, longitude: 109.3 },
-        },
+        }),
       ],
       sources: ["mock"],
       fromCache: false,
@@ -120,7 +108,7 @@ describe("search_attractions tool", () => {
   it("有 UGC 评价时应显示评价内容", async () => {
     mockedSearch.mockResolvedValue({
       attractions: [
-        {
+        createMockAttraction({
           nameZh: "长城",
           nameEn: "Great Wall",
           name: "长城",
@@ -128,8 +116,6 @@ describe("search_attractions tool", () => {
           ticketPrice: 40,
           visitDuration: 300,
           description: "万里长城",
-          reservationRequired: false,
-          reservationTips: "",
           ugcReviews: [
             {
               source: "xhs",
@@ -139,9 +125,8 @@ describe("search_attractions tool", () => {
             },
           ],
           sources: ["mock", "xhs"],
-          category: "attraction",
           location: { latitude: 40.4, longitude: 116.6 },
-        },
+        }),
       ],
       sources: ["mock", "xhs"],
       fromCache: false,

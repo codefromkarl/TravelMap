@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/backend/testing-roadmap.md", "reason": "测试分层规范、mock 策略、quality guard 机制"}
-{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "质量守卫实现约定、断言质量标准"}
-{"file": ".trellis/spec/backend/error-handling.md", "reason": "adapter 错误降级模式参考"}
-{"file": ".trellis/tasks/05-19-ai-e2e-testing-infra/prd.md", "reason": "实施计划和决策记录"}
