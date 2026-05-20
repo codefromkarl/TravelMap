@@ -40,7 +40,11 @@ export function assertTripPlanStructure(output: string): EvaluationResult[] {
 
   const checks: Array<{ name: string; pattern: RegExp; required: boolean }> = [
     { name: "包含目的地", pattern: /目的地|城市|景点|行程|旅游|出发|抵达/, required: true },
-    { name: "包含日期", pattern: /\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?|Day\s*\d|第[一二三四五六七八九十]+天/, required: true },
+    {
+      name: "包含日期",
+      pattern: /\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?|Day\s*\d|第[一二三四五六七八九十]+天/,
+      required: true,
+    },
     { name: "包含景点推荐", pattern: /景点|游览|参观|推荐|攻略/, required: true },
     { name: "包含餐饮建议", pattern: /早餐|午餐|晚餐|美食|餐厅/, required: false },
     { name: "包含住宿建议", pattern: /住宿|酒店|民宿/, required: false },
@@ -175,6 +179,7 @@ ${output.slice(0, 2000)}
   // 简化：直接用 model 调用
   try {
     const { streamSimple } = await import("@earendil-works/pi-ai");
+    // biome-ignore lint/suspicious/noExplicitAny: third-party type mismatch
     const response = await (streamSimple as any)(model, [
       {
         role: "user" as const,

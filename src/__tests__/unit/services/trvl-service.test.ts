@@ -200,10 +200,10 @@ describe("trvl-service", () => {
 
       const result = await searchFlights("北京", "上海", "2026-07-01");
       expect(result.success).toBe(true);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[TrvlService] flights stderr:",
-        "some warning from trvl",
-      );
+      expect(consoleSpy).toHaveBeenCalled();
+      const logOutput = consoleSpy.mock.calls[0][0];
+      expect(logOutput).toContain("flights stderr");
+      expect(logOutput).toContain("some warning from trvl");
 
       consoleSpy.mockRestore();
     });
@@ -314,7 +314,10 @@ describe("trvl-service", () => {
 
       const result = await searchHotels("北京", "2026-07-01", "2026-07-03");
       expect(result.success).toBe(true);
-      expect(consoleSpy).toHaveBeenCalledWith("[TrvlService] hotels stderr:", "some hotel warning");
+      expect(consoleSpy).toHaveBeenCalled();
+      const logOutput = consoleSpy.mock.calls[0][0];
+      expect(logOutput).toContain("hotels stderr");
+      expect(logOutput).toContain("some hotel warning");
 
       consoleSpy.mockRestore();
     });

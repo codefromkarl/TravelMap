@@ -147,20 +147,20 @@ describe("Provider Adapter 单元测试", () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
       server.use(
-        http.post("http://crawler.test/api/crawler/start", () =>
+        http.post("http://localhost:8080/api/crawler/start", () =>
           HttpResponse.json({ status: "ok" }),
         ),
-        http.get("http://crawler.test/api/crawler/status", () =>
+        http.get("http://localhost:8080/api/crawler/status", () =>
           HttpResponse.json({ status: "idle" }),
         ),
-        http.get("http://crawler.test/api/data/files", () =>
+        http.get("http://localhost:8080/api/data/files", () =>
           HttpResponse.json({
             files: [
               { name: "xhs.json", path: "xhs/20240101.json", size: 1000, modified_at: 1704067200 },
             ],
           }),
         ),
-        http.get("http://crawler.test/api/data/files/xhs/20240101.json", () =>
+        http.get("http://localhost:8080/api/data/files/xhs/20240101.json", () =>
           HttpResponse.json({
             data: [
               { title: "泰山", desc: "很累", note_id: "n4", liked_count: 50, nickname: "赵六" },
@@ -169,7 +169,7 @@ describe("Provider Adapter 单元测试", () => {
         ),
       );
 
-      const promise = fetchCrawler("泰山", { token: "", baseUrl: "http://crawler.test" });
+      const promise = fetchCrawler("泰山", { token: "", baseUrl: "http://localhost:8080" });
 
       // 让 start 请求完成（MSW 需要 setImmediate 级别的事件循环推进）
       await tickEventLoop();
@@ -187,12 +187,12 @@ describe("Provider Adapter 单元测试", () => {
 
     it("启动失败应抛出异常", async () => {
       server.use(
-        http.post("http://crawler.test/api/crawler/start", () =>
+        http.post("http://localhost:8080/api/crawler/start", () =>
           HttpResponse.json({ status: "error", message: "busy" }, { status: 500 }),
         ),
       );
       await expect(
-        fetchCrawler("泰山", { token: "", baseUrl: "http://crawler.test" }),
+        fetchCrawler("泰山", { token: "", baseUrl: "http://localhost:8080" }),
       ).rejects.toThrow("Crawler start error: 500");
     });
   });

@@ -35,9 +35,9 @@ import { createMockDayPlan } from "../../mocks/fixtures.js";
 // ─── createTools (index.ts) ───────────────────────────
 
 describe("createTools()", () => {
-  it("应返回 11 个工具", () => {
+  it("应返回 14 个工具", () => {
     const tools = createTools();
-    expect(tools).toHaveLength(11);
+    expect(tools).toHaveLength(14);
     expect(tools.map((t) => t.name)).toEqual([
       "search_attractions",
       "search_weather",
@@ -50,6 +50,9 @@ describe("createTools()", () => {
       "plan_multi_city",
       "enrich_supply_details",
       "search_intercity_transport",
+      "generate_trip_speech",
+      "recognize_image",
+      "ai_guide_commentary",
     ]);
   });
 
@@ -71,7 +74,7 @@ describe("searchAttractionsTool", () => {
     delete process.env.GOOGLE_MAPS_API_KEY;
   });
 
-  it("无 API Key 时应走 mock 数据，返回 markdown 格式", async () => {
+  it("无 API Key 时应走免费数据源或 mock，返回 markdown 格式", async () => {
     const result = await searchAttractionsTool.execute("tc_1", { city: "北京" });
     const text = (result.content[0] as { text: string }).text;
 
@@ -83,8 +86,8 @@ describe("searchAttractionsTool", () => {
 
     const details = result.details as { city: string; sources: string[]; fromCache: boolean };
     expect(details.city).toBe("北京");
-    expect(details.sources).toContain("mock");
-    expect(details.sources).toContain("ugc");
+    // 免费源始终可用，sources 可能包含 free_* 或 mock
+    expect(details.sources.length).toBeGreaterThan(0);
     expect(typeof details.fromCache).toBe("boolean");
   });
 
@@ -318,23 +321,25 @@ describe("calculateBudgetTool", () => {
 
 // ─── searchHotelsTool (占位) ────────────────────────────
 
-describe("searchHotelsTool (占位)", () => {
-  it("应返回占位文案", async () => {
+describe("searchHotelsTool", () => {
+  it("应返回酒店搜索结果", async () => {
     const result = await searchHotelsTool.execute("tc_1", {
       city: "北京",
       budget: "300-500",
     });
     const text = (result.content[0] as { text: string }).text;
 
-    expect(text).toContain("后续版本实现");
     expect(text).toContain("北京");
+    expect(text).toContain("酒店");
   });
 
-  it("details 应包含 city", async () => {
+  it("details 应包含 city 和 hotels", async () => {
     const result = await searchHotelsTool.execute("tc_1", { city: "上海" });
-    const details = result.details as { city: string };
+    const details = result.details as { city: string; hotels: unknown[]; source: string };
 
     expect(details.city).toBe("上海");
+    expect(details.hotels).toBeDefined();
+    expect(details.source).toBeDefined();
   });
 });
 

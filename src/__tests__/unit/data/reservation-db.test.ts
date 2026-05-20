@@ -100,8 +100,8 @@ describe("reservation-db", () => {
     it("返回所有景点的 URL 映射", () => {
       const map = getReservationUrlMap();
       expect(Object.keys(map).length).toBeGreaterThanOrEqual(50);
-      expect(map["故宫博物院"]).toBe("https://www.dpm.org.cn/visit/ticket.html");
-      expect(map["布达拉宫"]).toBe("https://www.potalapalace.cn/");
+      expect(map.故宫博物院).toBe("https://www.dpm.org.cn/visit/ticket.html");
+      expect(map.布达拉宫).toBe("https://www.potalapalace.cn/");
     });
 
     it("映射中每个值都是有效 URL", () => {

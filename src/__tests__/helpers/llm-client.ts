@@ -75,7 +75,9 @@ function httpPost(url: string, body: string, headers: Record<string, string>): P
       },
       (res) => {
         let data = "";
-        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("data", (chunk: Buffer) => {
+          data += chunk.toString();
+        });
         res.on("end", () => {
           if (res.statusCode && res.statusCode >= 400) {
             reject(new Error(`HTTP ${res.statusCode}: ${data}`));
@@ -140,9 +142,10 @@ export async function chatCompletion(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (attempt < maxRetries) {
-        console.warn(`[llm-client] Request failed, retrying (${attempt + 1}/${maxRetries}): ${lastError.message}`);
+        console.warn(
+          `[llm-client] Request failed, retrying (${attempt + 1}/${maxRetries}): ${lastError.message}`,
+        );
         await new Promise((r) => setTimeout(r, 2000));
-        continue;
       }
     }
   }
@@ -160,10 +163,7 @@ export async function testLlmConnection(): Promise<{
 }> {
   const config = getLlmConfig();
   try {
-    const result = await chatCompletion(
-      [{ role: "user", content: "hi" }],
-      { maxTokens: 5 },
-    );
+    const result = await chatCompletion([{ role: "user", content: "hi" }], { maxTokens: 5 });
     return { available: true, model: result.model, baseUrl: config.baseUrl };
   } catch (err) {
     return {

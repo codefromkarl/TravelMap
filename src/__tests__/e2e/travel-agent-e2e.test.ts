@@ -138,7 +138,7 @@ describeAiE2e("TravelAgent 真实 LLM E2E", () => {
         [
           { role: "system", content: buildTravelSystemPrompt() },
           { role: "user", content: "帮我规划上海两日游" },
-          { role: "assistant", content: output1.slice(0, 500) + "...(略)" },
+          { role: "assistant", content: `${output1.slice(0, 500)}...(略)` },
           { role: "user", content: "第一天改成去迪士尼乐园" },
         ],
         { maxTokens: 1024 },

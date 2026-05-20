@@ -29,6 +29,7 @@ vi.mock("../../../services/dual-map-service.js", () => ({
   isDomesticCity: vi.fn((city: string) =>
     ["北京", "上海", "杭州", "广州"].some((c) => city.includes(c)),
   ),
+  gcj02ToWgs84: vi.fn((lat: number, lng: number) => ({ latitude: lat, longitude: lng })),
 }));
 
 import { dualGeocode } from "../../../services/dual-map-service.js";

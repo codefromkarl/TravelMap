@@ -27,10 +27,11 @@ describe("searchAttractionsMultiSource", () => {
     vi.clearAllMocks();
   });
 
-  it("应返回融合后的景点（含 UGC mock 降级）", async () => {
+  it("应返回融合后的景点（含免费数据源或 mock 降级）", async () => {
     const result = await searchAttractionsMultiSource({ city: "北京" });
     expect(result.attractions.length).toBeGreaterThan(0);
-    expect(result.sources).toContain("mock");
+    // 免费数据源（去哪儿/OTM/Wikivoyage/Wikipedia）始终可用，mock 仅在无任何源时触发
+    expect(result.sources.length).toBeGreaterThan(0);
     expect(result.fromCache).toBe(false);
   });
 
@@ -76,10 +77,11 @@ describe("searchAttractionsMultiSource", () => {
     expect(names.length).toBe(uniqueNames.length);
   });
 
-  it("未知城市应返回通用 mock", async () => {
+  it("未知城市应返回通用 mock 或免费源数据", async () => {
     const result = await searchAttractionsMultiSource({ city: "未知城市" });
     expect(result.attractions.length).toBeGreaterThan(0);
-    expect(result.sources).toContain("mock");
+    // 免费源可能仍能返回通用数据，或降级到 mock
+    expect(result.sources.length).toBeGreaterThan(0);
   });
 
   it("UGC 评价应有 rating", async () => {
@@ -107,7 +109,7 @@ describe("searchAttractionsMultiSource", () => {
       expect(first.category).toBeTruthy();
     });
 
-    it("Google Places 5xx 时应降级到 mock", async () => {
+    it("Google Places 5xx 时应降级到免费源或 mock", async () => {
       process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
 
       server.use(
@@ -119,11 +121,12 @@ describe("searchAttractionsMultiSource", () => {
       const result = await searchAttractionsMultiSource({ city: "杭州" });
 
       expect(result.sources).not.toContain("google_places");
-      expect(result.sources).toContain("mock");
+      // 降级到免费源或 mock
+      expect(result.sources.length).toBeGreaterThan(0);
       expect(result.attractions.length).toBeGreaterThan(0);
     });
 
-    it("Google Places ZERO_RESULTS 时应降级到 mock", async () => {
+    it("Google Places ZERO_RESULTS 时应降级到免费源或 mock", async () => {
       process.env.GOOGLE_MAPS_API_KEY = "test-google-key";
 
       server.use(
@@ -135,9 +138,9 @@ describe("searchAttractionsMultiSource", () => {
       const result = await searchAttractionsMultiSource({ city: "杭州" });
 
       // ZERO_RESULTS 时 fetchGooglePlaces 返回空数组，不抛错
-      // sources 仍包含 google_places（因为 API 被调用了），同时 mock 降级补充
       expect(result.sources).toContain("google_places");
-      expect(result.sources).toContain("mock");
+      // 免费源或 mock 补充
+      expect(result.sources.length).toBeGreaterThan(1);
       expect(result.attractions.length).toBeGreaterThan(0);
     });
 
@@ -218,7 +221,7 @@ describe("searchAttractionsMultiSource", () => {
       );
 
       // 第一次调用（Google Places 返回西湖）
-      const r1 = await searchAttractionsMultiSource({ city: "杭州" });
+      const _r1 = await searchAttractionsMultiSource({ city: "杭州" });
       // 第二次调用同一城市，但不同参数触发不同搜索（通过 keywords 区分）
       // 由于缓存存在，直接清除缓存再模拟不同结果
       clearSearchCache();
