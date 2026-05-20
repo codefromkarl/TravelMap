@@ -70,7 +70,7 @@ export const searchHotelsTool: AgentTool & { costTier: "cheap" } = {
           const transitStr = h.transitAccessible ? "🚌 公共交通可达" : "";
           return (
             `${i + 1}. 🏨 ${h.name}\n` +
-            `   📍 距搜索中心 ${(h.distance / 1000).toFixed(1)}km · 🚶 步行约${h.walkMinutes}分钟${transitStr ? " · " + transitStr : ""}\n` +
+            `   📍 距搜索中心 ${(h.distance / 1000).toFixed(1)}km · 🚶 步行约${h.walkMinutes}分钟${transitStr ? ` · ${transitStr}` : ""}\n` +
             `   💰 ${h.priceRange}/晚 · ⭐ ${h.rating}${tagsStr}`
           );
         })

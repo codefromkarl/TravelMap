@@ -4,8 +4,7 @@
 
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
-import { formatTransportPrice } from "../services/transport-service";
-import { searchIntercityTransport } from "../services/transport-service.js";
+import { formatTransportPrice, searchIntercityTransport } from "../services/transport-service.js";
 
 export const searchIntercityTransportTool: AgentTool & { costTier: "cheap" } = {
   name: "search_intercity_transport",

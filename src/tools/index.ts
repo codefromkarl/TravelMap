@@ -13,18 +13,22 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { registerToolMetadata } from "../services/cost-tracker.js";
 import { generateActionLinksTool } from "./action-links.js";
+import { aiGuideTool } from "./ai-guide.js";
 import { searchAttractionsTool } from "./attractions.js";
 import { calculateBudgetTool } from "./budget.js";
 import { companionQATool } from "./companion.js";
 import { geocodeTool } from "./geocode.js";
 import { searchHotelsTool } from "./hotels.js";
+import { recognizeImageTool } from "./image-recognize.js";
 import { planMultiCityTool } from "./multi-city.js";
 import { searchRestaurantsTool } from "./restaurants.js";
 import { enrichSupplyDetailsTool } from "./supply-enrich.js";
 import { searchIntercityTransportTool } from "./transport.js";
+import { ttsTool } from "./tts.js";
 import { searchWeatherTool } from "./weather.js";
 
 export { generateActionLinksTool } from "./action-links.js";
+export { aiGuideTool } from "./ai-guide.js";
 export { searchAttractionsTool } from "./attractions.js";
 export { calculateBudgetTool } from "./budget.js";
 export { companionQATool } from "./companion.js";
@@ -35,9 +39,8 @@ export { planMultiCityTool } from "./multi-city.js";
 export { searchRestaurantsTool } from "./restaurants.js";
 export { enrichSupplyDetailsTool } from "./supply-enrich.js";
 export { searchIntercityTransportTool } from "./transport.js";
+export { ttsTool } from "./tts.js";
 export { searchWeatherTool } from "./weather.js";
-
-// ─── costTier 自动注册 ─────────────────────────────────────
 
 type ToolWithCost = AgentTool & { costTier?: "cheap" | "strong" };
 
@@ -74,6 +77,9 @@ export function createPlanningTools(): AgentTool[] {
     planMultiCityTool,
     enrichSupplyDetailsTool,
     searchIntercityTransportTool,
+    ttsTool,
+    recognizeImageTool,
+    aiGuideTool,
   ];
 }
 

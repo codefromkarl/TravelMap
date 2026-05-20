@@ -59,7 +59,7 @@ function matchAttraction(
 
   // 2. 地标关键词匹配
   for (const attr of knownAttractions) {
-    const attrWords = (attr.nameZh + " " + (attr.nameEn || "")).toLowerCase().split(/\s+/);
+    const attrWords = `${attr.nameZh} ${attr.nameEn || ""}`.toLowerCase().split(/\s+/);
     for (const landmark of landmarks) {
       const landmarkLower = landmark.toLowerCase();
       for (const word of attrWords) {
