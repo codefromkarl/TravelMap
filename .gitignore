@@ -12,3 +12,4 @@ web/config.local.js
 .ace-tool/
 test-results/
 .wrangler/
+eval-results/

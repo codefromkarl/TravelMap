@@ -395,6 +395,175 @@ export const amapWeatherHandler = http.get(
   },
 );
 
+// ─── OpenTripMap Geoname ────────────────────────────────────
+// 注册: https://dev.opentripmap.org/ (免费)
+export const otmGeonameHandler = http.get(
+  "https://api.opentripmap.com/0.1/zh/places/geoname",
+  () => {
+    return HttpResponse.json([{ name: "Beijing", lat: 39.9042, lon: 116.4074, country: "CN" }]);
+  },
+);
+
+// ─── OpenTripMap Radius Search ───────────────────────────────
+export const otmRadiusHandler = http.get("https://api.opentripmap.com/0.1/zh/places/radius", () => {
+  return HttpResponse.json([
+    {
+      name: "故宫博物院",
+      xid: "otm_1",
+      kinds: "museums,historic",
+      rate: "3",
+      point: { lat: 39.9163, lon: 116.3972 },
+    },
+    {
+      name: "天坛公园",
+      xid: "otm_2",
+      kinds: "parks,religion",
+      rate: "3",
+      point: { lat: 39.8822, lon: 116.4066 },
+    },
+  ]);
+});
+
+// ─── OpenTripMap Place Detail ────────────────────────────────
+export const otmDetailHandler = http.get(
+  "https://api.opentripmap.com/0.1/zh/places/xid/:xid",
+  ({ params }) => {
+    const details: Record<string, Record<string, unknown>> = {
+      otm_1: {
+        name: "故宫博物院",
+        kinds: "museums,historic,architecture",
+        rate: "3",
+        point: { lat: 39.9163, lon: 116.3972 },
+        address: { city: "北京", road: "景山前街4号" },
+        info: { descr: "明清两代皇家宫殿，世界文化遗产" },
+        preview: { source: "https://example.com/gugong.jpg" },
+        otm: "otm_1",
+      },
+      otm_2: {
+        name: "天坛公园",
+        kinds: "parks,religion,historic",
+        rate: "3",
+        point: { lat: 39.8822, lon: 116.4066 },
+        address: { city: "北京", road: "天坛内东里7号" },
+        info: { descr: "明清祭天建筑群" },
+        preview: { source: "https://example.com/tiantan.jpg" },
+        otm: "otm_2",
+      },
+    };
+    const xid = params.xid as string;
+    return HttpResponse.json(details[xid] ?? { name: "测试景点", kinds: "museums", rate: "2" });
+  },
+);
+
+// ─── 去哪儿门票页 ──────────────────────────────────────────
+export const qunarTicketHandler = http.get("https://piao.qunar.com/ticket/list.htm", () => {
+  const html = `
+      <html><body>
+      <script type="application/ld+json">{"@type":"Product","name":"故宫博物院","offers":{"price":"60"},"aggregateRating":{"ratingValue":"4.9","reviewCount":"12000"}}</script>
+      <script>window.__INITIAL_STATE__ = {"sightList":[{"sightName":"颐和园","address":"海淀区新建宫门路19号","qunarPrice":30,"score":4.8,"commentCount":8000,"needBooking":true,"sightId":12345}]};</script>
+      </body></html>
+    `;
+  return new HttpResponse(html, { headers: { "Content-Type": "text/html" } });
+});
+
+// ─── Wikipedia API ──────────────────────────────────────────
+export const wikipediaHandler = http.get("https://zh.wikipedia.org/w/api.php", ({ request }) => {
+  const url = new URL(request.url);
+  const action = url.searchParams.get("action");
+  const list = url.searchParams.get("list");
+
+  if (action === "query" && list === "geosearch") {
+    return HttpResponse.json({
+      query: {
+        geosearch: [
+          { pageid: 1, title: "故宫", lat: 39.9163, lon: 116.3972, dist: 500 },
+          { pageid: 2, title: "天坛", lat: 39.8822, lon: 116.4066, dist: 3500 },
+        ],
+      },
+    });
+  }
+
+  if (action === "query" && list === "search") {
+    return HttpResponse.json({
+      query: {
+        search: [{ pageid: 3, title: "颐和园" }],
+      },
+    });
+  }
+
+  // extracts / page images / coordinates
+  if (action === "query") {
+    return HttpResponse.json({
+      query: {
+        pages: {
+          "1": {
+            pageid: 1,
+            title: "故宫",
+            extract:
+              "故宫是中国明清两代的皇家宫殿，位于北京中轴线的中心。旧称紫禁城，是世界上现存规模最大、保存最为完整的木质结构古建筑之一。",
+            thumbnail: { source: "https://example.com/gugong.jpg", width: 300, height: 200 },
+          },
+          "2": {
+            pageid: 2,
+            title: "天坛",
+            extract: "天坛是明清两朝帝王祭天祈谷的场所。",
+            coordinates: [{ lat: 39.8822, lon: 116.4066 }],
+          },
+          "3": {
+            pageid: 3,
+            title: "颐和园",
+            extract: "颐和园是中国清朝时期皇家园林，前身为清漪园。",
+          },
+        },
+      },
+    });
+  }
+
+  return HttpResponse.json({ query: {} });
+});
+
+// ─── Wikivoyage API ────────────────────────────────────────
+export const wikivoyageHandler = http.get("https://zh.wikivoyage.org/w/api.php", ({ request }) => {
+  const url = new URL(request.url);
+  const action = url.searchParams.get("action");
+
+  if (action === "parse") {
+    const wikitext = `==景点==
+{{see | name=故宫博物院 | address=景山前街4号 | lat=39.9163 | long=116.3972 | content=明清皇家宫殿，世界文化遗产}}
+{{see | name=天坛公园 | address=天坛内东里7号 | lat=39.8822 | long=116.4066 | content=明清祭天建筑群}}
+* '''颐和园''' — 皇家园林，以昆明湖万寿山为基址
+* [[长城]] — 万里长城，世界七大奇迹之一
+`;
+    return HttpResponse.json({
+      parse: { wikitext: { "*": wikitext } },
+    });
+  }
+
+  if (action === "query") {
+    return HttpResponse.json({
+      query: { pages: { "1": { extract: "北京是中国首都。" } } },
+    });
+  }
+
+  return HttpResponse.json({});
+});
+
+// ─── Unsplash 图片搜索 ──────────────────────────────────
+export const unsplashHandler = http.get("https://api.unsplash.com/search/photos", () => {
+  return HttpResponse.json({
+    results: [
+      { id: 1, urls: { regular: "https://example.com/photo1.jpg" }, alt_description: "测试图片" },
+    ],
+  });
+});
+
+// ─── Pexels 图片搜索 ────────────────────────────────────
+export const pexelsHandler = http.get("https://api.pexels.com/v1/search", () => {
+  return HttpResponse.json({
+    photos: [{ id: 1, src: { medium: "https://example.com/photo1.jpg" }, alt: "测试图片" }],
+  });
+});
+
 // ─── 汇总导出 ──────────────────────────────────────────────
 export const handlers = [
   googlePlacesHandler,
@@ -417,4 +586,12 @@ export const handlers = [
   crawlerStatusHandler,
   crawlerFilesHandler,
   crawlerFileContentHandler,
+  otmGeonameHandler,
+  otmRadiusHandler,
+  otmDetailHandler,
+  qunarTicketHandler,
+  wikipediaHandler,
+  wikivoyageHandler,
+  pexelsHandler,
+  unsplashHandler,
 ];

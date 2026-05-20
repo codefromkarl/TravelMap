@@ -31,12 +31,12 @@ export default defineConfig({
         // WIP / 未实现模块，暂时排除覆盖率检查
         "src/services/dianping-scrape-service.ts",
       ],
-      // Phase 4: 提升覆盖率阈值
+      // Phase 5: 提升覆盖率阈值到 95%
       thresholds: {
-        lines: 75,
-        functions: 70,
-        branches: 65,
-        statements: 75,
+        lines: 95,
+        functions: 95,
+        branches: 90,
+        statements: 95,
       },
     },
 

@@ -34,6 +34,10 @@ const SOURCE_FILES_EXEMPT = [
   "services/xhs/adapters/index.ts", // 纯注册表，provider-contract.test.ts 已覆盖
   "services/dianping-scrape-service.ts", // 网页抓取服务，无测试
   "services/mock-data.ts", // 纯 mock 数据
+  "services/free-sources/fusion-engine.ts", // 已在 free-sources.test.ts 直接 import 测试
+  "services/free-sources/index.ts", // 已在 free-sources.test.ts 通过 searchFreeSources 测试
+  "services/free-sources/types.ts", // 纯类型定义
+  "tools/image-recognize.ts", // 图片识别工具，WIP
 ];
 
 /** 自动发现需要测试覆盖的源文件 */
@@ -182,6 +186,10 @@ describe("测试质量守卫", () => {
         "fixtures.ts",
         "mock-llm.ts",
         "env.ts", // helpers/env.ts — 测试环境工具
+        "ai-e2e.ts", // helpers/ai-e2e.ts — AI E2E 条件执行框架
+        "ai-e2e-setup.ts", // helpers/ai-e2e-setup.ts — AI E2E 代理清除
+        "llm-client.ts", // helpers/llm-client.ts — 轻量级 OpenAI 兼容 LLM 客户端
+        "golden-examples.ts", // e2e/golden-examples.ts — 黄金数据集定义
       ]);
       const violations = testFiles.filter((f) => !allowed.has(path.basename(f)));
 

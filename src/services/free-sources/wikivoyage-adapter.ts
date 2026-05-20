@@ -94,7 +94,7 @@ function extractAttractionsFromWikitext(wikitext: string, city: string): FreeSou
   ) {
     const body = seeMatch[1];
     const getField = (field: string): string | undefined => {
-      const m = body.match(new RegExp(`\\|\\s*${field}\\s*=\\s*([^|}]*)`, "i"));
+      const m = body.match(new RegExp(`(?:^|\\|)\\s*${field}\\s*=\\s*([^|}]*)`, "i"));
       return m?.[1]?.trim() || undefined;
     };
 
