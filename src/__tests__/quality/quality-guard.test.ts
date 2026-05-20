@@ -191,7 +191,16 @@ describe("测试质量守卫", () => {
         "llm-client.ts", // helpers/llm-client.ts — 轻量级 OpenAI 兼容 LLM 客户端
         "golden-examples.ts", // e2e/golden-examples.ts — 黄金数据集定义
       ]);
-      const violations = testFiles.filter((f) => !allowed.has(path.basename(f)));
+      // 排除非测试文件 (setup, handlers, fixtures, mock-llm, server, helpers)
+      // handlers/ 子目录中的 domain 拆分文件也排除
+      const violations = testFiles.filter((f) => {
+        const base = path.basename(f);
+        const dir = path.dirname(f);
+        if (allowed.has(base)) return false;
+        // handlers/ 目录下的 index.ts 和 domain 文件不是测试文件
+        if (dir.includes("handlers") || dir.includes("mocks/handlers")) return false;
+        return true;
+      });
 
       expect(violations).toEqual([]);
     });

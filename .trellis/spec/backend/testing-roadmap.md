@@ -4,16 +4,18 @@
 
 ---
 
-## 现状 (2025-05-19)
+## 现状 (2025-05-20)
 
 | 指标 | 值 |
 |------|-----|
-| Vitest 测试总数 | 193 (+52) |
+| Vitest 测试总数 | 1258 |
 | Playwright E2E 测试 | 50 (desktop + mobile) |
 | 通过率 | 100% |
-| 质量守卫测试 | 18 (+1 业务断言密度检查) |
-| travel-agent.ts 行覆盖 | 84.9% (↑ 从 38.2%) |
-| budget-service.ts 分支覆盖 | 100% (↑ 从 84.0%) |
+| 测试文件数 | 79 (后端) + 6 (前端) |
+| 测试 LOC | ~17920 |
+| 后端 service 覆盖 | 49/60 (82%) |
+| 前端模块覆盖 | 6/27 (22%) |
+| 覆盖率阈值 | lines: 91%, functions: 95%, branches: 80% |
 
 ### 测试分层
 
@@ -106,9 +108,39 @@ web/__tests__/         # Playwright E2E
 
 ---
 
-## Phase 5: 真实 LLM E2E 评估 (下一步)
+## Phase 5: 测试架构深化 (2025-05-20 启动)
 
-**触发条件**: Agent 核心流程稳定后
+> 任务目录: `.trellis/tasks/05-20-test-arch-deepen`
+
+### C1. 测试分层策略文档 (P0) ✅
+- [x] 创建 `.trellis/spec/backend/testing-strategy.md`
+- [x] Mock 路由规则: service 层用 MSW，tool 层用 vi.mock 或 MSW
+- [x] 前端测试规范: jsdom 环境、localStorage mock
+- [x] 新模块测试 checklist
+
+### C2. MSW handlers 按域拆分 (P1) ✅
+- [x] `handlers.ts` → `handlers/` 目录 (weather/attractions/xhs/transport/knowledge)
+- [x] barrel re-export 保持接口不变
+- [x] 所有测试通过
+
+### C3. Fixtures 工厂推广使用 (P2) ✅
+- [x] 6 个 tool 测试从手动构造 → `createMock*` 工厂 (attractions/weather/budget/transport/hotels/restaurants)
+- [x] fixtures.ts 增强: 补充 ugcReviews/sources/tags/price 等扩展字段
+
+### C4. 工具层测试深度化 (P3，依赖 C2) ✅
+- [x] 5 个 tool 新增 MSW deep 测试 (weather/attractions/transport/hotels/restaurants)
+- [x] tool→service→HTTP 完整调用链在单测中跑通
+- [x] 验证降级、空结果、API 错误等场景（16 个用例）
+
+### C5. 前端测试基础设施 (P4) ✅
+- [x] 安装 jsdom + `@vitest-environment jsdom` 注释
+- [x] trace.js / logger.js / perf-trace.js 测试覆盖（30 测试）
+
+---
+
+## Phase 6: 真实 LLM E2E 评估
+
+**触发条件**: Agent 核心流程稳定后 + Phase 5 完成
 
 - [ ] 搭建 LLM-as-Judge 评估器
 - [ ] 建立评估数据集 (10-20 golden examples)
@@ -117,9 +149,9 @@ web/__tests__/         # Playwright E2E
 
 ---
 
-## Phase 6: CI 集成 & 质量门禁
+## Phase 7: CI 集成 & 质量门禁
 
-**触发条件**: Phase 1-4 稳定后
+**触发条件**: Phase 5-6 稳定后
 
 - [ ] vitest + playwright 加入 CI pipeline
 - [ ] 覆盖率阈值 ≥ 70%
