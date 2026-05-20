@@ -370,3 +370,41 @@ lint + typecheck 通过。
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: 性能优化 + 架构深化 + 前端增强
+
+**Date**: 2026-05-20
+**Task**: 性能优化 + 架构深化 + 前端增强
+**Package**: backend
+**Branch**: `main`
+
+### Summary
+
+1) Pipeline 分组架构（StepGroup + 分组执行 + 错误隔离）; 2) 缓存 TTL 优化（景点 30min→24h, UGC 30min→2h）; 3) LLM Token 优化（PreSearch 后移除搜索工具）; 4) traceId 端到端传递 + 结构化日志; 5) 新工具 ai-guide + tts; 6) 前端模块增强 + 新页面 + 测试; 7) 归档 12 个 trellis 任务。932 测试全通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8a767f6` | (see git log) |
+| `2c662f8` | (see git log) |
+| `053a45d` | (see git log) |
+| `3753a50` | (see git log) |
+| `40afc9c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
