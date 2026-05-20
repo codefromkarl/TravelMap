@@ -7,6 +7,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { getLogger } from "./logger.js";
 
 export interface TraceContext {
   /** 全局唯一追踪 ID */
@@ -21,6 +22,8 @@ export interface TraceContext {
   userId?: string;
   /** 当前城市 */
   city?: string;
+  /** span 开始时间（自动设置） */
+  _startTime?: number;
 }
 
 const asyncStorage = new AsyncLocalStorage<TraceContext>();
@@ -38,6 +41,8 @@ export function generateSpanId(): string {
 /**
  * 在 trace context 下执行异步函数
  *
+ * 自动记录 span 耗时并输出到结构化日志。
+ *
  * 用法:
  *   const result = await runWithTrace(
  *     { traceId: generateTraceId(), spanId: generateSpanId(), operation: "planTrip" },
@@ -45,7 +50,40 @@ export function generateSpanId(): string {
  *   );
  */
 export function runWithTrace<T>(ctx: TraceContext, fn: () => Promise<T>): Promise<T> {
-  return asyncStorage.run(ctx, fn);
+  const spanLogger = getLogger().child({
+    component: "trace",
+    spanId: ctx.spanId,
+    operation: ctx.operation,
+  });
+  const startTime = Date.now();
+  ctx._startTime = startTime;
+
+  spanLogger.debug("span 开始", {
+    traceId: ctx.traceId,
+    parentSpanId: ctx.parentSpanId,
+  });
+
+  return asyncStorage.run(ctx, async () => {
+    try {
+      const result = await fn();
+      const duration = Date.now() - startTime;
+      spanLogger.info("span 完成", {
+        traceId: ctx.traceId,
+        duration,
+        status: "completed",
+      });
+      return result;
+    } catch (err) {
+      const duration = Date.now() - startTime;
+      spanLogger.error("span 失败", {
+        traceId: ctx.traceId,
+        duration,
+        status: "error",
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  });
 }
 
 /** 获取当前 trace context（Node.js AsyncLocalStorage） */

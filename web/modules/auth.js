@@ -1,5 +1,10 @@
 import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js';
 import { I18N } from './i18n.js';
+import { addTraceHeaders, extractTraceId } from './trace.js';
+import { createLogger } from './logger.js';
+import { traceAsync } from './perf-trace.js';
+
+const logger = createLogger('auth');
 
 // ─── 代理模式常量 ──────────────────────────────────────
 const PROXY_BASE = '/api/chat';
@@ -118,13 +123,23 @@ function installFetchProxy() {
       } catch {}
     }
     console.log(`[Proxy] → /api/chat (${matchedProvider})`);
-    const resp = await origFetch.call(this, PROXY_BASE, {
-      ...init,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      credentials: 'include',
+    logger.info(`代理请求: ${matchedProvider}`);
+    const traceHeaders = addTraceHeaders({ 'Content-Type': 'application/json' });
+    const resp = await traceAsync('api-chat-proxy', async () => {
+      return await origFetch.call(this, PROXY_BASE, {
+        ...init,
+        method: 'POST',
+        headers: traceHeaders,
+        body,
+        credentials: 'include',
+      });
     });
+
+    // 提取响应中的 traceId
+    const responseTraceId = extractTraceId(resp);
+    if (responseTraceId) {
+      logger.info('traceId 确认', { responseTraceId });
+    }
     if (resp.status === 401) {
       setCurrentUser(null);
       authOverlay?.classList.add('visible');
@@ -138,7 +153,10 @@ function installFetchProxy() {
       return resp;
     }
     const remaining = resp.headers.get('X-Quota-Remaining');
-    if (remaining) updateQuota(parseInt(remaining, 10));
+    if (remaining) {
+      updateQuota(parseInt(remaining, 10));
+      logger.debug('配额更新', { remaining });
+    }
     return resp;
   };
 }
