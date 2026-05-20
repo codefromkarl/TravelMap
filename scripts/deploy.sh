@@ -71,6 +71,22 @@ $WRANGLER pages deploy "$DEPLOY_DIR" \
   --branch="$BRANCH"
 
 echo ""
-echo "✅ Done!"
+echo "✅ 部署完成!"
 echo "   Production: https://travel-agent-ebl.pages.dev"
 echo "   Custom:     https://travel.codefromkarl.xyz (需要完成域名绑定)"
+
+# ─── 部署后健康检查 ───────────────────────────────────────
+
+echo ""
+echo "🔍 等待 CDN 缓存更新 (5s)..."
+sleep 5
+
+if [[ -f "scripts/health-check.sh" ]]; then
+  echo ""
+  bash scripts/health-check.sh "$BRANCH" || {
+    echo "⚠️  健康检查失败，请手动验证: https://travel-agent-ebl.pages.dev"
+    exit 1
+  }
+else
+  echo "⚠️  跳过健康检查 (scripts/health-check.sh 不存在)"
+fi
