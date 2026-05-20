@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/check-quick.md", "reason": "Check 代理快速参考：变更规模判断、验证命令、跨层一致性"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "验证日志级别是否符合规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "验证测试质量：断言规范、禁止模式检查"}

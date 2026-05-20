@@ -12,31 +12,34 @@ import { ReservationTimelineStep } from "./steps/reservation-timeline-step.js";
 import { RestaurantEnrichStep } from "./steps/restaurant-enrich-step.js";
 import { TransportEnrichStep } from "./steps/transport-enrich-step.js";
 
-export type { PipelineResult, PostProcessStep, StepResult } from "./pipeline.js";
+export type { PipelineResult, PostProcessStep, StepGroup, StepResult } from "./pipeline.js";
 export type { PostProcessConfig };
 export { PostProcessPipeline };
 
 /**
- * 创建默认后处理管线（包含所有标准步骤）
+ * 创建默认后处理管线（混合并行 + 串行执行）
  *
- * 步骤执行顺序：
- *   1. 餐厅丰富（在预算前，以使用真实人均消费）
- *   2. 城际交通丰富（在预算前）
- *   3. 酒店丰富（在预算前，以使用真实酒店价格）
- *   4. 预约时间轴（在链接前）
- *   5. 预算计算
- *   6. 行动链接
- *   7. 预算上限检查
- *   8. 一致性校验
+ * 分组策略：
+ *   Phase 1 (串行): 餐厅丰富 → 城际交通丰富 → 酒店丰富 → 预约时间轴 → 预算计算 → 行动链接
+ *     （这些步骤修改 tripPlan 的不同嵌套属性，串行避免合并冲突）
+ *   Phase 2 (并行): 预算上限检查 + 一致性校验
+ *     （只读步骤，互不依赖，可安全并行）
  */
 export function createDefaultPipeline(): PostProcessPipeline {
   return new PostProcessPipeline()
-    .add(new RestaurantEnrichStep())
-    .add(new TransportEnrichStep())
-    .add(new HotelEnrichStep())
-    .add(new ReservationTimelineStep())
-    .add(new BudgetCalcStep())
-    .add(new ActionLinksStep())
-    .add(new BudgetCheckStep())
-    .add(new ConsistencyCheckStep());
+    .addGroup({
+      name: "enrich-and-calc",
+      steps: [
+        new RestaurantEnrichStep(),
+        new TransportEnrichStep(),
+        new HotelEnrichStep(),
+        new ReservationTimelineStep(),
+        new BudgetCalcStep(),
+        new ActionLinksStep(),
+      ],
+    })
+    .addGroup({
+      name: "validate",
+      steps: [new BudgetCheckStep(), new ConsistencyCheckStep()],
+    });
 }

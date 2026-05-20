@@ -20,7 +20,12 @@ import { getLogger } from "../services/logger.js";
 import { type CompressorOptions, compressHistory } from "../services/message-compressor.js";
 import { type PostProcessorConfig, postProcessTripPlan } from "../services/post-processor.js";
 import { injectSearchResults, runParallelSearch } from "../services/search-orchestrator.js";
-import { generateSpanId, generateTraceId, runWithTrace } from "../services/trace-context.js";
+import {
+  createChildSpan,
+  generateSpanId,
+  generateTraceId,
+  runWithTrace,
+} from "../services/trace-context.js";
 import {
   createCompanionTools,
   createPlanningTools,
@@ -149,6 +154,9 @@ export class TravelAgent {
        * 同时记录 token 使用量
        */
       afterToolCall: async (ctx) => {
+        const toolName = ctx.toolCall.name;
+        getLogger().child({ component: "travel-agent" }).debug("tool 执行完成", { tool: toolName });
+
         if (this.handoffConfig) {
           this.agent.state.model = this.strongModel;
         }
@@ -233,20 +241,46 @@ export class TravelAgent {
    */
 
   async planTrip(request: TripRequest): Promise<void> {
+    const logger = getLogger().child({ component: "travel-agent", operation: "planTrip" });
+    logger.info("planTrip 开始", {
+      city: request.city,
+      days: request.travelDays,
+      travelers: request.travelers ? "yes" : "no",
+    });
+
     // 保存人群画像，供后处理阶段使用
     this.travelers = request.travelers;
 
     // 根据请求复杂度选择主模型
     const tier = selectModelTier(request);
     this.agent.state.model = tier === "L1" ? this.cheapModel : this.strongModel;
+    logger.debug("模型选择", { tier, model: tier === "L1" ? "cheap" : "strong" });
 
     let prompt = buildUserPrompt(request);
 
     // 预搜索编排：并行调用搜索服务，将结果注入 prompt
     if (this.preSearch) {
+      const searchStart = Date.now();
       try {
-        const searchBundle = await runParallelSearch(request);
+        const searchBundle = await runWithTrace(createChildSpan("pre-search"), () =>
+          runParallelSearch(request),
+        );
+        const searchDuration = Date.now() - searchStart;
+        logger.info("预搜索完成", {
+          duration: searchDuration,
+          attractions: searchBundle.attractions.length,
+          weather: searchBundle.weather.length,
+          sources: searchBundle.sources.join(","),
+        });
         prompt = injectSearchResults(prompt, searchBundle);
+
+        // PreSearch 成功后切换到 planning 工具集（移除搜索类工具，减少 input tokens）
+        if (searchBundle.attractions.length > 0) {
+          this.setToolsByPhase("planning");
+          logger.info("PreSearch 成功，切换到 planning 工具集", {
+            toolCount: this.agent.state.tools.length,
+          });
+        }
       } catch (err) {
         getLogger().warn("预搜索失败，降级到手动搜索模式", {
           error: err instanceof Error ? err.message : String(err),
@@ -263,7 +297,14 @@ export class TravelAgent {
         operation: "planTrip",
         city: request.city,
       },
-      () => this.agent.prompt(prompt),
+      async () => {
+        const llmStart = Date.now();
+        await this.agent.prompt(prompt);
+        logger.info("LLM 编排完成", {
+          duration: Date.now() - llmStart,
+          messageCount: this.agent.state.messages.length,
+        });
+      },
     );
   }
 
@@ -368,10 +409,16 @@ export class TravelAgent {
    * @returns 处理后的 TripPlan（含 budget + links），如无法解析则返回 null
    */
   async finalize(): Promise<TripPlan | null> {
+    const logger = getLogger().child({ component: "travel-agent", operation: "finalize" });
+    logger.info("finalize 开始");
+
     const messages = this.agent.state.messages;
     const found = findLatestPlanInMessages(messages as Array<{ role: string; content: unknown }>);
 
-    if (!found) return null;
+    if (!found) {
+      logger.debug("finalize 跳过：未找到行程 JSON");
+      return null;
+    }
 
     let tripPlan: TripPlan;
 
@@ -388,10 +435,26 @@ export class TravelAgent {
       ...this.postProcessConfig,
       travelers: this.travelers,
     };
-    const result = await postProcessTripPlan(tripPlan, config);
+    const postStart = Date.now();
+    const result = await runWithTrace(createChildSpan("post-process"), () =>
+      postProcessTripPlan(tripPlan, config),
+    );
+    logger.info("后处理完成", {
+      duration: Date.now() - postStart,
+      budgetCalculated: result.budgetCalculated,
+      linksGenerated: result.linksGenerated,
+    });
 
     // 行程质量审查 + 自动修复
-    const review = await this.reviewer.review(result.tripPlan, this.travelers);
+    const reviewStart = Date.now();
+    const review = await runWithTrace(createChildSpan("review"), () =>
+      this.reviewer.review(result.tripPlan, this.travelers),
+    );
+    logger.info("审查完成", {
+      duration: Date.now() - reviewStart,
+      passed: review.passed,
+      score: review.score,
+    });
     this.lastReview = review;
 
     if (!review.passed) {

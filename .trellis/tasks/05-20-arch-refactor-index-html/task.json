@@ -1,0 +1,29 @@
+{
+  "id": "arch-refactor-index-html",
+  "name": "arch-refactor-index-html",
+  "title": "重构 web/index.html 单文件 (4736行)",
+  "description": "将 4736 行单文件拆分为 ES Module 结构，提升可维护性、可测试性和 CDN 缓存效率",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-05-20",
+  "completedAt": "2026-05-20",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "研究文档: .trellis/tasks/research/refactor-web-indexhtml.md",
+  "meta": {
+    "source": "architecture-review",
+    "research": "tasks/research/refactor-web-indexhtml.md"
+  }
+}

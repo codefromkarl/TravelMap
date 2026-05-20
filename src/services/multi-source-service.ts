@@ -13,6 +13,7 @@ import type { Attraction } from "../types/trip.js";
 import { config } from "./config.js";
 import { searchFreeSources } from "./free-sources/index.js";
 import { fetchWithTimeout } from "./http-client.js";
+import { getLogger } from "./logger.js";
 import { getMockAttractions, getMockUGC } from "./mock-data.js";
 import { batchSearchXhsNotes } from "./xhs-service.js";
 
@@ -86,11 +87,30 @@ interface CacheEntry {
   timestamp: number;
 }
 
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 分钟
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 小时（城市级景点数据变化极慢）
 const searchCache = new LRUCache<string, CacheEntry>({
   max: 1000,
   ttl: CACHE_TTL_MS,
 });
+
+/** 缓存命中率指标 */
+const searchCacheMetrics = { hits: 0, misses: 0 };
+
+/** 获取搜索缓存统计 */
+export function getSearchCacheStats(): {
+  size: number;
+  hitRate: number;
+  hits: number;
+  misses: number;
+} {
+  const total = searchCacheMetrics.hits + searchCacheMetrics.misses;
+  return {
+    size: searchCache.size,
+    hitRate: total > 0 ? Math.round((searchCacheMetrics.hits / total) * 100) : 0,
+    hits: searchCacheMetrics.hits,
+    misses: searchCacheMetrics.misses,
+  };
+}
 
 function cacheKey(params: AttractionSearchParams): string {
   return `${params.city}:${params.preferences?.join(",") ?? ""}:${params.keywords ?? ""}`;
@@ -321,10 +341,11 @@ async function enrichWithUGC(
       const names = attractions.map((a) => a.nameZh);
       xhsData = await batchSearchXhsNotes(city, names);
     } catch (err) {
-      console.warn(
-        "[MultiSource] 小红书 API 调用失败,降级到 mock:",
-        err instanceof Error ? err.message : err,
-      );
+      getLogger()
+        .child({ component: "multi-source-service" })
+        .warn("小红书 API 调用失败，降级到 mock", {
+          error: err instanceof Error ? err.message : err,
+        });
     }
   }
 
@@ -372,8 +393,10 @@ export async function searchAttractionsMultiSource(
   const key = cacheKey(params);
   const cached = searchCache.get(key);
   if (cached) {
+    searchCacheMetrics.hits++;
     return { ...cached.result, fromCache: true };
   }
+  searchCacheMetrics.misses++;
 
   const sources: string[] = [];
   let attractions: Attraction[] = [];
@@ -385,7 +408,9 @@ export async function searchAttractionsMultiSource(
       attractions = await fetchGooglePlaces(params, googleKey);
       sources.push("google_places");
     } catch (err) {
-      console.warn("[MultiSource] Google Places failed:", err instanceof Error ? err.message : err);
+      getLogger()
+        .child({ component: "multi-source-service" })
+        .warn("Google Places failed", { error: err instanceof Error ? err.message : err });
     }
   }
 
@@ -399,7 +424,9 @@ export async function searchAttractionsMultiSource(
       sources.push(...freeResult.sources.map((s) => `free_${s}`));
     }
   } catch (err) {
-    console.warn("[MultiSource] 免费数据源失败:", err instanceof Error ? err.message : err);
+    getLogger()
+      .child({ component: "multi-source-service" })
+      .warn("免费数据源失败", { error: err instanceof Error ? err.message : err });
   }
 
   // Mock 基础数据(仅当以上均无数据时降级)

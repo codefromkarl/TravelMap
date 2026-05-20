@@ -82,12 +82,12 @@ export async function postProcessTripPlan(
 
   const result = await pipeline.run(tripPlan, pipelineConfig);
 
-  // 从步骤实例中提取检查结果
-  const steps = pipeline.getSteps();
-  const budgetCheckStep = steps.find((s) => s.name === "budget-check") as
+  // 从步骤实例中提取检查结果（兼容串行和分组模式）
+  const allSteps = [...pipeline.getSteps(), ...pipeline.getGroups().flatMap((g) => g.steps)];
+  const budgetCheckStep = allSteps.find((s) => s.name === "budget-check") as
     | BudgetCheckStep
     | undefined;
-  const consistencyCheckStep = steps.find((s) => s.name === "consistency-check") as
+  const consistencyCheckStep = allSteps.find((s) => s.name === "consistency-check") as
     | ConsistencyCheckStep
     | undefined;
 

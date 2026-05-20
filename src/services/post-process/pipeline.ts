@@ -8,6 +8,7 @@
  */
 
 import type { TravelerProfile, TripPlan } from "../../types/trip.js";
+import { getLogger } from "../logger.js";
 
 // ─── 配置 ────────────────────────────────────────────────
 
@@ -54,6 +55,16 @@ export interface PostProcessStep {
   run(tripPlan: TripPlan, config: PostProcessConfig): Promise<TripPlan>;
 }
 
+// ─── Step 分组 ─────────────────────────────────────────────
+
+/** 步骤分组 — 同组内步骤并行执行，不同组之间串行 */
+export interface StepGroup {
+  /** 分组名称（用于日志） */
+  name: string;
+  /** 同组内并行执行的步骤 */
+  steps: PostProcessStep[];
+}
+
 // ─── Pipeline ────────────────────────────────────────────
 
 export interface PipelineResult {
@@ -65,39 +76,165 @@ export interface PipelineResult {
   successCount: number;
   /** 失败的步骤数 */
   failureCount: number;
+  /** 总执行时间（毫秒） */
+  totalDuration: number;
 }
 
 export class PostProcessPipeline {
   private steps: PostProcessStep[] = [];
+  private groups: StepGroup[] = [];
+  private useGroupedExecution = false;
 
-  /** 注册一个步骤 */
+  /** 注册单个步骤（串行模式，向后兼容） */
   add(step: PostProcessStep): this {
     this.steps.push(step);
     return this;
   }
 
-  /** 获取已注册的步骤列表 */
+  /** 注册一个步骤分组（组内并行执行） */
+  addGroup(group: StepGroup): this {
+    this.groups.push(group);
+    this.useGroupedExecution = true;
+    return this;
+  }
+
+  /** 获取已注册的步骤列表（串行模式） */
   getSteps(): readonly PostProcessStep[] {
     return this.steps;
   }
 
-  /** 按序执行所有启用的步骤，单个步骤失败不阻塞后续 */
+  /** 获取已注册的分组列表 */
+  getGroups(): readonly StepGroup[] {
+    return this.groups;
+  }
+
+  /** 执行管线（自动选择串行或分组并行模式） */
   async run(tripPlan: TripPlan, config: PostProcessConfig): Promise<PipelineResult> {
+    if (this.useGroupedExecution) {
+      return this.runGrouped(tripPlan, config);
+    }
+    return this.runSequential(tripPlan, config);
+  }
+
+  /** 分组并行执行 */
+  private async runGrouped(tripPlan: TripPlan, config: PostProcessConfig): Promise<PipelineResult> {
+    const logger = getLogger().child({ component: "post-process-pipeline" });
+    const pipelineStart = Date.now();
+    let current = tripPlan;
+    const stepResults: StepResult[] = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const group of this.groups) {
+      // 过滤出启用的步骤
+      const enabledSteps = group.steps.filter((s) => s.isEnabled(config));
+
+      if (enabledSteps.length === 0) {
+        logger.debug("分组跳过（无启用步骤）", { group: group.name });
+        continue;
+      }
+
+      if (enabledSteps.length === 1) {
+        // 单步骤直接执行，无需 Promise.allSettled
+        const step = enabledSteps[0]!;
+        const start = Date.now();
+        try {
+          current = await step.run(current, config);
+          const duration = Date.now() - start;
+          logger.debug("步骤完成", { group: group.name, step: step.name, duration });
+          stepResults.push({ stepName: step.name, tripPlan: current, success: true });
+          successCount++;
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          logger.warn("步骤失败", {
+            group: group.name,
+            step: step.name,
+            duration: Date.now() - start,
+            error: errorMsg,
+          });
+          stepResults.push({
+            stepName: step.name,
+            tripPlan: current,
+            success: false,
+            error: errorMsg,
+          });
+          failureCount++;
+        }
+        continue;
+      }
+
+      // 组内步骤串行执行（每步接收前一步的输出，保证数据依赖正确）
+      const groupStart = Date.now();
+      logger.info("分组开始", { group: group.name, stepCount: enabledSteps.length });
+
+      for (const step of enabledSteps) {
+        const start = Date.now();
+        try {
+          current = await step.run(current, config);
+          const duration = Date.now() - start;
+          logger.debug("步骤完成", { group: group.name, step: step.name, duration });
+          stepResults.push({ stepName: step.name, tripPlan: current, success: true });
+          successCount++;
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          logger.warn("步骤失败", {
+            group: group.name,
+            step: step.name,
+            duration: Date.now() - start,
+            error: errorMsg,
+          });
+          stepResults.push({
+            stepName: step.name,
+            tripPlan: current,
+            success: false,
+            error: errorMsg,
+          });
+          failureCount++;
+        }
+      }
+
+      const groupDuration = Date.now() - groupStart;
+      logger.info("分组完成", { group: group.name, duration: groupDuration });
+    }
+
+    const totalDuration = Date.now() - pipelineStart;
+    logger.info("pipeline 完成（分组并行）", {
+      successCount,
+      failureCount,
+      totalSteps: stepResults.length,
+      totalDuration,
+    });
+    return { tripPlan: current, stepResults, successCount, failureCount, totalDuration };
+  }
+
+  /** 串行执行（向后兼容） */
+  private async runSequential(
+    tripPlan: TripPlan,
+    config: PostProcessConfig,
+  ): Promise<PipelineResult> {
+    const logger = getLogger().child({ component: "post-process-pipeline" });
+    const pipelineStart = Date.now();
     let current = tripPlan;
     const stepResults: StepResult[] = [];
     let successCount = 0;
     let failureCount = 0;
 
     for (const step of this.steps) {
-      if (!step.isEnabled(config)) continue;
+      if (!step.isEnabled(config)) {
+        logger.debug("步骤跳过（未启用）", { step: step.name });
+        continue;
+      }
 
+      const start = Date.now();
       try {
         current = await step.run(current, config);
+        const duration = Date.now() - start;
+        logger.debug("步骤完成", { step: step.name, duration });
         stepResults.push({ stepName: step.name, tripPlan: current, success: true });
         successCount++;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        console.warn(`[PostProcessPipeline] 步骤 "${step.name}" 失败:`, errorMsg);
+        logger.warn("步骤失败", { step: step.name, duration: Date.now() - start, error: errorMsg });
         stepResults.push({
           stepName: step.name,
           tripPlan: current,
@@ -105,10 +242,16 @@ export class PostProcessPipeline {
           error: errorMsg,
         });
         failureCount++;
-        // 错误隔离：继续执行后续步骤，使用当前行程
       }
     }
 
-    return { tripPlan: current, stepResults, successCount, failureCount };
+    const totalDuration = Date.now() - pipelineStart;
+    logger.info("pipeline 完成", {
+      successCount,
+      failureCount,
+      totalSteps: stepResults.length,
+      totalDuration,
+    });
+    return { tripPlan: current, stepResults, successCount, failureCount, totalDuration };
   }
 }

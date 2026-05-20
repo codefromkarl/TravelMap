@@ -24,7 +24,7 @@ interface CacheEntry {
 
 const noteCache = new LRUCache<string, CacheEntry>({
   max: 1000,
-  ttl: 1000 * 60 * 30, // 30 min
+  ttl: 1000 * 60 * 60 * 2, // 2 小时（UGC 数据变化慢）
 });
 
 // ─── 路由器实例 ──────────────────────────────────────────
