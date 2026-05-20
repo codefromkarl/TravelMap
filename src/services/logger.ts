@@ -95,7 +95,7 @@ function formatPretty(entry: LogEntry): string {
   const reset = "\x1b[0m";
   const color = levelColor[entry.level] ?? "";
   const { level, time, msg, ...rest } = entry;
-  const extra = Object.keys(rest).length > 0 ? " " + JSON.stringify(rest) : "";
+  const extra = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : "";
   return `${time} ${color}[${level.toUpperCase()}]${reset} ${msg}${extra}`;
 }
 

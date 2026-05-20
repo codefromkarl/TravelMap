@@ -11,6 +11,7 @@ import type { DayPlan, Location, TripPlan } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
 import { dualGeocode, gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
+import { getLogger } from "./logger.js";
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
@@ -139,7 +140,7 @@ function computeRadius(commuteMode?: string, commuteMinutes?: number): number {
   const mode = commuteMode ?? "walk";
   const minutes = commuteMinutes ?? 30;
 
-  if (mode === "any") return RADIUS_MAP["any"]!;
+  if (mode === "any") return RADIUS_MAP.any!;
   if (mode === "walk" && minutes <= 15) return RADIUS_MAP["walk-15"]!;
   if (mode === "walk") return RADIUS_MAP["walk-30"]!;
   if (mode === "transit") return RADIUS_MAP["transit-30"]!;
@@ -248,7 +249,7 @@ function amapPoiToHotel(poi: AmapPoi): HotelSearchResult {
 
 async function searchAmapHotels(
   center: Location,
-  city: string,
+  _city: string,
   radius: number,
   keywords: string | undefined,
 ): Promise<HotelSearchResult[]> {
@@ -463,10 +464,9 @@ export async function searchHotels(params: HotelSearchParams): Promise<HotelSear
 
     return { hotels: filterByBudget(limited, budget), source };
   } catch (err) {
-    console.warn(
-      "[HotelService] API failed, using mock:",
-      err instanceof Error ? err.message : err,
-    );
+    getLogger()
+      .child({ component: "hotel-service" })
+      .warn("API failed, using mock", { error: err instanceof Error ? err.message : err });
     const mock = getMockHotels(city, center);
     return {
       hotels: filterByBudget(mock, budget),
@@ -504,7 +504,7 @@ export async function enrichHotelsForTrip(tripPlan: TripPlan): Promise<TripPlan>
 
         if (hotels.length === 0) return day;
 
-        if (day.hotel && day.hotel.name) {
+        if (day.hotel?.name) {
           // AI 已填酒店 → 尝试匹配真实数据补充价格和坐标
           const matched = hotels.find(
             (h) => h.name.includes(day.hotel!.name) || day.hotel!.name.includes(h.name),
@@ -548,10 +548,13 @@ export async function enrichHotelsForTrip(tripPlan: TripPlan): Promise<TripPlan>
           },
         };
       } catch (err) {
-        console.warn(
-          `[HotelService] enrichHotelsForTrip failed for ${day.city} day ${day.dayIndex}:`,
-          err instanceof Error ? err.message : err,
-        );
+        getLogger()
+          .child({ component: "hotel-service" })
+          .warn("enrichHotelsForTrip failed", {
+            city: day.city,
+            dayIndex: day.dayIndex,
+            error: err instanceof Error ? err.message : err,
+          });
         return day;
       }
     }),

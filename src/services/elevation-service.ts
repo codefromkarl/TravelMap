@@ -11,6 +11,7 @@
 
 import type { Location } from "../types/trip.js";
 import { fetchWithTimeout } from "./http-client.js";
+import { getLogger } from "./logger.js";
 
 // ─── 配置 ─────────────────────────────────────────────────
 
@@ -102,7 +103,9 @@ export async function queryElevations(locations: Location[]): Promise<ElevationR
       });
 
       if (!response.ok) {
-        console.warn(`[ElevationService] API 请求失败: ${response.status} ${response.statusText}`);
+        getLogger()
+          .child({ component: "elevation-service" })
+          .warn("API 请求失败", { status: response.status, statusText: response.statusText });
         // 填充默认值 0
         for (let j = 0; j < batch.length; j++) {
           results[batchIndices[j]] = { location: batch[j], elevation: 0 };
@@ -128,7 +131,9 @@ export async function queryElevations(locations: Location[]): Promise<ElevationR
         }
       }
     } catch (err) {
-      console.warn("[ElevationService] 查询海拔失败:", err);
+      getLogger()
+        .child({ component: "elevation-service" })
+        .warn("查询海拔失败", { error: err instanceof Error ? err.message : err });
       for (let j = 0; j < batch.length; j++) {
         results[batchIndices[j]] = { location: batch[j], elevation: 0 };
       }

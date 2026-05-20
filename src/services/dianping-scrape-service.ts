@@ -13,6 +13,8 @@
  * 返回数据统一标记为 priceConfidence="scraped"，前端需明确告知用户。
  */
 
+import { getLogger } from "./logger.js";
+
 export interface DianpingScrapeConfig {
   /** 请求间隔 ms（默认 5000） */
   requestIntervalMs?: number;
@@ -60,10 +62,9 @@ export async function scrapeDianpingMerchant(
   // 3. 详情页: https://www.dianping.com/shop/{{shopId}}
   // 4. 解析 HTML 中的人均消费、营业时间 JSON-LD 或 DOM
 
-  console.warn(
-    `[DianpingScrape] 商户抓取暂未实现: ${keyword} (${city}). ` +
-      `如需启用，需配置 Puppeteer + 代理池，并遵守平台条款。`,
-  );
+  getLogger()
+    .child({ component: "dianping-scrape-service" })
+    .warn("商户抓取暂未实现", { keyword, city });
 
   return null;
 }

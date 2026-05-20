@@ -11,6 +11,7 @@
 import type { Location } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
 import { fetchWithTimeout } from "./http-client.js";
+import { getLogger } from "./logger.js";
 
 // ─── 配置 ────────────────────────────────────────────────
 
@@ -82,8 +83,9 @@ export function isDomesticCity(city: string): boolean {
 // 高德 API 返回 GCJ-02（火星坐标），Leaflet 使用 WGS-84
 // 不转换会导致 100-500m 偏移
 
-const PI = 3.14159265358979324;
+const PI = Math.PI;
 const A = 6378245.0;
+// biome-ignore lint/correctness/noPrecisionLoss: GCJ-02 偏移算法需要精确常量
 const EE = 0.00669342162296594323;
 
 function outOfChina(lat: number, lng: number): boolean {
@@ -313,7 +315,9 @@ export async function dualGeocode(
       markEngineFailed(engine.name);
       const msg = err instanceof Error ? err.message : String(err);
       warnings.push(`${engine.name}: ${msg}`);
-      console.warn(`[DualMap] ${engine.name} failed: ${msg}`);
+      getLogger()
+        .child({ component: "dual-map-service" })
+        .warn("引擎失败", { engine: engine.name, error: msg });
     }
   }
 

@@ -11,6 +11,7 @@ import type { DayPlan, Location } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
 import { gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
+import { getLogger } from "./logger.js";
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
@@ -361,10 +362,9 @@ export async function searchNearbyRestaurants(
 
     return { restaurants: restaurants.slice(0, limit), source };
   } catch (err) {
-    console.warn(
-      "[RestaurantService] API failed, using mock:",
-      err instanceof Error ? err.message : err,
-    );
+    getLogger()
+      .child({ component: "restaurant-service" })
+      .warn("API failed, using mock", { error: err instanceof Error ? err.message : err });
     const mock = getMockRestaurants(params);
     return {
       restaurants: mock,
@@ -435,10 +435,12 @@ export async function enrichDayMeals(dayPlan: DayPlan): Promise<DayPlan> {
           };
         }
       } catch (err) {
-        console.warn(
-          `[RestaurantService] enrichDayMeals failed for ${meal.type}:`,
-          err instanceof Error ? err.message : err,
-        );
+        getLogger()
+          .child({ component: "restaurant-service" })
+          .warn("enrichDayMeals failed", {
+            mealType: meal.type,
+            error: err instanceof Error ? err.message : err,
+          });
       }
 
       return meal;

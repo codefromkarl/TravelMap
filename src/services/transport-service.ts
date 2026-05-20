@@ -25,6 +25,7 @@ import type { TransportOption, TripPlan } from "../types/trip.js";
 import { config } from "./config.js";
 import { dualGeocode } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
+import { getLogger } from "./logger.js";
 import { isTrvlAvailable, searchFlights } from "./trvl-service.js";
 
 // ─── LRU 缓存 ────────────────────────────────────────────
@@ -114,7 +115,7 @@ async function searchTrainsFromAmap(
 ): Promise<TransportOption[]> {
   const key = config.amapWebKey;
   if (!key) {
-    console.warn("[TransportService] 高德 API Key 未配置，跳过火车搜索");
+    getLogger().child({ component: "transport-service" }).warn("高德 API Key 未配置，跳过火车搜索");
     return [];
   }
 
@@ -144,7 +145,9 @@ async function searchTrainsFromAmap(
   const data = (await res.json()) as AmapTransitResponse;
 
   if (data.status !== "1" || !data.route?.transits) {
-    console.warn("[TransportService] 高德路线规划无结果:", data.status);
+    getLogger()
+      .child({ component: "transport-service" })
+      .warn("高德路线规划无结果", { status: data.status });
     return [];
   }
 
@@ -224,7 +227,9 @@ async function searchFlightsFromTrvl(
       };
     });
   } catch (err) {
-    console.warn("[TransportService] trvl 航班搜索失败:", err instanceof Error ? err.message : err);
+    getLogger()
+      .child({ component: "transport-service" })
+      .warn("trvl 航班搜索失败", { error: err instanceof Error ? err.message : err });
     return [];
   }
 }
@@ -321,10 +326,9 @@ export async function searchIntercityTransport(
         anyRealSource = true;
       }
     } catch (err) {
-      console.warn(
-        "[TransportService] 高德火车搜索失败:",
-        err instanceof Error ? err.message : err,
-      );
+      getLogger()
+        .child({ component: "transport-service" })
+        .warn("高德火车搜索失败", { error: err instanceof Error ? err.message : err });
     }
   }
 
@@ -337,7 +341,9 @@ export async function searchIntercityTransport(
         anyRealSource = true;
       }
     } catch (err) {
-      console.warn("[TransportService] 航班搜索失败:", err instanceof Error ? err.message : err);
+      getLogger()
+        .child({ component: "transport-service" })
+        .warn("航班搜索失败", { error: err instanceof Error ? err.message : err });
     }
   }
 
@@ -415,10 +421,12 @@ export async function enrichTransferDays(tripPlan: TripPlan): Promise<TripPlan> 
         };
       }
     } catch (err) {
-      console.warn(
-        `[TransportService] 移动日 ${day.date} 交通查询失败:`,
-        err instanceof Error ? err.message : err,
-      );
+      getLogger()
+        .child({ component: "transport-service" })
+        .warn("移动日交通查询失败", {
+          date: day.date,
+          error: err instanceof Error ? err.message : err,
+        });
     }
   });
 

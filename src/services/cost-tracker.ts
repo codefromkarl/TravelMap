@@ -9,6 +9,8 @@
  *   deepseek-v3:      input $0.27  output $1.10
  */
 
+import { getTrace } from "./trace-context.js";
+
 export interface ModelPricing {
   inputPerMillion: number;
   outputPerMillion: number;
@@ -21,6 +23,8 @@ export interface TokenUsage {
   provider: string;
   phase: "tool_call" | "planning" | "general";
   timestamp: number;
+  /** 关联的 traceId（自动从 TraceContext 获取） */
+  traceId?: string;
 }
 
 export interface CostSummary {
@@ -70,8 +74,13 @@ export class CostTracker {
   private usages: TokenUsage[] = [];
 
   /** 记录一次 LLM 调用 */
-  record(usage: Omit<TokenUsage, "timestamp">): void {
-    this.usages.push({ ...usage, timestamp: Date.now() });
+  record(usage: Omit<TokenUsage, "timestamp" | "traceId">): void {
+    const trace = getTrace();
+    this.usages.push({
+      ...usage,
+      timestamp: Date.now(),
+      traceId: trace?.traceId,
+    });
   }
 
   /** 获取费用汇总 */

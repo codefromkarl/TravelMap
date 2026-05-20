@@ -10,6 +10,7 @@
 import type { WeatherInfo } from "../types/trip.js";
 import { config } from "./config.js";
 import { fetchWithTimeout } from "./http-client.js";
+import { getLogger } from "./logger.js";
 
 export interface WeatherSearchParams {
   city: string;
@@ -338,13 +339,17 @@ export async function searchWeather(params: WeatherSearchParams): Promise<{
   weather: WeatherInfo[];
   source: string;
 }> {
+  const logger = getLogger().child({ component: "weather-service" });
+
   // 1. 和风天气（7天，中文原生）
   if (config.qweatherApiKey) {
     try {
       const weather = await fetchFromQWeather(params);
       return { weather, source: "qweather" };
     } catch (err) {
-      console.warn("[WeatherService] QWeather failed:", err instanceof Error ? err.message : err);
+      logger.warn("QWeather failed, degrading", {
+        error: err instanceof Error ? err.message : err,
+      });
     }
   }
 
@@ -354,10 +359,9 @@ export async function searchWeather(params: WeatherSearchParams): Promise<{
       const weather = await fetchFromAmapWeather(params);
       return { weather, source: "amap" };
     } catch (err) {
-      console.warn(
-        "[WeatherService] Amap weather failed:",
-        err instanceof Error ? err.message : err,
-      );
+      logger.warn("Amap weather failed, degrading", {
+        error: err instanceof Error ? err.message : err,
+      });
     }
   }
 
@@ -367,10 +371,9 @@ export async function searchWeather(params: WeatherSearchParams): Promise<{
       const weather = await fetchFromOWM(params, config.openWeatherApiKey);
       return { weather, source: "openweathermap" };
     } catch (err) {
-      console.warn(
-        "[WeatherService] OpenWeatherMap failed, using mock:",
-        err instanceof Error ? err.message : err,
-      );
+      logger.warn("OpenWeatherMap failed, using mock", {
+        error: err instanceof Error ? err.message : err,
+      });
     }
   }
 

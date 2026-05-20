@@ -10,6 +10,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { TrvlFlightSearchResult, TrvlHotelSearchResult } from "../types/trip.js";
+import { getLogger } from "./logger.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -144,7 +145,9 @@ export async function searchFlights(
   });
 
   if (stderr) {
-    console.warn("[TrvlService] flights stderr:", stderr);
+    getLogger()
+      .child({ component: "trvl-service" })
+      .warn("flights stderr", { stderr: stderr.slice(0, 200) });
   }
 
   let result: TrvlFlightSearchResult;
@@ -196,7 +199,9 @@ export async function searchHotels(
   });
 
   if (stderr) {
-    console.warn("[TrvlService] hotels stderr:", stderr);
+    getLogger()
+      .child({ component: "trvl-service" })
+      .warn("hotels stderr", { stderr: stderr.slice(0, 200) });
   }
 
   let result: TrvlHotelSearchResult;

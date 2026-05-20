@@ -18,6 +18,7 @@ import type {
 } from "../types/route.js";
 import { dualGeocode } from "./dual-map-service.js";
 import { fillWaypointElevations } from "./elevation-service.js";
+import { getLogger } from "./logger.js";
 import type { UGCReview } from "./multi-source-service.js";
 import { getMockRoutes, getOfficialRoutes } from "./route-official-data.js";
 import { searchXhsNotes } from "./xhs-service.js";
@@ -368,7 +369,9 @@ export async function searchAttractionRoutes(
       }
     }
   } catch (err) {
-    console.warn("[RouteService] 小红书路线搜索失败:", err);
+    getLogger()
+      .child({ component: "route-service" })
+      .warn("小红书路线搜索失败", { error: err instanceof Error ? err.message : err });
   }
 
   // ── L3: Mock 降级 ──
@@ -640,7 +643,9 @@ export async function enrichAttractionWithRoutes(
       };
     }
   } catch (err) {
-    console.warn(`[RouteService] 为 ${name} 搜索路线失败:`, err);
+    getLogger()
+      .child({ component: "route-service" })
+      .warn("景点路线搜索失败", { name, error: err instanceof Error ? err.message : err });
   }
 
   return attraction;

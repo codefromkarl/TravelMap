@@ -15,6 +15,7 @@ import { LRUCache } from "lru-cache";
 import type { AttractionImage } from "../types/trip.js";
 import { config } from "./config.js";
 import { fetchWithTimeout } from "./http-client.js";
+import { getLogger } from "./logger.js";
 
 // ─── 缓存 ─────────────────────────────────────────────────
 
@@ -45,7 +46,9 @@ async function fetchUnsplash(keyword: string, count: number): Promise<Attraction
     });
 
     if (!res.ok) {
-      console.warn(`[ImageService] Unsplash error: ${res.status}`);
+      getLogger()
+        .child({ component: "image-service" })
+        .warn("Unsplash error", { status: res.status });
       return [];
     }
 
@@ -58,7 +61,9 @@ async function fetchUnsplash(keyword: string, count: number): Promise<Attraction
         alt: r.alt_description || undefined,
       }));
   } catch (err) {
-    console.warn("[ImageService] Unsplash failed:", err instanceof Error ? err.message : err);
+    getLogger()
+      .child({ component: "image-service" })
+      .warn("Unsplash failed", { error: err instanceof Error ? err.message : err });
     return [];
   }
 }
@@ -84,7 +89,9 @@ async function fetchPexels(keyword: string, count: number): Promise<AttractionIm
     });
 
     if (!res.ok) {
-      console.warn(`[ImageService] Pexels error: ${res.status}`);
+      getLogger()
+        .child({ component: "image-service" })
+        .warn("Pexels error", { status: res.status });
       return [];
     }
 
@@ -97,7 +104,9 @@ async function fetchPexels(keyword: string, count: number): Promise<AttractionIm
         alt: p.alt || undefined,
       }));
   } catch (err) {
-    console.warn("[ImageService] Pexels failed:", err instanceof Error ? err.message : err);
+    getLogger()
+      .child({ component: "image-service" })
+      .warn("Pexels failed", { error: err instanceof Error ? err.message : err });
     return [];
   }
 }

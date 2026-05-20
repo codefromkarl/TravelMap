@@ -11,6 +11,7 @@
 
 import type { Attraction } from "../../types/trip.js";
 import { dualGeocode } from "../dual-map-service.js";
+import { getLogger } from "../logger.js";
 import { fuseAttractions, getFusionStats } from "./fusion-engine.js";
 import { searchOpenTripMap } from "./opentripmap-adapter.js";
 import { searchQunar } from "./qunar-adapter.js";
@@ -130,7 +131,9 @@ export async function searchFreeSources(
         ]);
         sourceResults.set(name, results);
       } catch (err) {
-        console.warn(`[FreeSources] ${name} 失败:`, err instanceof Error ? err.message : err);
+        getLogger()
+          .child({ component: "free-sources" })
+          .warn("数据源失败", { source: name, error: err instanceof Error ? err.message : err });
         sourceResults.set(name, []);
       }
     });

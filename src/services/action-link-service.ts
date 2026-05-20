@@ -8,6 +8,7 @@
 
 import { fuzzyLookupReservation, lookupReservation } from "../data/reservation-db.js";
 import type { ActionLink, Attraction, Hotel, TripPlan } from "../types/trip.js";
+import { getLogger } from "./logger.js";
 import { isTrvlAvailable, searchFlights, searchHotels } from "./trvl-service.js";
 
 // ─── 景点预约链接 ──────────────────────────────────────────
@@ -183,10 +184,14 @@ async function generateTrvlFlightLinks(trip: TripPlan): Promise<ActionLink[]> {
         }
       }
     } catch (err) {
-      console.warn(
-        `[ActionLink] 航班搜索失败 ${fromCity} → ${toCity} (${date}):`,
-        err instanceof Error ? err.message : err,
-      );
+      getLogger()
+        .child({ component: "action-link-service" })
+        .warn("航班搜索失败", {
+          fromCity,
+          toCity,
+          date,
+          error: err instanceof Error ? err.message : err,
+        });
     }
   }
 
@@ -263,10 +268,14 @@ export async function enrichTripWithLiveLinks(trip: TripPlan): Promise<TripPlan>
             links = generateTemplateHotelLinks(day.hotel, day.city);
           }
         } catch (err) {
-          console.warn(
-            `[ActionLink] 酒店实时搜索失败 (${day.city} ${checkin}~${checkout}):`,
-            err instanceof Error ? err.message : err,
-          );
+          getLogger()
+            .child({ component: "action-link-service" })
+            .warn("酒店实时搜索失败", {
+              city: day.city,
+              checkin,
+              checkout,
+              error: err instanceof Error ? err.message : err,
+            });
           links = generateTemplateHotelLinks(day.hotel, day.city);
         }
       } else {
@@ -286,10 +295,12 @@ export async function enrichTripWithLiveLinks(trip: TripPlan): Promise<TripPlan>
         const liveLinks = await generateTrvlFlightLinks(trip);
         flightLinks = liveLinks.length > 0 ? liveLinks : generateTemplateFlightLinks(trip);
       } catch (err) {
-        console.warn(
-          `[ActionLink] 航班实时搜索失败 (${trip.cities.join(" → ")}):`,
-          err instanceof Error ? err.message : err,
-        );
+        getLogger()
+          .child({ component: "action-link-service" })
+          .warn("航班实时搜索失败", {
+            cities: trip.cities.join(" → "),
+            error: err instanceof Error ? err.message : err,
+          });
         flightLinks = generateTemplateFlightLinks(trip);
       }
     } else {

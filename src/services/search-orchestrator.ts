@@ -9,7 +9,8 @@
  */
 
 import type { TripRequest, WeatherInfo } from "../types/trip.js";
-import type { EnrichedAttraction, FusionResult } from "./multi-source-service.js";
+import { getLogger } from "./logger.js";
+import type { EnrichedAttraction } from "./multi-source-service.js";
 import { createDefaultProviders } from "./search/providers/index.js";
 import type { SearchProvider } from "./search/types.js";
 
@@ -65,12 +66,24 @@ export async function runParallelSearch(
   });
 
   // 并行调用所有 provider
+  const logger = getLogger().child({ component: "search-orchestrator" });
   const results = await Promise.all(
     activeProviders.map(async (provider) => {
+      const start = Date.now();
       try {
-        return await provider.search(request);
+        const result = await provider.search(request);
+        logger.debug("provider 完成", {
+          provider: provider.name,
+          duration: Date.now() - start,
+          source: result?.source,
+        });
+        return result;
       } catch (err) {
-        console.warn(`[SearchOrchestrator] ${provider.name} 搜索失败:`, err);
+        logger.warn("provider 失败", {
+          provider: provider.name,
+          duration: Date.now() - start,
+          error: err instanceof Error ? err.message : String(err),
+        });
         return { key: provider.resultKey, data: null, source: "failed" };
       }
     }),
@@ -111,10 +124,18 @@ export async function runParallelSearch(
     }
   }
 
+  const uniqueSources = [...new Set(sources)];
+  logger.info("搜索编排完成", {
+    attractions: attractions.length,
+    weather: weather.length,
+    cityCoords: cityCoords.size,
+    sources: uniqueSources.join(","),
+  });
+
   return {
     attractions,
     weather,
-    sources: [...new Set(sources)],
+    sources: uniqueSources,
     cityCoords,
   };
 }

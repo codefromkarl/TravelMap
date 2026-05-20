@@ -56,6 +56,7 @@ export function estimateTokens(text: string): number {
   const jsonStructChars = (text.match(/[{}[\]":,]/g) ?? []).length;
 
   // 中文字符数量
+  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) ?? []).length;
 
   // 混合估算：JSON 结构按 /6，中文按 /2，其余按 /4
   const jsonTokens = Math.ceil(jsonStructChars / 6);

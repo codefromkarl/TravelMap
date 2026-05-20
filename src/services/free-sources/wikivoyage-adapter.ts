@@ -8,6 +8,7 @@
  */
 
 import { fetchWithTimeout } from "../http-client.js";
+import { getLogger } from "../logger.js";
 import type { FreeSourceAttraction, FreeSourceSearchParams } from "./types.js";
 
 const BASE_URL = "https://zh.wikivoyage.org/w/api.php";
@@ -43,7 +44,9 @@ async function fetchCityPage(city: string): Promise<string | null> {
 
     return body.parse.wikitext["*"];
   } catch (err) {
-    console.warn("[Wikivoyage] fetchCityPage failed:", err instanceof Error ? err.message : err);
+    getLogger()
+      .child({ component: "wikivoyage-adapter" })
+      .warn("fetchCityPage failed", { error: err instanceof Error ? err.message : err });
     return null;
   }
 }

@@ -8,7 +8,7 @@
  */
 
 import { config } from "../config.js";
-import type { UGCReview } from "../multi-source-service.js";
+import { getLogger } from "../logger.js";
 import { PROVIDER_ADAPTERS } from "./adapters/index.js";
 import type { ProviderContext, ProviderName, ProviderResult } from "./types.js";
 
@@ -147,7 +147,12 @@ export class XhsRouter {
           return { provider: name, reviews };
         }
       } catch (err) {
-        console.warn(`[XHS Router] ${name} 失败，尝试下一个:`, err);
+        getLogger()
+          .child({ component: "xhs-router" })
+          .warn("provider 失败，尝试下一个", {
+            provider: name,
+            error: err instanceof Error ? err.message : err,
+          });
       }
     }
     return null;
