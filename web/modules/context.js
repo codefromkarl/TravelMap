@@ -119,33 +119,8 @@ export const RISK_COLORS = {
 };
 
 // ─── 工具函数 ────────────────────────────────────────────
-export function showToast(msg, duration = 2500, type = 'default', action = null) {
-  const el = document.getElementById("toast");
-  if (!el) return;
-  // 清理旧内容
-  el.innerHTML = '';
-  const textNode = document.createElement('span');
-  textNode.textContent = msg;
-  el.appendChild(textNode);
-  el.className = 'show';
-  if (type !== 'default') el.classList.add(type);
-  // 可选 action 按钮
-  if (action && action.label && action.onClick) {
-    el.classList.add('has-action');
-    const btn = document.createElement('button');
-    btn.textContent = action.label;
-    btn.className = 'toast-action-btn';
-    btn.addEventListener('click', () => {
-      el.className = '';
-      action.onClick();
-    });
-    el.appendChild(btn);
-    // 有 action 时延长显示时间
-    if (duration <= 2500) duration = 6000;
-  }
-  clearTimeout(el._hide);
-  el._hide = setTimeout(() => el.className = '', duration);
-}
+// showToast 已迁移到 feedback.js，这里 re-export 保持向后兼容
+export { showToast } from './feedback.js';
 
 export function isDomesticCityForMap(city) {
   return DOMESTIC_CITIES.some(c => city.includes(c) || c.includes(city));
