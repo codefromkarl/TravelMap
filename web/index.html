@@ -12,10 +12,18 @@
 
   <!-- SEO Meta -->
   <meta name="description" content="旅图 TravelMap — AI 驱动的智能旅行规划助手。输入目的地和偏好，自动生成行程路线、景点推荐、住宿建议、天气预报和预算规划。免费体验。">
-  <meta name="keywords" content="AI旅行规划,旅行助手,行程规划,旅游攻略,AI旅游,智能行程,旅行路线,景点推荐,酒店推荐,旅图,TravelMap">
+  <meta name="keywords" content="AI旅行规划,旅行助手,行程规划,旅游攻略,AI旅游,智能行程,旅行路线,景点推荐,酒店推荐,旅图,TravelMap,trip planner,travel itinerary,AI travel planner">
   <meta name="author" content="codefromkarl">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://travel.codefromkarl.xyz/">
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-friendly description">
+
+  <!-- GEO: AI Search Optimization -->
+  <meta name="ai-content-declaration" content="human-authored">
+  <meta name="generator" content="TravelMap AI Travel Planner">
+  <meta name="revisit-after" content="7 days">
+  <meta name="rating" content="general">
+  <meta name="distribution" content="global">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
@@ -57,27 +65,91 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <!-- JSON-LD Structured Data -->
+  <!-- JSON-LD Structured Data (GEO Optimized) -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "旅图 TravelMap",
+    "alternateName": ["TravelMap", "AI Travel Planner", "旅图"],
     "url": "https://travel.codefromkarl.xyz",
-    "description": "AI 驱动的智能旅行规划助手",
+    "description": "AI 驱动的智能旅行规划助手。输入目的地和偏好，自动生成行程路线、景点推荐、住宿建议、天气预报和预算规划。",
     "applicationCategory": "TravelApplication",
     "operatingSystem": "Web",
     "offers": {
       "@type": "Offer",
       "price": "0",
-      "priceCurrency": "CNY"
+      "priceCurrency": "CNY",
+      "availability": "https://schema.org/InStock"
     },
     "author": {
       "@type": "Organization",
       "name": "codefromkarl",
       "url": "https://github.com/codefromkarl"
     },
-    "inLanguage": ["zh-CN", "en", "ja"]
+    "inLanguage": ["zh-CN", "en", "ja"],
+    "featureList": [
+      "AI 智能行程生成",
+      "交互式地图路线规划",
+      "多模型 AI 支持",
+      "实时天气查询",
+      "多人群适配",
+      "行程分享功能"
+    ],
+    "screenshot": "https://travel.codefromkarl.xyz/og-image.svg",
+    "softwareHelp": {
+      "@type": "CreativeWork",
+      "url": "https://travel.codefromkarl.xyz/help.html"
+    },
+    "isAccessibleForFree": true,
+    "dateModified": "2025-05-21",
+    "publisher": {
+      "@type": "Organization",
+      "name": "codefromkarl",
+      "url": "https://github.com/codefromkarl"
+    }
+  }
+  </script>
+
+  <!-- FAQ Structured Data for GEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "旅图 TravelMap 是什么？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "旅图 TravelMap 是一款基于多模型 AI 的智能行程生成工具，专为自由行旅客、家庭出游和背包客设计。只需输入目的地、旅行天数和偏好，即可自动获得包含每日路线、景点推荐、住宿建议、天气预报和预算评估的完整旅游攻略。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "旅图 TravelMap 支持哪些 AI 模型？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "旅图支持多种主流 AI 模型，包括 OpenAI、Anthropic、Google、DeepSeek、OpenRouter 等，用户可以自由切换选择。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "旅图 TravelMap 是免费的吗？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "是的，旅图 TravelMap 提供免费使用。用户可以免费体验全部核心功能，包括行程生成、地图展示、天气查询等。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "旅图支持哪些分享方式？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "旅图支持多种分享方式：生成精美行程图片（适合发朋友圈/小红书）、生成分享链接（LZ-String 压缩）、生成二维码（扫码即达）。所有分享功能零外部依赖，纯原生 API 实现。"
+        }
+      }
+    ]
   }
   </script>
 </head>
@@ -491,9 +563,8 @@
         <!-- 图例 -->
         <div id="page-map-legend">
           <div class="legend-item"><div class="legend-line" style="background:#3b82f6"></div> <span data-i18n="legendAttraction">景点</span></div>
-          <div class="legend-item"><div class="legend-line" style="background:#22c55e"></div> <span data-i18n="legendLowRisk">低风险路线</span></div>
-          <div class="legend-item"><div class="legend-line" style="background:#f59e0b"></div> <span data-i18n="legendMidRisk">中风险路线</span></div>
-          <div class="legend-item"><div class="legend-line" style="background:#ef4444"></div> <span data-i18n="legendHighRisk">高风险路线</span></div>
+          <div class="legend-item"><div class="legend-line" style="background:#8b5cf6"></div> <span>酒店</span></div>
+          <div class="legend-item"><div class="legend-line" style="background:#22c55e"></div> <span data-i18n="legendLowRisk">步行路线</span></div>
           <div class="legend-item"><div class="legend-line" style="background:#4f8ef7;border-style:dashed;border-width:1px;height:0"></div> <span data-i18n="legendCityRoute">城际路线</span></div>
         </div>
         <!-- 移动端视图切换按钮 -->

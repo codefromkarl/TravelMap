@@ -1,0 +1,42 @@
+# 旅图 TravelMap — AI 旅行规划助手
+
+> AI 驱动的智能旅行规划助手。输入目的地和偏好，自动生成行程路线、景点推荐、住宿建议、天气预报和预算规划。
+
+## 产品简介
+
+旅图 TravelMap 是一款基于多模型 AI 的智能行程生成工具，专为自由行旅客、家庭出游和背包客设计。只需输入目的地、旅行天数和偏好，即可自动获得包含每日路线、景点推荐、住宿建议、天气预报和预算评估的完整旅游攻略。
+
+## 核心功能
+
+- **智能行程生成**：输入目的地和偏好，AI 自动生成完整行程
+- **交互式地图**：行程路线实时渲染在地图上，支持景点间路线连接
+- **多模型 AI 支持**：兼容 OpenAI、Anthropic、Google、DeepSeek、OpenRouter 等主流模型
+- **实时天气查询**：集成天气 API，提供出行天气建议
+- **多人群适配**：根据老人、儿童、孕妇等人群特征优化推荐
+- **行程分享**：支持生成分享图片、链接和二维码
+- **多语言界面**：支持中文、English、日本語
+
+## 适用场景
+
+- 自由行规划：不想花时间做攻略，让 AI 5 秒生成完整行程
+- 家庭出游：根据老人/儿童需求自动调整节奏和景点
+- 商务差旅：快速生成高效路线，附带交通和酒店建议
+- 背包客探路：多城市联游、预算控制、风险评估一站式解决
+
+## 技术特点
+
+- 基于 pi 框架的 AI Agent 编排
+- 前端使用 Web Components (Lit) + Leaflet.js 地图
+- 支持高德地图和 OpenStreetMap
+- 部署在 Cloudflare Pages，全球 CDN 加速
+- 开源项目，MIT 许可证
+
+## 相关链接
+
+- 在线体验：https://travel.codefromkarl.xyz
+- GitHub 仓库：https://github.com/codefromkarl/TravelMap
+- 作者博客：https://codefromkarl.com
+
+## 关键词
+
+AI旅行规划, 智能行程助手, 行程生成器, 旅游攻略, 旅行路线规划, 行程分享, 智能旅行助手, AI旅游, trip planner, travel itinerary generator, AI travel planner, intelligent itinerary assistant

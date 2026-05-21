@@ -45,11 +45,194 @@ function wgs84ToGcj02(lat, lng) {
 }
 
 /** GCJ-02 → WGS-84（Leaflet 使用） */
-function gcj02ToWgs84(lat, lng) {
+export function gcj02ToWgs84(lat, lng) {
   if (_outOfChina(lat, lng)) return { lat, lng };
   const d = wgs84ToGcj02(lat, lng);
   return { lat: lat - (d.lat - lat), lng: lng - (d.lng - lng) };
 }
+
+// ─── 景点间路线规划（高德步行/驾车）───────────────────────
+const _routeCache = new Map();
+const _ROUTE_CACHE_MAX = 100;
+
+/**
+ * 调用高德路线规划 API 获取两点间的步行路线
+ * @returns {Promise<Array<[number, number]>>} WGS-84 坐标点数组
+ */
+async function fetchWalkingRoute(fromLat, fromLng, toLat, toLng) {
+  const cacheKey = `${fromLat.toFixed(4)},${fromLng.toFixed(4)}-${toLat.toFixed(4)},${toLng.toFixed(4)}`;
+  if (_routeCache.has(cacheKey)) return _routeCache.get(cacheKey);
+
+  const geoKey = getAmapGeoKey();
+  if (!geoKey) return null;
+
+  // 转换为 GCJ-02 坐标给高德 API
+  const fromGcj = wgs84ToGcj02(fromLat, fromLng);
+  const toGcj = wgs84ToGcj02(toLat, toLng);
+
+  try {
+    const url = `https://restapi.amap.com/v3/direction/walking?origin=${fromGcj.lng.toFixed(6)},${fromGcj.lat.toFixed(6)}&destination=${toGcj.lng.toFixed(6)},${toGcj.lat.toFixed(6)}&key=${geoKey}`;
+    const resp = await fetchWithTimeout(url, {}, 5000);
+    const data = await resp.json();
+
+    if (data.status === '1' && data.route?.paths?.length > 0) {
+      const steps = data.route.paths[0].steps || [];
+      const points = [];
+      for (const step of steps) {
+        if (step.polyline) {
+          const coords = step.polyline.split(';').map(c => {
+            const [lng, lat] = c.split(',').map(Number);
+            // GCJ-02 → WGS-84
+            return gcj02ToWgs84(lat, lng);
+          });
+          points.push(...coords);
+        }
+      }
+      _routeCache.set(cacheKey, points);
+      // LRU 淘汰
+      if (_routeCache.size > _ROUTE_CACHE_MAX) {
+        _routeCache.delete(_routeCache.keys().next().value);
+      }
+      return points;
+    }
+  } catch (e) {
+    console.warn('[Map] 步行路线规划失败:', e.message);
+  }
+
+  _routeCache.set(cacheKey, null);
+  return null;
+}
+
+/**
+ * 调用高德驾车路线规划 API 获取两点间的驾车路线
+ * @returns {Promise<Array<[number, number]>>} WGS-84 坐标点数组
+ */
+async function fetchDrivingRoute(fromLat, fromLng, toLat, toLng) {
+  const cacheKey = `drive:${fromLat.toFixed(4)},${fromLng.toFixed(4)}-${toLat.toFixed(4)},${toLng.toFixed(4)}`;
+  if (_routeCache.has(cacheKey)) return _routeCache.get(cacheKey);
+
+  const geoKey = getAmapGeoKey();
+  if (!geoKey) return null;
+
+  const fromGcj = wgs84ToGcj02(fromLat, fromLng);
+  const toGcj = wgs84ToGcj02(toLat, toLng);
+
+  try {
+    const url = `https://restapi.amap.com/v3/direction/driving?origin=${fromGcj.lng.toFixed(6)},${fromGcj.lat.toFixed(6)}&destination=${toGcj.lng.toFixed(6)},${toGcj.lat.toFixed(6)}&strategy=0&key=${geoKey}`;
+    const resp = await fetchWithTimeout(url, {}, 5000);
+    const data = await resp.json();
+
+    if (data.status === '1' && data.route?.paths?.length > 0) {
+      const steps = data.route.paths[0].steps || [];
+      const points = [];
+      for (const step of steps) {
+        if (step.polyline) {
+          const coords = step.polyline.split(';').map(c => {
+            const [lng, lat] = c.split(',').map(Number);
+            return gcj02ToWgs84(lat, lng);
+          });
+          points.push(...coords);
+        }
+      }
+      _routeCache.set(cacheKey, points);
+      if (_routeCache.size > _ROUTE_CACHE_MAX) {
+        _routeCache.delete(_routeCache.keys().next().value);
+      }
+      return points;
+    }
+  } catch (e) {
+    console.warn('[Map] 驾车路线规划失败:', e.message);
+  }
+
+  _routeCache.set(cacheKey, null);
+  return null;
+}
+
+/**
+ * 为同一天的相邻景点之间绘制路线连接
+ * @param {Array} attractions - 景点数组（需有 location）
+ * @param {string} mode - 'walking' | 'driving'
+ * @param {number} dayIdx - 天数索引（用于动画延迟）
+ * @param {number} attrOffset - 景点起始编号偏移
+ * @returns {Promise<number>} 绘制的路线数量
+ */
+async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffset = 0) {
+  if (!pageMapInstance || attractions.length < 2) return 0;
+
+  const validAttrs = attractions.filter(a =>
+    a.location?.latitude && a.location?.longitude &&
+    (a.location.latitude !== 0 || a.location.longitude !== 0)
+  );
+  if (validAttrs.length < 2) return 0;
+
+  let routeCount = 0;
+  const fetchFn = mode === 'driving' ? fetchDrivingRoute : fetchWalkingRoute;
+
+  for (let i = 0; i < validAttrs.length - 1; i++) {
+    const from = validAttrs[i];
+    const to = validAttrs[i + 1];
+    const fromLoc = from.location;
+    const toLoc = to.location;
+
+    const points = await fetchFn(fromLoc.latitude, fromLoc.longitude, toLoc.latitude, toLoc.longitude);
+    if (!points || points.length < 2) continue;
+
+    // 绘制路线 polyline
+    const polyline = L.polyline(points, {
+      color: mode === 'driving' ? '#6366f1' : '#10b981',
+      weight: 3,
+      opacity: 0.7,
+      lineJoin: 'round',
+      lineCap: 'round',
+      dashArray: mode === 'driving' ? null : '8,6',
+    });
+    polyline.addTo(pageMapInstance);
+
+    // snakeIn 动画
+    requestAnimationFrame(() => {
+      const pathEl = polyline._path;
+      if (pathEl && pathEl.getTotalLength) {
+        const len = pathEl.getTotalLength();
+        pathEl.style.strokeDasharray = len;
+        pathEl.style.strokeDashoffset = len;
+        pathEl.style.animation = `snakeIn 1s ease-out ${routeCount * 100 + dayIdx * 300}ms forwards`;
+      }
+    });
+
+    // 路线弹窗：显示距离和时间
+    const midIdx = Math.floor(points.length / 2);
+    const midPoint = points[midIdx];
+    if (midPoint) {
+      const dist = Math.round(calculateDistance(fromLoc.latitude, fromLoc.longitude, toLoc.latitude, toLoc.longitude));
+      const walkMin = mode === 'walking' ? Math.ceil(dist / 80) : Math.ceil(dist / 500);
+      const infoIcon = L.divIcon({
+        className: 'route-info-icon',
+        html: `<div class="route-info-badge">${mode === 'driving' ? '🚗' : '🚶'} ${walkMin}分钟</div>`,
+        iconSize: [80, 24], iconAnchor: [40, 12],
+      });
+      const infoMarker = L.marker(midPoint, { icon: infoIcon, interactive: false, zIndexOffset: -50 }).addTo(pageMapInstance);
+      pageMapLayers.push(infoMarker);
+    }
+
+    pageMapLayers.push(polyline);
+    routeCount++;
+  }
+
+  return routeCount;
+}
+
+/** 计算两点间的 Haversine 距离（米） */
+function calculateDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+window._drawInterAttractionRoutes = drawInterAttractionRoutes;
 
 /** fetch 带超时 */
 function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
@@ -77,7 +260,9 @@ async function _geocodeOne(name, city) {
     const data = await resp.json();
     if (data.status === '1' && data.geocodes?.length > 0) {
       const [lng, lat] = data.geocodes[0].location.split(',').map(Number);
-      const result = { latitude: lat, longitude: lng };
+      // 高德返回 GCJ-02，转为 WGS-84 供 Leaflet 使用
+      const converted = gcj02ToWgs84(lat, lng);
+      const result = { latitude: converted.lat, longitude: converted.lng };
       _geoCache.set(key, result);
     } else {
       _geoCache.set(key, null);
@@ -891,6 +1076,45 @@ async function renderTripOnPageMap(tripPlan) {
       restaurant: m.restaurant,
     }));
     routePanelData.push({ dayNum: dayIdx + 1, city: dayCity, attractions: dayAttrItems, meals: dayMeals });
+
+    // ── 酒店 marker ──────────────────────────────────
+    const hotelLoc = day.hotel?.location;
+    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0)) {
+      const hIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div class="hotel-marker">🏨</div>',
+        iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
+      });
+      const hPopup = '<div class="popup-card">' +
+        '<div class="popup-title">🏨 ' + (day.hotel.name || '住宿') + '</div>' +
+        (day.hotel.address ? '<div class="popup-city">📍 ' + day.hotel.address + '</div>' : '') +
+        (day.hotel.priceRange ? '<div class="popup-tips">💰 ' + day.hotel.priceRange + '</div>' : '') +
+        (day.hotel.rating ? '<div class="popup-tips">⭐ ' + day.hotel.rating + '</div>' : '') +
+        '</div>';
+      const hMarker = L.marker([hotelLoc.latitude, hotelLoc.longitude], { icon: hIcon, interactive: true }).bindPopup(hPopup, { maxWidth: 260 });
+      hMarker.addTo(pageMapInstance);
+      pageMapLayers.push(hMarker);
+      allCoords.push([hotelLoc.latitude, hotelLoc.longitude]);
+    }
+
+    // ── 绘制路线：酒店 → 景点1 → 景点2 → ... → 酒店 ──
+    const validDayAttrs = (day.attractions || []).filter(a =>
+      a.location?.latitude && a.location?.longitude &&
+      (a.location.latitude !== 0 || a.location.longitude !== 0)
+    );
+    // 构建完整路线点：酒店（如有）+ 景点 + 酒店（回程）
+    const routePoints = [];
+    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0)) {
+      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
+    }
+    routePoints.push(...validDayAttrs);
+    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0) && validDayAttrs.length > 0) {
+      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
+    }
+    if (routePoints.length >= 2) {
+      const interRoutes = await drawInterAttractionRoutes(routePoints, 'walking', dayIdx, 0);
+      routeCount += interRoutes;
+    }
   }
 
   // 城市间连线
@@ -1174,6 +1398,45 @@ async function renderTripAnimated(tripPlan) {
       estimatedCost: m.estimatedCost, restaurant: m.restaurant,
     }));
     routePanelData.push({ dayNum: dayIdx + 1, city: dayCity, attractions: dayAttrItems, meals: dayMeals });
+
+    // ── 酒店 marker（动画模式）──
+    const hotelLoc = day.hotel?.location;
+    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0) && !_animAbort) {
+      const hIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div class="hotel-marker anim-highlight">🏨</div>',
+        iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
+      });
+      const hPopup = '<div class="popup-card">' +
+        '<div class="popup-title">🏨 ' + (day.hotel.name || '住宿') + '</div>' +
+        (day.hotel.address ? '<div class="popup-city">📍 ' + day.hotel.address + '</div>' : '') +
+        (day.hotel.priceRange ? '<div class="popup-tips">💰 ' + day.hotel.priceRange + '</div>' : '') +
+        '</div>';
+      const hMarker = L.marker([hotelLoc.latitude, hotelLoc.longitude], { icon: hIcon, interactive: true }).bindPopup(hPopup, { maxWidth: 260 });
+      hMarker.addTo(pageMapInstance);
+      pageMapLayers.push(hMarker);
+      allCoords.push([hotelLoc.latitude, hotelLoc.longitude]);
+      await delay(attrDelay);
+    }
+
+    // ── 绘制路线：酒店 → 景点1 → ... → 酒店（动画模式）──
+    const validDayAttrs = (day.attractions || []).filter(a =>
+      a.location?.latitude && a.location?.longitude &&
+      (a.location.latitude !== 0 || a.location.longitude !== 0)
+    );
+    const routePoints = [];
+    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0)) {
+      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
+    }
+    routePoints.push(...validDayAttrs);
+    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0) && validDayAttrs.length > 0) {
+      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
+    }
+    if (routePoints.length >= 2 && !_animAbort) {
+      const interRoutes = await drawInterAttractionRoutes(routePoints, 'walking', dayIdx, 0);
+      routeCount += interRoutes;
+      await delay(routeDelay);
+    }
   }
 
   // ── 最终 fitBounds ─────────────────────────────────────
@@ -1257,8 +1520,9 @@ export function addWeatherOverlay(weatherInfo) {
 }
 window._addWeatherOverlay = addWeatherOverlay;
 
-// ─── 流式文本实时渲染（A4）─────────────────────────────────
+// ─── 流式文本实时渲染（A4 增强版）─────────────────────────
 let _ghostLayers = []; // 幽灵 marker
+let _pendingGeocodes = new Map(); // 待地理编码的地点
 
 /** 添加幽灵 marker（从流式文本解析出的景点） */
 export function addGhostMarker(name, lat, lng) {
@@ -1274,6 +1538,24 @@ export function addGhostMarker(name, lat, lng) {
 }
 window._addGhostMarker = addGhostMarker;
 
+/** 添加带标签的幽灵 marker（新发现的地点） */
+function addLabeledGhostMarker(name, lat, lng, city) {
+  if (!pageMapInstance) return;
+  const icon = L.divIcon({
+    className: 'ghost-marker-container',
+    html: `<div class="ghost-marker-labeled"><div class="ghost-pulse"></div><div class="ghost-label">${name}</div></div>`,
+    iconSize: [100, 40], iconAnchor: [50, 20],
+  });
+  const marker = L.marker([lat, lng], { icon, interactive: true, zIndexOffset: 500 })
+    .bindPopup(`<div class="map-popup"><div class="popup-title">${name}</div><div class="popup-city">📍 ${city || 'AI推荐地点'}</div></div>`, { maxWidth: 200 })
+    .addTo(pageMapInstance);
+  pageMapLayers.push(marker);
+  _ghostLayers.push({ marker, name, lat, lng, isNew: true });
+
+  // 自动平移到新发现的地点
+  pageMapInstance.panTo([lat, lng], { animate: true, duration: 0.5 });
+}
+
 /** 清除所有幽灵 marker */
 export function clearGhostMarkers() {
   for (const g of _ghostLayers) {
@@ -1283,41 +1565,118 @@ export function clearGhostMarkers() {
 }
 window._clearGhostMarkers = clearGhostMarkers;
 
-// ─── 流式文本解析器（A4）───────────────────────────────────
+/** 异步地理编码并添加标记（防抖处理） */
+async function geocodeAndMark(name, city) {
+  const key = `${city}:${name}`;
+  if (_pendingGeocodes.has(key)) return;
+  _pendingGeocodes.set(key, true);
+
+  try {
+    const geoKey = getAmapGeoKey();
+    if (!geoKey) return;
+
+    // 尝试地理编码
+    const url = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(name)}&city=${encodeURIComponent(city || '')}&key=${geoKey}&output=json`;
+    const resp = await fetchWithTimeout(url, {}, 3000);
+    const data = await resp.json();
+
+    if (data.status === '1' && data.geocodes?.length > 0) {
+      const [lng, lat] = data.geocodes[0].location.split(',').map(Number);
+      // GCJ-02 → WGS-84
+      const wgs = gcj02ToWgs84(lat, lng);
+      addLabeledGhostMarker(name, wgs.lat, wgs.lng, city);
+    }
+  } catch (e) {
+    // 静默失败，不打扰用户
+    console.debug('[Map] 流式地理编码失败:', name, e.message);
+  } finally {
+    _pendingGeocodes.delete(key);
+  }
+}
+
+// ─── 流式文本解析器（A4 增强版）───────────────────────────
 const _parsedAttractionNames = new Set();
+const _geocodeDebounce = new Map(); // 防抖定时器
 
 /** 从流式文本中提取景点名，匹配已知坐标后添加幽灵 marker */
 export function streamingMapParser(textChunk) {
-  if (!window._lastTripPlan?.days) return;
-  // 从已有行程数据中构建景点名→坐标映射
+  // 1. 从已有行程数据中构建景点名→坐标映射
   const nameToCoord = {};
-  for (const day of window._lastTripPlan.days) {
-    for (const attr of day.attractions) {
-      if (attr.location?.latitude) {
-        const names = [attr.nameZh, attr.name, attr.nameEn].filter(Boolean);
-        for (const n of names) nameToCoord[n] = attr.location;
+  const knownCities = new Set();
+  if (window._lastTripPlan?.days) {
+    for (const day of window._lastTripPlan.days) {
+      if (day.city) knownCities.add(day.city);
+      for (const attr of day.attractions) {
+        if (attr.location?.latitude) {
+          const names = [attr.nameZh, attr.name, attr.nameEn].filter(Boolean);
+          for (const n of names) nameToCoord[n] = attr.location;
+        }
       }
     }
   }
-  // 用《》标记和常见模式匹配景点名
-  const patterns = [/《([^》]{2,20})》/g, /(?:前往|游览|参观|游览)\s*([\u4e00-\u9fa5]{2,10})(?:景区|公园|寺庙|博物馆|故居|楼|塔|湖|山|寺|园|城|街|桥)/g];
+  // 获取当前城市（用于新地点地理编码）
+  const currentCity = window._lastTripPlan?.city || [...knownCities][0] || '';
+
+  // 2. 用《》标记和常见模式匹配景点名
+  const patterns = [
+    /《([^》]{2,20})》/g,
+    /(?:前往|游览|参观|拜访|打卡|去|到)\s*([\u4e00-\u9fa5]{2,10})(?:景区|公园|寺庙|博物馆|故居|楼|塔|湖|山|寺|园|城|街|桥|广场|古镇|古村|老街|步行街|夜市|海滩|湾|岛|洞|峡谷|瀑布|温泉|度假区|纪念馆|美术馆|科技馆|动物园|植物园|海洋馆|游乐场|城堡|宫殿|教堂|清真寺|塔|碑|陵|墓|阁|亭|台|榭|廊|舫|斋|轩|馆|院|府|衙|关|隘|寨|营|堡|驿|站|码头|港口|机场|车站)/g,
+    /(?:推荐|建议|可以去|值得去|必去|必游|必看)\s*(?:的?\s*)?([\u4e00-\u9fa5]{2,10})/g,
+  ];
+
   for (const pat of patterns) {
     let match;
     while ((match = pat.exec(textChunk)) !== null) {
-      const name = match[1];
-      if (!name || _parsedAttractionNames.has(name)) continue;
+      const name = match[1]?.trim();
+      if (!name || name.length < 2 || _parsedAttractionNames.has(name)) continue;
       _parsedAttractionNames.add(name);
+
+      // 先查已知坐标
       const loc = nameToCoord[name];
       if (loc) {
         addGhostMarker(name, loc.latitude, loc.longitude);
+      } else {
+        // 新地点：异步地理编码（防抖 500ms）
+        const debounceKey = `${currentCity}:${name}`;
+        if (_geocodeDebounce.has(debounceKey)) {
+          clearTimeout(_geocodeDebounce.get(debounceKey));
+        }
+        _geocodeDebounce.set(debounceKey, setTimeout(() => {
+          geocodeAndMark(name, currentCity);
+          _geocodeDebounce.delete(debounceKey);
+        }, 500));
       }
     }
   }
-  // 也检查纯景点名匹配
+
+  // 3. 检查纯景点名匹配（已知景点）
   for (const name of Object.keys(nameToCoord)) {
     if (textChunk.includes(name) && !_parsedAttractionNames.has(name)) {
       _parsedAttractionNames.add(name);
       addGhostMarker(name, nameToCoord[name].latitude, nameToCoord[name].longitude);
+    }
+  }
+
+  // 4. 提取带编号的景点列表（如 "1. 西湖 2. 灵隐寺"）
+  const listPattern = /(?:^|\n)\s*(?:\d+[.、)]\s*|[-•]\s*)([\u4e00-\u9fa5]{2,10})/gm;
+  let listMatch;
+  while ((listMatch = listPattern.exec(textChunk)) !== null) {
+    const name = listMatch[1]?.trim();
+    if (!name || name.length < 2 || _parsedAttractionNames.has(name)) continue;
+    _parsedAttractionNames.add(name);
+
+    const loc = nameToCoord[name];
+    if (loc) {
+      addGhostMarker(name, loc.latitude, loc.longitude);
+    } else {
+      const debounceKey = `${currentCity}:${name}`;
+      if (_geocodeDebounce.has(debounceKey)) {
+        clearTimeout(_geocodeDebounce.get(debounceKey));
+      }
+      _geocodeDebounce.set(debounceKey, setTimeout(() => {
+        geocodeAndMark(name, currentCity);
+        _geocodeDebounce.delete(debounceKey);
+      }, 500));
     }
   }
 }

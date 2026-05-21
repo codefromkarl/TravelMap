@@ -1106,6 +1106,50 @@
       0%, 100% { transform: scale(1); opacity: 0.6; }
       50% { transform: scale(1.4); opacity: 0.2; }
     }
+    /* 带标签的幽灵 marker（新发现的地点） */
+    .ghost-marker-labeled {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .ghost-marker-labeled .ghost-pulse {
+      width: 20px; height: 20px;
+      background: rgba(16,185,129,0.4);
+      border-color: rgba(16,185,129,0.8);
+    }
+    .ghost-marker-labeled .ghost-label {
+      background: rgba(16,185,129,0.9);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      margin-top: 4px;
+      box-shadow: 0 2px 8px rgba(16,185,129,0.4);
+      animation: markerPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* 路线信息 badge */
+    .route-info-icon {
+      background: transparent !important;
+      border: none !important;
+    }
+    .route-info-badge {
+      background: rgba(15,15,17,0.85);
+      color: #e4e4e7;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: nowrap;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      pointer-events: none;
+    }
     /* 天气覆盖 badge */
     .weather-overlay .weather-badge {
       background: rgba(15,15,17,0.8); color: #e4e4e7;
@@ -1832,6 +1876,7 @@
     .meal-cost { color: var(--color-text-secondary); font-size: 12px; }
     .meal-walk { color: var(--color-text-muted); font-size: 12px; }
     .restaurant-marker { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #fbbf24); color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 8px rgba(245,158,11,0.4); animation: markerPopIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+    .hotel-marker { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #a78bfa); color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 2px solid white; box-shadow: 0 2px 8px rgba(139,92,246,0.4); animation: markerPopIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
 
     /* ─── R3: 首屏加载骨架屏 ─────────────────────────── */
     .map-skeleton-overlay {

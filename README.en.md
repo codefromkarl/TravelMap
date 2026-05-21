@@ -140,8 +140,28 @@ TravelAgent/
 
 - [🌐 Live Demo](https://travel.codefromkarl.xyz) — Use TravelMap for free
 - [📖 中文文档](./README.md)
+- [🤖 LLMs.txt](https://travel.codefromkarl.xyz/llms.txt) — AI-friendly description file
 - [✍️ Author's Blog](https://codefromkarl.com)
 - [⭐ GitHub Repository](https://github.com/codefromkarl/TravelMap)
+
+---
+
+## 🤖 AI Search Engine Optimization (GEO)
+
+This project is optimized for AI search engines, including:
+
+- **`llms.txt` file**: Structured project description for AI to understand and reference
+- **Structured Data**: JSON-LD format with WebApplication and FAQ structured data
+- **Semantic HTML**: Clear heading hierarchy and semantic tags
+- **Multilingual Support**: Chinese, English, and Japanese content
+
+---
+
+## 📈 SEO Keywords
+
+**English Keywords**: AI travel planner, travel itinerary generator, intelligent itinerary assistant, trip planner, travel planning tool, AI-powered travel, smart travel assistant, automated trip planning, AI tourism assistant
+
+**Chinese Keywords**: AI旅行规划, 智能行程助手, 行程生成器, 旅游攻略, 旅行路线规划, 行程分享, 智能旅行助手, AI旅游, 旅行规划工具, 自动行程生成
 
 ---
 
