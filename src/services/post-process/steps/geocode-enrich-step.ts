@@ -31,10 +31,7 @@ export class GeocodeEnrichStep implements PostProcessStep {
         // 检查是否需要补全坐标
         const loc = attr.location;
         const needsGeocode =
-          !loc ||
-          !loc.latitude ||
-          !loc.longitude ||
-          (loc.latitude === 0 && loc.longitude === 0);
+          !loc || !loc.latitude || !loc.longitude || (loc.latitude === 0 && loc.longitude === 0);
 
         if (!needsGeocode) continue;
 

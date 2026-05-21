@@ -8,7 +8,11 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { calculateBudgetForTrip, postProcessTripPlan, validateTripPlanConsistency } from "../../../services/post-processor.js";
+import {
+  calculateBudgetForTrip,
+  postProcessTripPlan,
+  validateTripPlanConsistency,
+} from "../../../services/post-processor.js";
 import { createMockTripPlan } from "../../mocks/fixtures.js";
 
 // mock 底层服务
@@ -173,73 +177,136 @@ describe("PostProcessor", () => {
     it("完整坐标的行程应通过校验", () => {
       const tripPlan = createMockTripPlan();
       const result = validateTripPlanConsistency(tripPlan);
-      const coordErrors = result.errors.filter(e => e.includes('坐标'));
+      const coordErrors = result.errors.filter((e) => e.includes("坐标"));
       expect(coordErrors.length).toBe(0);
     });
 
     it("缺少 location 的景点应报错", () => {
       const tripPlan = createMockTripPlan({
-        days: [{
-          date: "2025-06-01", dayIndex: 1, city: "北京", isTransferDay: false,
-          attractions: [{
-            name: "故宫", nameZh: "故宫", nameEn: "Forbidden City",
-            address: "东城区", visitDuration: 180, description: "皇家宫殿",
-            category: "历史", ticketPrice: 60, reservationRequired: false, reservationTips: "",
-            location: undefined as unknown as { latitude: number; longitude: number },
-          }],
-          meals: [],
-        } as any],
+        days: [
+          {
+            date: "2025-06-01",
+            dayIndex: 1,
+            city: "北京",
+            isTransferDay: false,
+            attractions: [
+              {
+                name: "故宫",
+                nameZh: "故宫",
+                nameEn: "Forbidden City",
+                address: "东城区",
+                visitDuration: 180,
+                description: "皇家宫殿",
+                category: "历史",
+                ticketPrice: 60,
+                reservationRequired: false,
+                reservationTips: "",
+                location: undefined as unknown as { latitude: number; longitude: number },
+              },
+            ],
+            meals: [],
+          } as any,
+        ],
       });
       const result = validateTripPlanConsistency(tripPlan);
-      const coordErrors = result.errors.filter(e => e.includes('坐标'));
+      const coordErrors = result.errors.filter((e) => e.includes("坐标"));
       expect(coordErrors.length).toBe(1);
-      expect(coordErrors[0]).toContain('故宫');
+      expect(coordErrors[0]).toContain("故宫");
       expect(result.valid).toBe(false);
     });
 
     it("坐标为 0,0 的景点应报错", () => {
       const tripPlan = createMockTripPlan({
-        days: [{
-          date: "2025-06-01", dayIndex: 1, city: "北京", isTransferDay: false,
-          attractions: [{
-            name: "天坛", nameZh: "天坛", nameEn: "Temple of Heaven",
-            address: "东城区", visitDuration: 120, description: "祭天场所",
-            category: "历史", ticketPrice: 34, reservationRequired: false, reservationTips: "",
-            location: { latitude: 0, longitude: 0 },
-          }],
-          meals: [],
-        } as any],
+        days: [
+          {
+            date: "2025-06-01",
+            dayIndex: 1,
+            city: "北京",
+            isTransferDay: false,
+            attractions: [
+              {
+                name: "天坛",
+                nameZh: "天坛",
+                nameEn: "Temple of Heaven",
+                address: "东城区",
+                visitDuration: 120,
+                description: "祭天场所",
+                category: "历史",
+                ticketPrice: 34,
+                reservationRequired: false,
+                reservationTips: "",
+                location: { latitude: 0, longitude: 0 },
+              },
+            ],
+            meals: [],
+          } as any,
+        ],
       });
       const result = validateTripPlanConsistency(tripPlan);
-      const coordErrors = result.errors.filter(e => e.includes('坐标'));
+      const coordErrors = result.errors.filter((e) => e.includes("坐标"));
       expect(coordErrors.length).toBe(1);
-      expect(coordErrors[0]).toContain('天坛');
+      expect(coordErrors[0]).toContain("天坛");
     });
 
     it("多个景点缺坐标应全部报错", () => {
       const tripPlan = createMockTripPlan({
-        days: [{
-          date: "2025-06-01", dayIndex: 1, city: "西安", isTransferDay: false,
-          attractions: [
-            { name: "城墙", nameZh: "城墙", nameEn: "", address: "", visitDuration: 120,
-              description: "", category: "", ticketPrice: 0, reservationRequired: false, reservationTips: "",
-              location: undefined as unknown as { latitude: number; longitude: number } },
-            { name: "钟楼", nameZh: "钟楼", nameEn: "", address: "", visitDuration: 60,
-              description: "", category: "", ticketPrice: 0, reservationRequired: false, reservationTips: "",
-              location: { latitude: 0, longitude: 0 } },
-            { name: "兵马俑", nameZh: "兵马俑", nameEn: "", address: "", visitDuration: 180,
-              description: "", category: "", ticketPrice: 120, reservationRequired: false, reservationTips: "",
-              location: { latitude: 34.38, longitude: 109.28 } },  // 有坐标
-          ],
-          meals: [],
-        } as any],
+        days: [
+          {
+            date: "2025-06-01",
+            dayIndex: 1,
+            city: "西安",
+            isTransferDay: false,
+            attractions: [
+              {
+                name: "城墙",
+                nameZh: "城墙",
+                nameEn: "",
+                address: "",
+                visitDuration: 120,
+                description: "",
+                category: "",
+                ticketPrice: 0,
+                reservationRequired: false,
+                reservationTips: "",
+                location: undefined as unknown as { latitude: number; longitude: number },
+              },
+              {
+                name: "钟楼",
+                nameZh: "钟楼",
+                nameEn: "",
+                address: "",
+                visitDuration: 60,
+                description: "",
+                category: "",
+                ticketPrice: 0,
+                reservationRequired: false,
+                reservationTips: "",
+                location: { latitude: 0, longitude: 0 },
+              },
+              {
+                name: "兵马俑",
+                nameZh: "兵马俑",
+                nameEn: "",
+                address: "",
+                visitDuration: 180,
+                description: "",
+                category: "",
+                ticketPrice: 120,
+                reservationRequired: false,
+                reservationTips: "",
+                location: { latitude: 34.38, longitude: 109.28 },
+              }, // 有坐标
+            ],
+            meals: [],
+          } as any,
+        ],
       });
       const result = validateTripPlanConsistency(tripPlan);
-      const coordErrors = result.errors.filter(e => e.includes('坐标'));
-      expect(coordErrors.length).toBe(2);  // 城墙和钟楼缺坐标
-      expect(coordErrors.some(e => e.includes('城墙'))).toBe(true);
-      expect(coordErrors.some(e => e.includes('钟楼'))).toBe(true);
-      expect(coordErrors.some(e => e.includes('兵马俑'))).toBe(false);  // 兵马俑有坐标
+      const coordErrors = result.errors.filter((e) => e.includes("坐标"));
+      expect(coordErrors.length).toBe(2); // 城墙和钟楼缺坐标
+      expect(coordErrors.some((e) => e.includes("城墙"))).toBe(true);
+      expect(coordErrors.some((e) => e.includes("钟楼"))).toBe(true);
+      expect(coordErrors.some((e) => e.includes("兵马俑"))).toBe(false); // 兵马俑有坐标
     });
   });
 });

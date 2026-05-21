@@ -31,7 +31,7 @@ export function createDefaultPipeline(): PostProcessPipeline {
     .addGroup({
       name: "enrich-and-calc",
       steps: [
-        new GeocodeEnrichStep(),  // 最先执行：补全缺失坐标
+        new GeocodeEnrichStep(), // 最先执行：补全缺失坐标
         new RestaurantEnrichStep(),
         new TransportEnrichStep(),
         new HotelEnrichStep(),
