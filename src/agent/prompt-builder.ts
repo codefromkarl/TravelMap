@@ -15,6 +15,12 @@ import { getLanguageInstruction } from "./prompts.js";
  * 从旅行请求构建用户 prompt
  */
 export function buildUserPrompt(request: TripRequest): string {
+  // 发现模式：构建推荐请求 prompt
+  if (request.mode === "discover") {
+    return buildDiscoverPrompt(request);
+  }
+
+  // 行程规划模式：构建行程规划 prompt
   const cities =
     request.cities.length > 0
       ? request.cities.map((c) => `${c.city}(${c.days}天)`).join(" → ")
@@ -40,6 +46,64 @@ export function buildUserPrompt(request: TripRequest): string {
       : "",
     getLanguageInstruction(request.language),
   ].join("\n");
+}
+
+/**
+ * 构建发现模式 prompt
+ */
+function buildDiscoverPrompt(request: TripRequest): string {
+  const lines: string[] = ["请根据我的需求推荐旅行目的地：", ""];
+
+  // 位置信息
+  const loc = request.currentLocation;
+  if (loc) {
+    if (loc.city) {
+      lines.push(`**我的位置**: ${loc.city}`);
+    } else {
+      lines.push(`**我的位置**: 坐标 ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`);
+    }
+  }
+
+  // 约束条件
+  const c = request.discoverConstraints;
+  if (c) {
+    if (c.maxTravelHours) {
+      lines.push(`**最大交通时间**: ${c.maxTravelHours}小时以内`);
+    }
+    if (c.maxBudget) {
+      lines.push(`**预算上限**: ${c.maxBudget}元/人`);
+    }
+    if (c.duration) {
+      const durationMap: Record<string, string> = {
+        "day-trip": "一日游",
+        weekend: "周末2天",
+        "3-5days": "3-5天小长假",
+        flexible: "时间灵活",
+      };
+      lines.push(`**行程时长**: ${durationMap[c.duration] ?? c.duration}`);
+    }
+    if (c.themes && c.themes.length > 0) {
+      lines.push(`**主题偏好**: ${c.themes.join("、")}`);
+    }
+    if (c.activities && c.activities.length > 0) {
+      lines.push(`**活动类型**: ${c.activities.join("、")}`);
+    }
+  }
+
+  // 出行人群
+  const travelersText = formatTravelers(request.travelers);
+  if (travelersText) {
+    lines.push("", travelersText);
+  }
+
+  // 额外要求
+  if (request.freeTextInput) {
+    lines.push("", `**额外要求**: ${request.freeTextInput}`);
+  }
+
+  lines.push("", getLanguageInstruction(request.language));
+
+  return lines.join("\n");
 }
 
 /**

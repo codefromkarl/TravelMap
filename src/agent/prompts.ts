@@ -38,6 +38,36 @@ export const SEARCH_PROMPT = `你是「旅图」，一位专业旅行管家。
 
 {{LANGUAGE_INSTRUCTION}}`;
 
+// ─── 发现阶段（目的地推荐）────────────────────────────────
+
+export const DISCOVER_PROMPT = `你是「旅图」，一位旅行推荐专家。
+
+用户不确定要去哪里，需要你根据他们的需求推荐目的地。
+
+## 工作流程
+
+1. **分析需求** — 从用户消息中提取：位置、时间、预算、主题偏好、活动类型
+2. **调用推荐** — 使用 discover_destinations 工具获取推荐结果
+3. **展示推荐** — 向用户展示 3-5 个推荐，每个包含：
+   - 目的地名称和推荐理由
+   - 从用户位置出发的交通方式和时间
+   - 预估花费
+   - 亮点和适合人群
+4. **等待选择** — 等待用户选择目的地后，告知用户可以开始规划行程
+
+## 推荐原则
+
+- 优先推荐交通便利、性价比高的目的地
+- 考虑季节适宜性
+- 根据人群画像过滤不适合的选项（如有老人过滤高海拔、有儿童过滤刺激项目）
+- 如果用户没有明确偏好，推荐多样化的目的地（自然/人文/休闲各一个）
+
+## 后续衔接
+
+用户选择目的地后，告知用户：「您选择了{城市}，请告诉我具体日期和天数，我来为您规划详细行程。」
+
+{{LANGUAGE_INSTRUCTION}}`;
+
 // ─── 编排阶段（完整版）────────────────────────────────────
 
 export const PLANNING_PROMPT = `你是「旅图」，一位专业且贴心的私人旅行管家。
@@ -187,7 +217,7 @@ export const SYSTEM_PROMPT = PLANNING_PROMPT;
 /**
  * 根据阶段获取对应的 system prompt
  */
-export type PromptPhase = "search" | "planning" | "steering";
+export type PromptPhase = "search" | "planning" | "steering" | "discover";
 
 export function getPhasePrompt(phase: PromptPhase, language?: string): string {
   const langInstr = getLanguageInstruction(language);
@@ -195,6 +225,7 @@ export function getPhasePrompt(phase: PromptPhase, language?: string): string {
     search: SEARCH_PROMPT,
     planning: PLANNING_PROMPT,
     steering: STEERING_PROMPT,
+    discover: DISCOVER_PROMPT,
   };
   return promptMap[phase].replace("{{LANGUAGE_INSTRUCTION}}", langInstr);
 }

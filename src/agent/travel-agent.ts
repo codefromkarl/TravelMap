@@ -28,6 +28,7 @@ import {
 } from "../services/trace-context.js";
 import {
   createCompanionTools,
+  createDiscoverTools,
   createPlanningTools,
   createSearchTools,
   createTools,
@@ -212,9 +213,9 @@ export class TravelAgent {
   /**
    * 按阶段设置工具 — 减少每轮 LLM 调用的 input tokens
    *
-   * @param phase 工具阶段: "search" | "planning" | "companion" | "all"
+   * @param phase 工具阶段: "search" | "planning" | "companion" | "discover" | "all"
    */
-  setToolsByPhase(phase: "search" | "planning" | "companion" | "all"): void {
+  setToolsByPhase(phase: "search" | "planning" | "companion" | "discover" | "all"): void {
     switch (phase) {
       case "search":
         this.agent.state.tools = createSearchTools();
@@ -224,6 +225,9 @@ export class TravelAgent {
         break;
       case "companion":
         this.agent.state.tools = createCompanionTools();
+        break;
+      case "discover":
+        this.agent.state.tools = createDiscoverTools();
         break;
       default:
         this.agent.state.tools = createTools();
@@ -245,11 +249,41 @@ export class TravelAgent {
     logger.info("planTrip 开始", {
       city: request.city,
       days: request.travelDays,
+      mode: request.mode ?? "plan",
       travelers: request.travelers ? "yes" : "no",
     });
 
     // 保存人群画像，供后处理阶段使用
     this.travelers = request.travelers;
+
+    // ─── 发现模式：推荐目的地 ───
+    if (request.mode === "discover") {
+      logger.info("进入发现模式，推荐目的地");
+      this.setPromptPhase("discover");
+      this.setToolsByPhase("discover");
+
+      const prompt = buildUserPrompt(request);
+
+      await runWithTrace(
+        {
+          traceId: generateTraceId(),
+          spanId: generateSpanId(),
+          operation: "discover",
+          city: request.currentLocation?.city ?? "unknown",
+        },
+        async () => {
+          const llmStart = Date.now();
+          await this.agent.prompt(prompt);
+          logger.info("发现模式 LLM 完成", {
+            duration: Date.now() - llmStart,
+            messageCount: this.agent.state.messages.length,
+          });
+        },
+      );
+      return;
+    }
+
+    // ─── 行程规划模式（原有逻辑）───
 
     // 根据请求复杂度选择主模型
     const tier = selectModelTier(request);
