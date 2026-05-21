@@ -134,3 +134,35 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  ai-eval:
+    name: AI Evaluation Loop
+    runs-on: ubuntu-latest
+    # 仅 push main 时运行 AI 评估，PR 跳过（需要 API Key）
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run AI Evaluation
+        run: npm run eval:loop:ci
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload evaluation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-reports
+          path: eval-results/
+          retention-days: 30

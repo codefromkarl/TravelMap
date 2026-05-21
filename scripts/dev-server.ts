@@ -45,6 +45,35 @@ const server = http.createServer(async (req, res) => {
   // /@* → 也代理到 esm.sh（esm.sh 内部的绝对路径引用）
   const isEsmProxy = url.pathname.startsWith("/esm/") || url.pathname.startsWith("/@");
 
+  // ─── 本地包代理 ──────────────────────────────────
+  // 拦截 @earendil-works/* 请求，从本地 node_modules 提供
+  if (url.pathname.startsWith("/@earendil-works/pi-ai@")) {
+    const parts = url.pathname.split("/");
+    // /@earendil-works/pi-ai@0.75.3/es2022/dist/providers/transform-messages.mjs
+    const subPath = parts.slice(3).join("/"); // es2022/dist/providers/transform-messages.mjs
+    
+    // 将 esm.sh 路径转换为本地 dist 路径
+    // es2022/dist/providers/transform-messages.mjs → providers/transform-messages.js
+    const localSubPath = subPath
+      .replace(/^es2022\/dist\//, "")  // 移除 es2022/dist/ 前缀
+      .replace(/\.mjs$/, ".js"); // 将 .mjs 替换为 .js
+    
+    const localPath = path.join(WEB_DIR, "..", "node_modules", "@earendil-works", "pi-ai", "dist", localSubPath);
+    console.log(`[LocalProxy] Trying: ${localPath}`);
+    try {
+      const data = await fs.promises.readFile(localPath);
+      console.log(`[LocalProxy] Serving: ${localPath}`);
+      res.writeHead(200, {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(data);
+      return;
+    } catch (err) {
+      console.log(`[LocalProxy] Not found: ${localPath}, falling back to esm.sh`);
+    }
+  }
+
   if (isEsmProxy) {
     const remotePath = url.pathname.startsWith("/esm/")
       ? url.pathname.slice(5) + url.search

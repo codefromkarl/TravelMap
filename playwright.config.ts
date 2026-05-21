@@ -14,6 +14,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: [["list"]],
+
+  // 限制并发 worker 数量，避免内存爆炸
+  // 28 核 CPU 默认会创建 14 个 worker，每个浏览器实例 ~350MB
+  // 限制为 4 个 worker，内存占用从 ~5GB 降到 ~1.4GB
+  workers: process.env.CI ? 2 : 4,
   use: {
     // 浏览器启动选项：CHROME_PATH 有值则使用指定浏览器，否则用 Playwright 内置 chromium
     launchOptions: {
