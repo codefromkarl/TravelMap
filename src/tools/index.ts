@@ -17,6 +17,7 @@ import { aiGuideTool } from "./ai-guide.js";
 import { searchAttractionsTool } from "./attractions.js";
 import { calculateBudgetTool } from "./budget.js";
 import { companionQATool } from "./companion.js";
+import { discoverDestinationsTool } from "./discover.js";
 import { geocodeTool } from "./geocode.js";
 import { searchHotelsTool } from "./hotels.js";
 import { recognizeImageTool } from "./image-recognize.js";
@@ -83,6 +84,13 @@ export function createPlanningTools(): AgentTool[] {
   ];
 }
 
+/** 发现模式工具（目的地推荐） */
+export function createDiscoverTools(): AgentTool[] {
+  const tools: ToolWithCost[] = [discoverDestinationsTool];
+  registerToolCostTiers(tools);
+  return tools;
+}
+
 // 伴游工具已合并到 createPlanningTools，保持向后兼容
 export function createCompanionTools(): AgentTool[] {
   const tools: ToolWithCost[] = [companionQATool];
@@ -92,5 +100,5 @@ export function createCompanionTools(): AgentTool[] {
 
 /** 创建全部工具并注册 costTier 元数据（向后兼容） */
 export function createTools(): AgentTool[] {
-  return [...createSearchTools(), ...createPlanningTools()];
+  return [...createSearchTools(), ...createPlanningTools(), ...createDiscoverTools()];
 }
