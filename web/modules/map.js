@@ -1,10 +1,10 @@
-import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js?v=3';
-import { I18N } from './i18n.js';
-import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js';
-import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js';
-import { getCachedCoord, setCachedCoord } from './coord-cache.js';
-import { markerRegistry } from './markers.js';
-import { routePlanner } from './route-planner.js';
+import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js?v=4';
+import { I18N } from './i18n.js?v=4';
+import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js?v=4';
+import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js?v=4';
+import { getCachedCoord, setCachedCoord } from './coord-cache.js?v=4';
+import { markerRegistry } from './markers.js?v=4';
+import { routePlanner } from './route-planner.js?v=4';
 
 // ═══════════════════════════════════════════════════════
 // 坐标系转换：WGS-84 (GPS) → GCJ-02 (火星坐标/高德)
@@ -190,6 +190,7 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
       lineCap: 'round',
       dashArray: mode === 'driving' ? null : '8,6',
     });
+    polyline._dayIdx = dayIdx; // 标记所属天数，供筛选高亮使用
     polyline.addTo(pageMapInstance);
 
     // snakeIn 动画
@@ -216,6 +217,26 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
       });
       const infoMarker = L.marker(midPoint, { icon: infoIcon, interactive: false, zIndexOffset: -50 }).addTo(pageMapInstance);
       pageMapLayers.push(infoMarker);
+    }
+
+    // 添加方向箭头（每 1/3 和 2/3 处）
+    const arrowIndices = [
+      Math.floor(points.length / 3),
+      Math.floor(points.length * 2 / 3),
+    ];
+    for (const idx of arrowIndices) {
+      if (idx > 0 && idx < points.length - 1) {
+        const p1 = points[idx - 1];
+        const p2 = points[idx + 1];
+        const angle = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180 / Math.PI;
+        const arrowIcon = L.divIcon({
+          className: 'route-arrow-icon',
+          html: `<div class="route-arrow" style="transform: rotate(${90 - angle}deg)">${mode === 'driving' ? '▶' : '▷'}</div>`,
+          iconSize: [12, 12], iconAnchor: [6, 6],
+        });
+        const arrowMarker = L.marker(points[idx], { icon: arrowIcon, interactive: false, zIndexOffset: -100 }).addTo(pageMapInstance);
+        pageMapLayers.push(arrowMarker);
+      }
     }
 
     pageMapLayers.push(polyline);
@@ -246,10 +267,6 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
 }
 
 // ─── 景点坐标补全（地理编码） ────────────────────────────
-// 当 tripPlan 中的景点缺少 location 时，通过高德地理编码 API 补全
-// 使用 coord-cache.js 持久化缓存，避免重复请求
-import { getCachedCoord, setCachedCoord } from './coord-cache.js';
-
 /** 通过高德地理编码 API 获取景点坐标 */
 async function _geocodeOne(name, city) {
   const key = `${city}:${name}`;
@@ -696,7 +713,7 @@ function setupMapInteractions() {
     const savedWidth = localStorage.getItem('travel-map-chat-width');
     if (savedWidth) {
       const w = parseInt(savedWidth, 10);
-      if (w >= 280 && w <= window.innerWidth * 0.6) {
+      if (w >= 320 && w <= window.innerWidth * 0.6) {
         leftPanel.style.width = w + 'px';
       }
     }
@@ -720,7 +737,7 @@ function setupMapInteractions() {
       if (!isResizing) return;
       const dx = e.clientX - startX;
       let newWidth = startWidth + dx;
-      const minW = 280;
+      const minW = 320;
       const maxW = Math.min(window.innerWidth * 0.6, window.innerWidth - 320);
       newWidth = Math.max(minW, Math.min(maxW, newWidth));
       leftPanel.style.width = newWidth + 'px';
@@ -925,6 +942,14 @@ async function renderTripOnPageMap(tripPlan) {
     }
   }
 
+  // 计算每天的起始序号偏移（全局连续编号）
+  const dayAttrOffsets = [];
+  let globalOffset = 0;
+  for (const day of tripPlan.days) {
+    dayAttrOffsets.push(globalOffset);
+    globalOffset += (day.attractions || []).length;
+  }
+
   const allCoords = [];
   let markerCount = 0, routeCount = 0, supplyPointCount = 0;
   const routePanelData = [];
@@ -933,15 +958,17 @@ async function renderTripOnPageMap(tripPlan) {
     const day = tripPlan.days[dayIdx];
     const dayCity = day.city || tripPlan.city;
     const dayAttrItems = [];
+    const attrOffset = dayAttrOffsets[dayIdx]; // 当前天的序号偏移
 
     for (let attrIdx = 0; attrIdx < (day.attractions || []).length; attrIdx++) {
       const attr = day.attractions[attrIdx];
       const loc = attr.location;
+      const globalSeqNum = attrOffset + attrIdx + 1; // 全局连续序号
 
       if (loc && loc.latitude && loc.longitude && (loc.latitude !== 0 || loc.longitude !== 0)) {
         const icon = L.divIcon({
           className: 'custom-marker',
-          html: '<div class="attraction-marker" style="animation-delay:' + ((dayIdx * 4 + attrIdx) * 60) + 'ms">' + (attrIdx + 1) + '</div>',
+          html: '<div class="attraction-marker" data-day="' + (dayIdx + 1) + '" style="animation-delay:' + ((dayIdx * 4 + attrIdx) * 60) + 'ms">' + globalSeqNum + '</div>',
           iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -20],
         });
         const popupHtml = '<div class="map-popup">' +
@@ -983,6 +1010,7 @@ async function renderTripOnPageMap(tripPlan) {
               lineJoin: 'round', lineCap: 'round',
               dashArray: riskLevel === 3 ? '10,6' : null,
             });
+            polyline._dayIdx = dayIdx; // 标记所属天数，供筛选高亮使用
             polyline.addTo(pageMapInstance);
             // 路线 snakeIn 画入动画
             requestAnimationFrame(() => {
@@ -1140,6 +1168,7 @@ async function renderTripOnPageMap(tripPlan) {
 
   if (markerCount > 0) document.getElementById('page-map-legend')?.classList.add('show');
   renderRoutePanel(routePanelData);
+  renderDayFilters(tripPlan); // 渲染天数筛选按钮
 
   // 坐标完整性检查：有景点但 0 marker → 提示用户数据不完整
   const totalAttractions = tripPlan.days?.reduce((sum, d) => sum + (d.attractions?.length || 0), 0) || 0;
@@ -1174,6 +1203,14 @@ async function renderTripAnimated(tripPlan) {
   for (const layer of pageMapLayers) pageMapInstance.removeLayer(layer);
   pageMapLayers = [];
 
+  // 计算每天的起始序号偏移（全局连续编号）
+  const dayAttrOffsets = [];
+  let globalOffset = 0;
+  for (const day of tripPlan.days) {
+    dayAttrOffsets.push(globalOffset);
+    globalOffset += (day.attractions || []).length;
+  }
+
   const allCoords = [];
   let markerCount = 0, routeCount = 0, supplyPointCount = 0;
   const routePanelData = [];
@@ -1184,6 +1221,7 @@ async function renderTripAnimated(tripPlan) {
   const attrDelay = bigTrip ? 200 : 400;    // 景点 marker 间隔
   const routeDelay = bigTrip ? 300 : 600;    // 路线 snakeIn 延迟
   const restDelay = bigTrip ? 150 : 300;     // 餐厅 marker 间隔
+  const dayTransitionDelay = bigTrip ? 800 : 1500; // 每天之间的过渡延迟
 
   // 先渲染城市间连线（背景层）
   if (tripPlan.cities && tripPlan.cities.length > 1) {
@@ -1213,17 +1251,41 @@ async function renderTripAnimated(tripPlan) {
     const day = tripPlan.days[dayIdx];
     const dayCity = day.city || tripPlan.city;
     const dayAttrItems = [];
+    const attrOffset = dayAttrOffsets[dayIdx]; // 当前天的序号偏移
+
+    // 每天开始时显示日期过渡标签
+    if (dayIdx > 0) {
+      await delay(dayTransitionDelay);
+    }
+    // 在地图上显示日期标签
+    if (dayAttrItems.length === 0 && day.attractions?.length > 0) {
+      const firstAttr = day.attractions[0];
+      if (firstAttr.location?.latitude && firstAttr.location?.longitude) {
+        const dayLabelIcon = L.divIcon({
+          className: 'custom-marker',
+          html: `<div class="day-transition-label">第 ${dayIdx + 1} 天 · ${dayCity}</div>`,
+          iconSize: [120, 30], iconAnchor: [60, 15],
+        });
+        const dayLabelMarker = L.marker([firstAttr.location.latitude, firstAttr.location.longitude], { icon: dayLabelIcon, interactive: false, zIndexOffset: 1000 }).addTo(pageMapInstance);
+        pageMapLayers.push(dayLabelMarker);
+        // 1.5秒后移除标签
+        setTimeout(() => {
+          if (pageMapInstance) pageMapInstance.removeLayer(dayLabelMarker);
+        }, 1500);
+      }
+    }
 
     // ── 景点 markers ────────────────────────────────────
     for (let attrIdx = 0; attrIdx < (day.attractions || []).length; attrIdx++) {
       if (_animAbort) return;
       const attr = day.attractions[attrIdx];
       const loc = attr.location;
+      const globalSeqNum = attrOffset + attrIdx + 1; // 全局连续序号
 
       if (loc && loc.latitude && loc.longitude && (loc.latitude !== 0 || loc.longitude !== 0)) {
         const icon = L.divIcon({
           className: 'custom-marker',
-          html: '<div class="attraction-marker anim-highlight">' + (attrIdx + 1) + '</div>',
+          html: '<div class="attraction-marker anim-highlight" data-day="' + (dayIdx + 1) + '">' + globalSeqNum + '</div>',
           iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -20],
         });
         const popupHtml = '<div class="map-popup">' +
@@ -1273,6 +1335,7 @@ async function renderTripAnimated(tripPlan) {
               lineJoin: 'round', lineCap: 'round',
               dashArray: riskLevel === 3 ? '10,6' : null,
             });
+            polyline._dayIdx = dayIdx; // 标记所属天数，供筛选高亮使用
             polyline.addTo(pageMapInstance);
             requestAnimationFrame(() => {
               const pathEl = polyline._path;
@@ -1429,6 +1492,7 @@ async function renderTripAnimated(tripPlan) {
   if (sd) sd.innerHTML = '📅 <span class="dot-label">天数</span> ' + (tripPlan.days?.length||0);
   if (markerCount > 0) document.getElementById('page-map-legend')?.classList.add('show');
   renderRoutePanel(routePanelData);
+  renderDayFilters(tripPlan); // 渲染天数筛选按钮
 
   // 坐标完整性检查：有景点但 0 marker → 提示用户数据不完整
   const totalAttractions = tripPlan.days?.reduce((sum, d) => sum + (d.attractions?.length || 0), 0) || 0;
@@ -1713,6 +1777,98 @@ function scrollChatToDay(dayNum) {
     }
   }
   return false;
+}
+
+// ─── 天数筛选按钮 ────────────────────────────────────────
+const DAY_COLORS = [
+  '#e4e4e7', // 0 = 全部
+  '#3b82f6', // 第1天
+  '#8b5cf6', // 第2天
+  '#ec4899', // 第3天
+  '#f97316', // 第4天
+  '#14b8a6', // 第5天
+  '#6366f1', // 第6天
+  '#ef4444', // 第7天
+  '#10b981', // 第8-10天
+];
+
+let _activeDayFilter = 0; // 0 = 全部
+
+/**
+ * 渲染天数筛选按钮
+ * @param {object} tripPlan - 行程数据
+ */
+function renderDayFilters(tripPlan) {
+  const container = document.getElementById('page-map-day-filters');
+  if (!container || !tripPlan?.days) return;
+
+  const totalDays = tripPlan.days.length;
+  if (totalDays <= 1) {
+    container.innerHTML = '';
+    return;
+  }
+
+  let html = '<button class="day-filter-btn active" data-day="0">全部</button>';
+  for (let i = 1; i <= totalDays; i++) {
+    const colorIdx = i <= 7 ? i : 8;
+    html += `<button class="day-filter-btn" data-day="${i}" style="--day-color: ${DAY_COLORS[colorIdx]}">第${i}天</button>`;
+  }
+  container.innerHTML = html;
+
+  // 绑定点击事件
+  container.querySelectorAll('.day-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const day = parseInt(btn.dataset.day);
+      setDayFilter(day);
+    });
+  });
+
+  // 恢复之前的激活状态
+  if (_activeDayFilter > 0 && _activeDayFilter <= totalDays) {
+    setDayFilter(_activeDayFilter);
+  } else {
+    _activeDayFilter = 0;
+  }
+}
+
+/**
+ * 设置天数筛选
+ * @param {number} day - 天数（0=全部）
+ */
+function setDayFilter(day) {
+  _activeDayFilter = day;
+
+  // 更新按钮状态
+  const container = document.getElementById('page-map-day-filters');
+  if (container) {
+    container.querySelectorAll('.day-filter-btn').forEach(btn => {
+      const btnDay = parseInt(btn.dataset.day);
+      btn.classList.toggle('active', btnDay === day);
+    });
+  }
+
+  // 更新景点标记高亮状态
+  document.querySelectorAll('.attraction-marker').forEach(marker => {
+    const markerDay = parseInt(marker.dataset.day || '0');
+    if (day === 0) {
+      // 全部显示
+      marker.classList.remove('dimmed');
+    } else {
+      // 高亮选中天数，淡化其他
+      marker.classList.toggle('dimmed', markerDay !== day);
+    }
+  });
+
+  // 高亮对应的路线
+  document.querySelectorAll('.leaflet-interactive').forEach(el => {
+    if (el._dayIdx !== undefined) {
+      if (day === 0) {
+        el.setStyle({ opacity: 0.7 });
+      } else {
+        el.setStyle({ opacity: el._dayIdx === day - 1 ? 0.9 : 0.15 });
+      }
+    }
+  });
 }
 
 function renderRoutePanel(data) {

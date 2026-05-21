@@ -52,15 +52,15 @@
   <script type="importmap">
     {
       "imports": {
-        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=3",
-        "@earendil-works/pi-ai": "./pi-bundle.js?v=3",
-        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=3",
-        "lit": "./pi-bundle.js?v=3",
+        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=4",
+        "@earendil-works/pi-ai": "./pi-bundle.js?v=4",
+        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=4",
+        "lit": "./pi-bundle.js?v=4",
         "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
       }
     }
   </script>
-  <link rel="stylesheet" href="./styles/main.css" />
+  <link rel="stylesheet" href="./styles/main.css?v=7" />
   <link rel="stylesheet" href="./pi-web-ui.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -305,7 +305,7 @@
             <p style="margin-top:8px;color:var(--color-text-secondary);font-size:13px" data-i18n="shareQRHint">扫码查看完整行程</p>
           </div>
         </div>
-        <div id="share-modal-footer">
+        <div id="share-modal-footer" style="display:none">
           <button class="share-action-btn" id="btn-download-share-image" data-i18n="shareDownload">📥 下载图片</button>
           <button class="share-action-btn secondary" id="btn-close-share-modal-2" data-i18n="shareClose">关闭</button>
         </div>
@@ -490,7 +490,7 @@
           <!-- 主对话面板（绑定 Agent） -->
           <pi-chat-panel id="chat"></pi-chat-panel>
           <!-- 语音输入按钮（浮动在输入框上方，避免覆盖发送按钮） -->
-          <button id="btn-voice-input" class="voice-input-btn" title="语音输入" style="display:none">
+          <button id="btn-voice-input" class="voice-input-btn" title="语音输入">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -560,6 +560,9 @@
           <span class="status-dot purple" id="status-days" aria-label="行程天数">📅 <span class="dot-label">天数</span> 0</span>
         </div>
 
+        <!-- 天数筛选按钮 -->
+        <div id="page-map-day-filters"></div>
+
         <!-- 图例 -->
         <div id="page-map-legend">
           <div class="legend-item"><div class="legend-line" style="background:#3b82f6"></div> <span data-i18n="legendAttraction">景点</span></div>
@@ -606,8 +609,8 @@
 
   <!-- Trace Waterfall Panel -->
   <script type="module">
-    import { showPanel } from './modules/waterfall.js?v=3';
-    import { getCurrentTraceId } from './modules/trace.js?v=3';
+    import { showPanel } from './modules/waterfall.js?v=4';
+    import { getCurrentTraceId } from './modules/trace.js?v=4';
     document.getElementById('trace-id-display')?.addEventListener('click', () => {
       const traceId = getCurrentTraceId();
       if (traceId) {
@@ -678,21 +681,21 @@
     }
 
     // ─── 自初始化模块（执行 side-effect） ────────────────
-    import './modules/storage.js?v=3';
-    import './modules/panels.js?v=3';
-    import './modules/auth.js?v=3';
-    import './modules/travelers.js?v=3';
-    import './modules/export.js?v=3';
-    import './modules/history.js?v=3';
-    import './modules/map.js?v=3';
-    import './modules/weather-chart.js?v=3';
-    import './modules/model-config.js?v=3';
-    import { initPageMap } from './modules/map.js?v=3';
-    import { showToast } from './modules/context.js?v=3';
+    import './modules/storage.js?v=4';
+    import './modules/panels.js?v=4';
+    import './modules/auth.js?v=4';
+    import './modules/travelers.js?v=4';
+    import './modules/export.js?v=4';
+    import './modules/history.js?v=4';
+    import './modules/map.js?v=4';
+    import './modules/weather-chart.js?v=4';
+    import './modules/model-config.js?v=4';
+    import { initPageMap } from './modules/map.js?v=4';
+    import { showToast } from './modules/context.js?v=4';
 
     // ─── 启动应用 ────────────────────────────────────────
-    import { initApp } from './modules/chat-init.js?v=3';
-    import { detectProxyMode, checkAuth } from './modules/auth.js?v=3';
+    import { initApp } from './modules/chat-init.js?v=4';
+    import { detectProxyMode, checkAuth } from './modules/auth.js?v=4';
 
     // 代理模式检测 + 认证
     detectProxyMode();

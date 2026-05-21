@@ -1,3 +1,11 @@
+    /* ─── 强制隐藏分享弹窗（防止被其他样式覆盖） ─── */
+    #share-modal-overlay {
+      display: none !important;
+    }
+    #share-modal-overlay.open {
+      display: flex !important;
+    }
+
     html, body { height: 100%; font-family: var(--font-sans); }
     body { background: var(--color-bg-base); color: var(--color-text-primary); }
 
@@ -189,7 +197,89 @@
       max-width: 100%;
     }
 
-
+    /* ── 行程内容排版优化 ────────────────────────── */
+    assistant-message h1,
+    assistant-message h2,
+    assistant-message h3,
+    markdown-block h1,
+    markdown-block h2,
+    markdown-block h3 {
+      line-height: 1.4;
+      margin-top: 1.2em;
+      margin-bottom: 0.5em;
+    }
+    assistant-message h1:first-child,
+    assistant-message h2:first-child,
+    assistant-message h3:first-child,
+    markdown-block h1:first-child,
+    markdown-block h2:first-child,
+    markdown-block h3:first-child {
+      margin-top: 0;
+    }
+    assistant-message h1,
+    markdown-block h1 {
+      font-size: 1.3em;
+      font-weight: 700;
+    }
+    assistant-message h2,
+    markdown-block h2 {
+      font-size: 1.15em;
+      font-weight: 600;
+    }
+    assistant-message h3,
+    markdown-block h3 {
+      font-size: 1.05em;
+      font-weight: 600;
+    }
+    assistant-message p,
+    markdown-block p {
+      margin-top: 0.5em;
+      margin-bottom: 0.5em;
+      line-height: 1.7;
+    }
+    assistant-message ul,
+    assistant-message ol,
+    markdown-block ul,
+    markdown-block ol {
+      padding-left: 1.5em;
+      margin-top: 0.4em;
+      margin-bottom: 0.4em;
+    }
+    assistant-message li,
+    markdown-block li {
+      line-height: 1.7;
+      margin-top: 0.25em;
+      margin-bottom: 0.25em;
+    }
+    assistant-message table,
+    markdown-block table {
+      font-size: 13px;
+      margin-top: 0.6em;
+      margin-bottom: 0.6em;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    assistant-message th,
+    assistant-message td,
+    markdown-block th,
+    markdown-block td {
+      padding: 6px 10px;
+      border: 1px solid var(--color-border-subtle, #e5e7eb);
+      text-align: left;
+    }
+    assistant-message th,
+    markdown-block th {
+      background: var(--color-bg-elevated, #f3f4f6);
+      font-weight: 600;
+    }
+    assistant-message blockquote,
+    markdown-block blockquote {
+      margin-top: 0.6em;
+      margin-bottom: 0.6em;
+      padding-left: 12px;
+      border-left: 3px solid var(--color-accent, #3b82f6);
+      color: var(--color-text-secondary, #6b7280);
+    }
 
     #export-toolbar {
       display: none;
@@ -256,17 +346,17 @@
       font-size: 14px;
     }
 
-    /* 语音输入按钮 */
+    /* 语音输入按钮 - 定位在对话输入框左下角 */
     .voice-input-btn {
       position: absolute;
-      bottom: 16px;
-      left: 16px;
-      width: 36px;
-      height: 36px;
+      bottom: 8px;
+      left: 8px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       border: 1px solid var(--color-border-default);
       background: var(--color-bg-elevated);
-      color: var(--color-text-primary);
+      color: var(--color-text-secondary);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -287,6 +377,18 @@
     @keyframes mic-pulse {
       0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
       50% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+    /* 语音按钮在输入框内部时的定位 */
+    .voice-input-btn.in-input-area {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      width: 32px;
+      height: 32px;
+    }
+    /* 为输入框留出语音按钮空间 */
+    pi-chat-panel.has-voice-btn message-editor textarea {
+      padding-left: 40px;
     }
 
     #toast {
@@ -562,8 +664,8 @@
 
     /* ── 左侧对话面板 ── */
     #map-chat-panel {
-      width: 420px;
-      min-width: 280px;
+      width: 480px;
+      min-width: 320px;
       max-width: 60vw;
       display: flex;
       flex-direction: column;
@@ -1150,6 +1252,84 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       pointer-events: none;
     }
+    /* 路线方向箭头 */
+    .route-arrow-icon {
+      background: transparent !important;
+      border: none !important;
+    }
+    .route-arrow {
+      color: #10b981;
+      font-size: 10px;
+      line-height: 1;
+      text-shadow: 0 0 3px rgba(255,255,255,0.8);
+      pointer-events: none;
+    }
+    /* 天数筛选按钮 */
+    #page-map-day-filters {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      z-index: 1000;
+      padding: 6px 10px;
+      background: rgba(15,15,17,0.85);
+      border-radius: 20px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      transition: opacity 0.3s;
+    }
+    #page-map-day-filters:empty {
+      display: none;
+    }
+    .day-filter-btn {
+      padding: 4px 12px;
+      border: 2px solid transparent;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.1);
+      color: #e4e4e7;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .day-filter-btn:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    .day-filter-btn.active {
+      color: white;
+      border-color: currentColor;
+      box-shadow: 0 0 12px currentColor;
+    }
+    /* 不同天数按钮颜色 */
+    .day-filter-btn[data-day="0"] { color: #e4e4e7; }
+    .day-filter-btn[data-day="0"].active { background: rgba(255,255,255,0.2); }
+    .day-filter-btn[data-day="1"] { --day-color: #3b82f6; }
+    .day-filter-btn[data-day="2"] { --day-color: #8b5cf6; }
+    .day-filter-btn[data-day="3"] { --day-color: #ec4899; }
+    .day-filter-btn[data-day="4"] { --day-color: #f97316; }
+    .day-filter-btn[data-day="5"] { --day-color: #14b8a6; }
+    .day-filter-btn[data-day="6"] { --day-color: #6366f1; }
+    .day-filter-btn[data-day="7"] { --day-color: #ef4444; }
+    .day-filter-btn[data-day="8"],
+    .day-filter-btn[data-day="9"],
+    .day-filter-btn[data-day="10"] { --day-color: #10b981; }
+    .day-filter-btn[data-day]:not([data-day="0"]) {
+      color: var(--day-color);
+    }
+    .day-filter-btn[data-day]:not([data-day="0"]).active {
+      background: var(--day-color);
+      color: white;
+      border-color: var(--day-color);
+      box-shadow: 0 0 12px var(--day-color);
+    }
+    /* 景点标记非高亮状态（淡化） */
+    .attraction-marker.dimmed {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
     /* 天气覆盖 badge */
     .weather-overlay .weather-badge {
       background: rgba(15,15,17,0.8); color: #e4e4e7;
@@ -1173,7 +1353,42 @@
       cursor: pointer !important;
       animation: markerPopIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
+    /* 不同天数的标记颜色 */
+    .attraction-marker[data-day="1"] { background: #3b82f6; box-shadow: 0 3px 10px rgba(59,130,246,0.4); }
+    .attraction-marker[data-day="2"] { background: #8b5cf6; box-shadow: 0 3px 10px rgba(139,92,246,0.4); }
+    .attraction-marker[data-day="3"] { background: #ec4899; box-shadow: 0 3px 10px rgba(236,72,153,0.4); }
+    .attraction-marker[data-day="4"] { background: #f97316; box-shadow: 0 3px 10px rgba(249,115,22,0.4); }
+    .attraction-marker[data-day="5"] { background: #14b8a6; box-shadow: 0 3px 10px rgba(20,184,166,0.4); }
+    .attraction-marker[data-day="6"] { background: #6366f1; box-shadow: 0 3px 10px rgba(99,102,241,0.4); }
+    .attraction-marker[data-day="7"] { background: #ef4444; box-shadow: 0 3px 10px rgba(239,68,68,0.4); }
+    .attraction-marker[data-day="8"],
+    .attraction-marker[data-day="9"],
+    .attraction-marker[data-day="10"] { background: #10b981; box-shadow: 0 3px 10px rgba(16,185,129,0.4); }
     .attraction-marker:hover { transform: scale(1.15); }
+    /* 日期过渡标签 */
+    .day-transition-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15,15,17,0.9);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      z-index: 1000;
+      pointer-events: none;
+      animation: dayLabelFade 1.5s ease-in-out both;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    @keyframes dayLabelFade {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+    }
     .city-marker {
       background: var(--color-accent-primary);
       color: white;
@@ -1774,7 +1989,7 @@
 
     /* ─── 分享弹窗 ─────────────────────────────────────── */
     #share-modal-overlay {
-      display: none;
+      display: none !important;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.5);
@@ -1782,7 +1997,7 @@
       justify-content: center;
       align-items: center;
     }
-    #share-modal-overlay.open { display: flex; }
+    #share-modal-overlay.open { display: flex !important; }
     #share-modal {
       background: var(--color-bg-surface);
       border: 1px solid var(--color-border-subtle);
@@ -1948,7 +2163,6 @@
 /* ─── 临时隐藏语音和海报功能 ─────────────────────────────── */
 #btn-tts,
 #btn-poster,
-#btn-voice-companion,
-#btn-voice-input {
+#btn-voice-companion {
   display: none !important;
 }
