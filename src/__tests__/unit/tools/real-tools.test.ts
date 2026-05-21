@@ -35,9 +35,9 @@ import { createMockDayPlan } from "../../mocks/fixtures.js";
 // ─── createTools (index.ts) ───────────────────────────
 
 describe("createTools()", () => {
-  it("应返回 14 个工具", () => {
+  it("应返回 15 个工具", () => {
     const tools = createTools();
-    expect(tools).toHaveLength(14);
+    expect(tools).toHaveLength(15);
     expect(tools.map((t) => t.name)).toEqual([
       "search_attractions",
       "search_weather",
@@ -53,6 +53,7 @@ describe("createTools()", () => {
       "generate_trip_speech",
       "recognize_image",
       "ai_guide_commentary",
+      "discover_destinations",
     ]);
   });
 

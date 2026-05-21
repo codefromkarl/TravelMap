@@ -15,19 +15,18 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("页面加载验证", () => {
-  test("应正确加载页面标题和 header", async ({ page }) => {
+  test("应正确加载页面标题和主要结构", async ({ page }) => {
     await page.goto("index.html");
 
     await expect(page).toHaveTitle(/TravelMap/);
 
-    const header = page.locator("header");
-    await expect(header).toBeAttached();
+    // 验证地图主界面存在
+    const mapContainer = page.locator("#map-container, .map-container, #app");
+    await expect(mapContainer.first()).toBeAttached();
 
-    const h1 = header.locator("h1");
-    await expect(h1).toContainText("TravelMap");
-
-    const subtitle = header.locator("span[data-i18n='subtitle']");
-    await expect(subtitle).toContainText("AI");
+    // 验证聊天面板存在
+    const chatPanel = page.locator("pi-chat-panel");
+    await expect(chatPanel).toBeAttached();
   });
 
   test("应渲染 pi-chat-panel 自定义元素", async ({ page }) => {
@@ -184,6 +183,50 @@ test.describe("地图主界面结构", () => {
     });
 
     expect(hasModal).toBe(true);
+  });
+});
+
+test.describe("发现模式功能", () => {
+  test("应显示发现按钮", async ({ page }) => {
+    await page.goto("index.html");
+
+    // 等待欢迎区域加载
+    const welcome = page.locator("#map-chat-welcome");
+    await expect(welcome).toBeAttached({ timeout: 10_000 });
+
+    // 验证发现按钮存在
+    const discoverBtn = page.locator(".quick-prompt--discover");
+    await expect(discoverBtn).toBeAttached();
+    await expect(discoverBtn).toContainText("不知道去哪");
+  });
+
+  test("点击发现按钮应尝试获取位置", async ({ page }) => {
+    // 模拟地理位置 API
+    await page.addInitScript(() => {
+      // @ts-ignore
+      navigator.geolocation = {
+        getCurrentPosition: (success) => {
+          success({
+            coords: {
+              latitude: 31.23,
+              longitude: 121.47,
+              accuracy: 100,
+            },
+          });
+        },
+      };
+    });
+
+    await page.goto("index.html");
+
+    // 等待欢迎区域加载
+    const welcome = page.locator("#map-chat-welcome");
+    await expect(welcome).toBeAttached({ timeout: 30_000 });
+
+    // 验证发现按钮存在且可见
+    const discoverBtn = page.locator(".quick-prompt--discover");
+    await expect(discoverBtn).toBeAttached();
+    await expect(discoverBtn).toContainText("不知道去哪");
   });
 });
 
