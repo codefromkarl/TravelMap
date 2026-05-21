@@ -639,6 +639,15 @@
       color: var(--color-text-primary);
     }
     #map-chat-welcome .quick-prompt:hover { border-color: var(--color-accent-subtle); }
+    #map-chat-welcome .quick-prompt--discover {
+      background: linear-gradient(135deg, var(--color-accent-subtle), var(--color-accent));
+      color: #fff;
+      font-weight: 600;
+      border: none;
+    }
+    #map-chat-welcome .quick-prompt--discover:hover {
+      opacity: 0.9;
+    }
 
     /* ── 快捷提示用户消息气泡 ── */
     .quick-prompt-user-msg {
@@ -1890,3 +1899,11 @@
         background: var(--color-bg-elevated);
       }
     }
+
+/* ─── 临时隐藏语音和海报功能 ─────────────────────────────── */
+#btn-tts,
+#btn-poster,
+#btn-voice-companion,
+#btn-voice-input {
+  display: none !important;
+}
