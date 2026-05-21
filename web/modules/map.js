@@ -1,6 +1,10 @@
 import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js';
 import { I18N } from './i18n.js';
 import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js';
+import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js';
+import { getCachedCoord, setCachedCoord } from './coord-cache.js';
+import { markerRegistry } from './markers.js';
+import { routePlanner } from './route-planner.js';
 
 // ═══════════════════════════════════════════════════════
 // 坐标系转换：WGS-84 (GPS) → GCJ-02 (火星坐标/高德)
@@ -243,16 +247,22 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
 
 // ─── 景点坐标补全（地理编码） ────────────────────────────
 // 当 tripPlan 中的景点缺少 location 时，通过高德地理编码 API 补全
-const _geoCache = new Map();
-const _GEO_CACHE_MAX = 200;
+// 使用 coord-cache.js 持久化缓存，避免重复请求
+import { getCachedCoord, setCachedCoord } from './coord-cache.js';
 
 /** 通过高德地理编码 API 获取景点坐标 */
 async function _geocodeOne(name, city) {
   const key = `${city}:${name}`;
-  if (_geoCache.has(key)) return _geoCache.get(key);
+
+  // 1. 先查持久化缓存
+  const cached = await getCachedCoord(city, name);
+  if (cached) {
+    console.log(`[Map] 坐标缓存命中: ${name}`);
+    return cached;
+  }
 
   const geoKey = getAmapGeoKey();
-  if (!geoKey) { _geoCache.set(key, null); return null; }
+  if (!geoKey) return null;
 
   try {
     const url = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}&key=${geoKey}&output=json`;
@@ -263,19 +273,17 @@ async function _geocodeOne(name, city) {
       // 高德返回 GCJ-02，转为 WGS-84 供 Leaflet 使用
       const converted = gcj02ToWgs84(lat, lng);
       const result = { latitude: converted.lat, longitude: converted.lng };
-      _geoCache.set(key, result);
-    } else {
-      _geoCache.set(key, null);
+
+      // 2. 写入持久化缓存
+      await setCachedCoord(city, name, result);
+      console.log(`[Map] 坐标已缓存: ${name}`);
+
+      return result;
     }
   } catch (e) {
     console.warn('[Map] 地理编码失败:', name, e.message);
-    _geoCache.set(key, null);
   }
-  // LRU 淘汰：超过上限删除最旧条目
-  if (_geoCache.size > _GEO_CACHE_MAX) {
-    _geoCache.delete(_geoCache.keys().next().value);
-  }
-  return _geoCache.get(key);
+  return null;
 }
 
 /**
@@ -676,8 +684,6 @@ export function hidePlanningIndicator() {
     _planningMarker = null;
   }
 }
-window._showPlanningIndicator = showPlanningIndicator;
-window._hidePlanningIndicator = hidePlanningIndicator;
 
 function setupMapInteractions() {
   // ─── 左侧面板拖拽调整宽度 ────────────────────────────
@@ -956,6 +962,9 @@ async function renderTripOnPageMap(tripPlan) {
         pageMapLayers.push(marker);
         allCoords.push([loc.latitude, loc.longitude]);
         markerCount++;
+
+        // 注册到锚点系统
+        registerMarker(attrName, marker, pageMapInstance);
       }
 
       dayAttrItems.push({ name: attr.nameZh || attr.name, duration: attr.visitDuration, lat: loc?.latitude, lng: loc?.longitude });
@@ -1046,22 +1055,9 @@ async function renderTripOnPageMap(tripPlan) {
     for (const meal of (day.meals || [])) {
       const r = meal.restaurant;
       if (r && r.location && r.location.latitude && r.location.longitude) {
-        const rIcon = L.divIcon({
-          className: 'custom-marker',
-          html: '<div class="restaurant-marker" style="animation-delay:' + ((dayIdx * 4 + restaurantCount) * 60) + 'ms">🍴</div>',
-          iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
-        });
-        const rPopup = '<div class="map-popup">' +
-          '<div class="popup-title">' + r.name + '</div>' +
-          '<div class="popup-meta">' +
-          (r.rating ? '<span>⭐ ' + r.rating + '</span>' : '') +
-          (r.averageCost ? '<span>¥' + r.averageCost + '/人</span>' : '') +
-          (r.cuisine ? '<span>' + r.cuisine + '</span>' : '') +
-          '</div>' +
-          (r.address ? '<div class="popup-city">📍 ' + r.address + '</div>' : '') +
-          (r.signature ? '<div class="popup-tips">🍽️ 招牌：' + r.signature + '</div>' : '') +
-          '</div>';
-        const rMarker = L.marker([r.location.latitude, r.location.longitude], { icon: rIcon, interactive: true }).bindPopup(rPopup, { maxWidth: 260 });
+        const { iconOptions, popupHtml } = markerRegistry.create('restaurant', r);
+        const rIcon = L.divIcon(iconOptions);
+        const rMarker = L.marker([r.location.latitude, r.location.longitude], { icon: rIcon, interactive: true }).bindPopup('<div class="map-popup">' + popupHtml + '</div>', { maxWidth: 260 });
         rMarker.addTo(pageMapInstance);
         pageMapLayers.push(rMarker);
         allCoords.push([r.location.latitude, r.location.longitude]);
@@ -1080,18 +1076,9 @@ async function renderTripOnPageMap(tripPlan) {
     // ── 酒店 marker ──────────────────────────────────
     const hotelLoc = day.hotel?.location;
     if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0)) {
-      const hIcon = L.divIcon({
-        className: 'custom-marker',
-        html: '<div class="hotel-marker">🏨</div>',
-        iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16],
-      });
-      const hPopup = '<div class="popup-card">' +
-        '<div class="popup-title">🏨 ' + (day.hotel.name || '住宿') + '</div>' +
-        (day.hotel.address ? '<div class="popup-city">📍 ' + day.hotel.address + '</div>' : '') +
-        (day.hotel.priceRange ? '<div class="popup-tips">💰 ' + day.hotel.priceRange + '</div>' : '') +
-        (day.hotel.rating ? '<div class="popup-tips">⭐ ' + day.hotel.rating + '</div>' : '') +
-        '</div>';
-      const hMarker = L.marker([hotelLoc.latitude, hotelLoc.longitude], { icon: hIcon, interactive: true }).bindPopup(hPopup, { maxWidth: 260 });
+      const { iconOptions, popupHtml } = markerRegistry.create('hotel', day.hotel);
+      const hIcon = L.divIcon(iconOptions);
+      const hMarker = L.marker([hotelLoc.latitude, hotelLoc.longitude], { icon: hIcon, interactive: true }).bindPopup(popupHtml, { maxWidth: 260 });
       hMarker.addTo(pageMapInstance);
       pageMapLayers.push(hMarker);
       allCoords.push([hotelLoc.latitude, hotelLoc.longitude]);
@@ -1102,15 +1089,8 @@ async function renderTripOnPageMap(tripPlan) {
       a.location?.latitude && a.location?.longitude &&
       (a.location.latitude !== 0 || a.location.longitude !== 0)
     );
-    // 构建完整路线点：酒店（如有）+ 景点 + 酒店（回程）
-    const routePoints = [];
-    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0)) {
-      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
-    }
-    routePoints.push(...validDayAttrs);
-    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0) && validDayAttrs.length > 0) {
-      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
-    }
+    // 使用 route-planner 构建路线点
+    const routePoints = routePlanner.planDayRoutes(day);
     if (routePoints.length >= 2) {
       const interRoutes = await drawInterAttractionRoutes(routePoints, 'walking', dayIdx, 0);
       routeCount += interRoutes;
@@ -1419,19 +1399,8 @@ async function renderTripAnimated(tripPlan) {
       await delay(attrDelay);
     }
 
-    // ── 绘制路线：酒店 → 景点1 → ... → 酒店（动画模式）──
-    const validDayAttrs = (day.attractions || []).filter(a =>
-      a.location?.latitude && a.location?.longitude &&
-      (a.location.latitude !== 0 || a.location.longitude !== 0)
-    );
-    const routePoints = [];
-    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0)) {
-      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
-    }
-    routePoints.push(...validDayAttrs);
-    if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0) && validDayAttrs.length > 0) {
-      routePoints.push({ location: hotelLoc, name: day.hotel?.name || '酒店' });
-    }
+    // ── 绘制路线（动画模式）──
+    const routePoints = routePlanner.planDayRoutes(day);
     if (routePoints.length >= 2 && !_animAbort) {
       const interRoutes = await drawInterAttractionRoutes(routePoints, 'walking', dayIdx, 0);
       routeCount += interRoutes;
@@ -1692,6 +1661,12 @@ window._resetStreamingParser = resetStreamingParser;
 // ─── 对话定位辅助函数 ──────────────────────────────────
 function scrollChatToAttraction(name) {
   if (!name) return false;
+
+  // 1. 尝试使用锚点系统
+  const anchored = scrollToAttraction(name, { highlight: true, highlightDuration: 2000 });
+  if (anchored) return true;
+
+  // 2. Fallback: 文本匹配
   const chatBody = document.getElementById('map-chat-body');
   const messages = chatPanel?.shadowRoot?.querySelectorAll('chat-message')
                 || chatBody?.querySelectorAll('chat-message')

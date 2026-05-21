@@ -106,10 +106,12 @@ describe('geocodeAttractions', () => {
 
     const count = await geocodeAttractions(tripPlan);
     expect(count).toBe(1);
-    expect(tripPlan.days[0].attractions[0].location).toEqual({
-      latitude: 30.2458,
-      longitude: 120.1484,
-    });
+    const loc = tripPlan.days[0].attractions[0].location;
+    // 高德返回 GCJ-02，经 gcj02ToWgs84 转换后偏移约 0.002-0.005 度
+    expect(loc.latitude).toBeCloseTo(30.2458, 1);  // 允许 ~0.05 度偏差
+    expect(loc.longitude).toBeCloseTo(120.1484, 1);
+    // 确保做了转换（值不应完全等于原始 GCJ-02）
+    expect(loc.latitude).not.toBe(30.2458);
   });
 
   it('location: {0, 0} 的景点触发补全', async () => {

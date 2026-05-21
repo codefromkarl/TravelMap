@@ -41,6 +41,8 @@ import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
   currentLang, setCurrentLang, showToast, currentTravelers, currentPreferences,
 } from './context.js';
+import { feedback } from './feedback.js';
+import { appState } from './app-state.js';
 import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js';
 import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js';
 import { ALL_TOOLS } from './tools/index.js';
@@ -107,66 +109,45 @@ export async function initApp() {
 
   // ─── Agent 事件监听 ──────────────────────────────────
   let lastTripContentInner = "";
-  let planTimeout = null;
   function resetToolbarAfterError() {
-    window._hidePlanningIndicator?.();
+    feedback.done();
     document.getElementById("export-toolbar")?.classList.add("visible");
     ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
       document.getElementById(id)?.classList.remove("disabled-ghost");
     });
   }
 
-  /**
-   * 根据错误消息分类显示用户友好的 Toast 提示（带重试按钮）
-   */
-  function showErrorToast(errMsg) {
-    const isRetryable = (msg) => {
-      const m = msg.toLowerCase();
-      return m.includes('fetch') || m.includes('network') || m.includes('failed to fetch')
-        || m.includes('networkerror') || m.includes('err_connection') || m.includes('timeout')
-        || m.includes('timed out') || m.includes('500') || m.includes('502')
-        || m.includes('503') || m.includes('server error');
-    };
-    const retryAction = isRetryable(errMsg) ? {
-      label: currentLang === 'zh' ? '重试' : currentLang === 'ja' ? '再試行' : 'Retry',
-      onClick: () => {
-        // 重新发送最后一条用户消息
-        const msgs = _agent.state.messages;
-        const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
-        if (lastUserMsg) {
-          const content = typeof lastUserMsg.content === 'string' ? lastUserMsg.content
-            : Array.isArray(lastUserMsg.content) ? lastUserMsg.content.filter(c => c.type === 'text').map(c => c.text).join('') : '';
-          if (content) {
-            // 移除最后的错误消息
-            const lastAssistant = msgs.filter(m => m.role === 'assistant').slice(-1)[0];
-            if (lastAssistant?.errorMessage) msgs.pop();
-            _agent.run(content);
-          }
-        }
+  /** 重试：重新发送最后一条用户消息 */
+  function retryLastMessage() {
+    const msgs = _agent.state.messages;
+    const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
+    if (lastUserMsg) {
+      const content = typeof lastUserMsg.content === 'string' ? lastUserMsg.content
+        : Array.isArray(lastUserMsg.content) ? lastUserMsg.content.filter(c => c.type === 'text').map(c => c.text).join('') : '';
+      if (content) {
+        const lastAssistant = msgs.filter(m => m.role === 'assistant').slice(-1)[0];
+        if (lastAssistant?.errorMessage) msgs.pop();
+        _agent.run(content);
       }
-    } : null;
-
-    const msg = errMsg.toLowerCase();
-    if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('err_connection')) {
-      showToast(currentLang === 'zh' ? '🌐 网络连接失败，请检查网络后重试' : currentLang === 'ja' ? '🌐 ネットワーク接続に失敗しました' : '🌐 Network error, please check your connection', 6000, 'error', retryAction);
-    } else if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('incorrect api key') || msg.includes('invalid_api_key')) {
-      showToast(currentLang === 'zh' ? '🔑 API Key 无效，请在设置中检查' : currentLang === 'ja' ? '🔑 API Key が無効です' : '🔑 Invalid API Key, please check settings', 5000, 'error');
-    } else if (msg.includes('429') || msg.includes('rate') || msg.includes('rate limit') || msg.includes('too many requests')) {
-      showToast(currentLang === 'zh' ? '⏳ 请求过于频繁，请稍后重试' : currentLang === 'ja' ? '⏳ リクエストが多すぎます' : '⏳ Rate limited, please try again later', 5000, 'warning');
-    } else if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort')) {
-      if (!msg.includes('user abort')) {
-        showToast(currentLang === 'zh' ? '⏱️ 请求超时，请稍后重试' : currentLang === 'ja' ? '⏱️ リクエストがタイムアウトしました' : '⏱️ Request timed out, please try again', 6000, 'warning', retryAction);
-      }
-    } else if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('server error')) {
-      showToast(currentLang === 'zh' ? '🔧 服务器错误，请稍后重试' : currentLang === 'ja' ? '🔧 サーバーエラーです' : '🔧 Server error, please try again later', 6000, 'error', retryAction);
-    } else {
-      showToast(currentLang === 'zh' ? `❌ 规划失败：${errMsg.slice(0, 60)}` : `❌ Error: ${errMsg.slice(0, 60)}`, 5000, 'error', retryAction);
     }
   }
   _agent.subscribe(async (event) => {
     if (event.type === "agent_end") {
-      if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
-      window._hidePlanningIndicator?.();
+      feedback.done();
+      appState.transition('result');
+
+      // ─── 强制同步 message-editor 的 isStreaming 状态 ──
+      // agent_end 在 finishRun() 之前触发，此时 session.state.isStreaming 仍为 true。
+      // finishRun() 设为 false 后无 re-render，导致 editor.isStreaming 卡住。
+      // 用 setTimeout 延迟确保 finishRun() 已执行。
+      setTimeout(() => {
+        const editor = document.querySelector('message-editor');
+        if (editor?.isStreaming) {
+          editor.isStreaming = false;
+        }
+        const ai = document.querySelector('agent-interface');
+        if (ai) ai.requestUpdate();
+      }, 100);
 
       const msgs = _agent.state.messages;
 
@@ -176,7 +157,7 @@ export async function initApp() {
         resetToolbarAfterError();
         const errMsg = lastAssistant.errorMessage;
         console.error("[ChatInit] Agent run failure:", errMsg);
-        showErrorToast(errMsg);
+        feedback.error(errMsg, retryLastMessage);
         return;
       }
 
@@ -234,17 +215,13 @@ export async function initApp() {
       autoSaveTrip();
     }
     if (event.type === "turn_start") {
-      window._showPlanningIndicator?.('正在规划行程...');
+      appState.transition('planning');
+      feedback.loading('正在规划行程...');
       document.getElementById("export-toolbar")?.classList.remove("visible");
       ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
         document.getElementById(id)?.classList.add("disabled-ghost");
       });
       setCurrentTripId(null);
-      if (planTimeout) clearTimeout(planTimeout);
-      planTimeout = setTimeout(() => {
-        resetToolbarAfterError();
-        showToast("请求超时，请重试", 4000, 'warning');
-      }, 60000);
     }
     // ─── Tool 级增量渲染（A2）────────────────────────
     if (event.type === "tool_execution_end" && window.currentPage === "page-map") {
@@ -281,20 +258,25 @@ export async function initApp() {
     }
 
     if (event.type === "error" || event.type === "agent_error") {
-      if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
+      feedback.done();
+      appState.transition('result');
       resetToolbarAfterError();
+      // ─── 强制重置 isStreaming（错误时也要确保可发送） ──
+      setTimeout(() => {
+        const editor = document.querySelector('message-editor');
+        if (editor?.isStreaming) editor.isStreaming = false;
+        const ai = document.querySelector('agent-interface');
+        if (ai) ai.requestUpdate();
+      }, 100);
       console.error("[ChatInit] Agent error:", event);
       const raw = event.error?.message || event.payload?.error?.message || "";
       const errMsg = String(raw);
       if (errMsg.includes("QUOTA") || errMsg.includes("quota") || errMsg.includes("次数已用完") || errMsg.includes("免费体验")) {
-        showToast("免费体验次数已用完，请登录后继续使用", 6000, "warning", {
-          label: '去登录',
-          onClick: () => { document.getElementById('auth-overlay')?.style.setProperty('display', 'flex'); }
-        });
+        feedback.quotaExceeded();
       } else if (errMsg) {
-        showToast(`计划生成失败：${errMsg.slice(0, 80)}`, 5000, "error");
+        feedback.error(errMsg, retryLastMessage);
       } else {
-        showToast("计划生成失败，请重试", 4000, "error");
+        feedback.error('计划生成失败，请重试');
       }
     }
   });
@@ -372,7 +354,7 @@ export async function initApp() {
       summary,
       coverImage,
       // 结构化行程数据（核心）
-      tripPlan: tripPlan || null,
+      tripPlan: tripPlan ? { ...tripPlan, coordVersion: 2 } : null,
       markdown: markdown || "",
       // 用户上下文（用于微调）
       travelerProfile: currentTravelers ? { ...currentTravelers } : null,
@@ -433,9 +415,45 @@ export async function initApp() {
       try {
         await origSendMessage(input, attachments);
       } catch (err) {
-        showToast(`发送失败: ${err.message}`, 5000, 'error');
+        feedback.sendFailed(err.message);
       }
     };
+
+    // ─── IME（输入法）兼容性修复 ─────────────────────
+    // pi-bundle 的 message-editor 在 handleTextareaInput 中每次 input 事件
+    // 都触发 Lit requestUpdate → 重新渲染 → 重设 textarea.value，
+    // 这会打断中文输入法的组合过程（composition），导致文字丢失/发送按钮禁用。
+    // 修复：覆写 handleTextareaInput，在 composition 期间跳过 Lit 更新，
+    // composition 结束后再同步 value。
+    // 使用 updateComplete + setTimeout 确保 Lit 完成所有渲染后再覆写。
+    (async () => {
+      const messageEditor = document.querySelector('message-editor');
+      if (!messageEditor) return;
+      // 等待 Lit 完成渲染
+      if (messageEditor.updateComplete) await messageEditor.updateComplete;
+      // 再等一帧确保 DOM 稳定
+      await new Promise(r => setTimeout(r, 50));
+
+      let _isComposing = false;
+      const ta = messageEditor.querySelector('textarea');
+      if (!ta) return;
+
+      ta.addEventListener('compositionstart', () => { _isComposing = true; });
+      ta.addEventListener('compositionend', () => {
+        _isComposing = false;
+        messageEditor.value = ta.value;
+        messageEditor.onInput?.(ta.value);
+      });
+
+      const origInput = messageEditor.handleTextareaInput;
+      messageEditor.handleTextareaInput = (e) => {
+        if (_isComposing || e.isComposing) return;
+        origInput.call(messageEditor, e);
+      };
+      // 触发 re-render 让 Lit 绑定新的 handleTextareaInput
+      messageEditor.requestUpdate();
+      if (messageEditor.updateComplete) await messageEditor.updateComplete;
+    })();
 
     // （调试代码已清理）
   }
