@@ -175,27 +175,26 @@ test.describe("行程 → 地图联动", () => {
   test("注入行程后应生成正确数量的景点 marker", async ({ page }) => {
     await injectTrip(page);
 
-    // 有坐标的景点：西湖、雷峰塔、灵隐寺、西溪湿地 = 4 个
-    // 河坊街无坐标，不应生成 marker
+    // 地理编码会自动补全缺失坐标的景点（河坊街 location: null 也会被补全）
+    // 5 个景点全部应有 marker（包括被地理编码补全的河坊街）
     const markerCount = await page.evaluate(() => {
       return document.querySelectorAll(".attraction-marker").length;
     });
-    expect(markerCount).toBe(4);
+    expect(markerCount).toBe(5);
   });
 
-  // === 2. 无坐标景点不生成 marker ===
-  test("location 为 null 的景点不应生成 marker", async ({ page }) => {
+  // === 2. 地理编码补全后景点应有 marker ===
+  test("location 为 null 的景点经地理编码补全后应生成 marker", async ({ page }) => {
     await injectTrip(page);
 
-    const popupTexts = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll(".leaflet-popup-content")).map(
-        (el) => el.textContent || "",
-      );
-    });
+    // 等待地理编码完成
+    await page.waitForTimeout(2000);
 
-    // 河坊街不应出现在任何 popup 中
-    const hasInvalidMarker = popupTexts.some((t) => t.includes("河坊街"));
-    expect(hasInvalidMarker).toBe(false);
+    // 检查 marker 数量（河坊街应被地理编码补全）
+    const markerCount = await page.evaluate(() => {
+      return document.querySelectorAll(".attraction-marker").length;
+    });
+    expect(markerCount).toBe(5);
   });
 
   // === 3. Marker 点击显示 Popup，内容正确 ===
@@ -258,7 +257,8 @@ test.describe("行程 → 地图联动", () => {
     const count1 = await page.evaluate(
       () => document.querySelectorAll(".attraction-marker").length,
     );
-    expect(count1).toBe(4);
+    // 地理编码补全后，5 个景点全部应有 marker
+    expect(count1).toBe(5);
 
     // 注入新行程（只有一个景点）
     const newTrip = {
@@ -415,14 +415,14 @@ test.describe("行程-地图边界情况", () => {
     expect(markerCount).toBe(0);
   });
 
-  // === 10. 坐标为 0,0 的景点不应生成 marker ===
-  test("坐标为 0,0 的景点不应生成 marker", async ({ page }) => {
+  // === 10. 坐标为 0,0 的景点经地理编码补全后应生成 marker ===
+  test("坐标为 0,0 的景点经地理编码补全后应生成 marker", async ({ page }) => {
     const tripWithZero = {
-      city: "测试",
+      city: "杭州",
       days: [
         {
           day: 1,
-          city: "测试",
+          city: "杭州",
           attractions: [
             {
               name: "零坐标景点",
@@ -443,7 +443,8 @@ test.describe("行程-地图边界情况", () => {
     const markerCount = await page.evaluate(
       () => document.querySelectorAll(".attraction-marker").length,
     );
-    expect(markerCount).toBe(1); // 只有有效景点生成 marker
+    // 地理编码会补全零坐标景点，所以两个景点都应有 marker
+    expect(markerCount).toBe(2);
   });
 
   // === 11. 重复注入行程不应累积 marker ===

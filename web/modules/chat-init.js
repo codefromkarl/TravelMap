@@ -163,7 +163,7 @@ export async function initApp() {
       showToast(currentLang === 'zh' ? `❌ 规划失败：${errMsg.slice(0, 60)}` : `❌ Error: ${errMsg.slice(0, 60)}`, 5000, 'error', retryAction);
     }
   }
-  _agent.subscribe((event) => {
+  _agent.subscribe(async (event) => {
     if (event.type === "agent_end") {
       if (planTimeout) { clearTimeout(planTimeout); planTimeout = null; }
       window._hidePlanningIndicator?.();
@@ -427,43 +427,17 @@ export async function initApp() {
     panelInstance.agentInterface.enableAttachments = false;
     panelInstance.agentInterface.enableThinkingSelector = false;
 
-    // ─── 调试：拦截 sendMessage ────────────────────────────
+    // ─── sendMessage 错误处理 ────────────────────────────
     const origSendMessage = panelInstance.agentInterface.sendMessage.bind(panelInstance.agentInterface);
     panelInstance.agentInterface.sendMessage = async function(input, attachments) {
-      console.log('[DEBUG] sendMessage called:', { input: input?.slice(0, 50), isStreaming: _agent.state.isStreaming, hasModel: !!_agent.state.model });
       try {
         await origSendMessage(input, attachments);
-        console.log('[DEBUG] sendMessage completed');
       } catch (err) {
-        console.error('[DEBUG] sendMessage error:', err);
         showToast(`发送失败: ${err.message}`, 5000, 'error');
       }
     };
 
-    // ─── 调试：监听 isStreaming 状态变化 ──────────────────
-    let lastStreaming = _agent.state.isStreaming;
-    setInterval(() => {
-      const current = _agent.state.isStreaming;
-      if (current !== lastStreaming) {
-        console.log('[DEBUG] isStreaming changed:', lastStreaming, '->', current);
-        lastStreaming = current;
-      }
-
-      // 检查 MessageEditor 状态
-      const me = document.querySelector('message-editor');
-      if (me && me.value) {
-        // 只在有输入时检查
-        const btn = me.querySelector('button:not([disabled])');
-        if (!btn && me.value.trim()) {
-          console.log('[DEBUG] MessageEditor state:', {
-            value: me.value?.slice(0, 30),
-            isStreaming: me.isStreaming,
-            processingFiles: me.processingFiles,
-            hasOnSend: typeof me.onSend === 'function',
-          });
-        }
-      }
-    }, 2000);
+    // （调试代码已清理）
   }
 
   // ─── MutationObserver 检测首条消息 → 隐藏欢迎 ────────
@@ -728,33 +702,3 @@ export async function initApp() {
     });
   }
 }
-// ─── 全局调试：监听 textarea 和按钮状态 ─────────────────
-document.addEventListener('click', (e) => {
-  const target = e.target;
-  // 检查是否点击了发送按钮
-  if (target.closest('button') && target.closest('message-editor')) {
-    const btn = target.closest('button');
-    console.log('[DEBUG] Button clicked in message-editor:', {
-      disabled: btn.disabled,
-      text: btn.textContent?.trim(),
-      classes: btn.className,
-    });
-  }
-}, true);
-
-// ─── 全局调试：监听所有按钮点击 ─────────────────────────
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (btn) {
-    const me = btn.closest('message-editor') || btn.closest('agent-interface');
-    if (me) {
-      console.log('[DEBUG] Button click detected:', {
-        tag: btn.tagName,
-        disabled: btn.disabled,
-        text: btn.textContent?.trim().slice(0, 20),
-        parent: me.tagName,
-        value: document.querySelector('message-editor')?.value?.slice(0, 30),
-      });
-    }
-  }
-}, true);

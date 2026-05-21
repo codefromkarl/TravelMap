@@ -61,13 +61,9 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
 // ─── 景点坐标补全（地理编码） ────────────────────────────
 // 当 tripPlan 中的景点缺少 location 时，通过高德地理编码 API 补全
 const _geoCache = new Map();
+const _GEO_CACHE_MAX = 200;
 
-/**
- * 通过高德地理编码 API 获取景点坐标
- * @param {string} name - 景点名称
- * @param {string} city - 城市名
- * @returns {{latitude:number,longitude:number}|null}
- */
+/** 通过高德地理编码 API 获取景点坐标 */
 async function _geocodeOne(name, city) {
   const key = `${city}:${name}`;
   if (_geoCache.has(key)) return _geoCache.get(key);
@@ -83,13 +79,18 @@ async function _geocodeOne(name, city) {
       const [lng, lat] = data.geocodes[0].location.split(',').map(Number);
       const result = { latitude: lat, longitude: lng };
       _geoCache.set(key, result);
-      return result;
+    } else {
+      _geoCache.set(key, null);
     }
   } catch (e) {
     console.warn('[Map] 地理编码失败:', name, e.message);
+    _geoCache.set(key, null);
   }
-  _geoCache.set(key, null);
-  return null;
+  // LRU 淘汰：超过上限删除最旧条目
+  if (_geoCache.size > _GEO_CACHE_MAX) {
+    _geoCache.delete(_geoCache.keys().next().value);
+  }
+  return _geoCache.get(key);
 }
 
 /**
@@ -681,9 +682,10 @@ function setupMapInteractions() {
                   const gcjLat = parseFloat(loc[1]);
                   const wgs = gcj02ToWgs84(gcjLat, gcjLng);
                   pageMapInstance.setView([wgs.lat, wgs.lng], 15);
-                  L.marker([wgs.lat, wgs.lng]).addTo(pageMapInstance)
+                  const searchMarker = L.marker([wgs.lat, wgs.lng]).addTo(pageMapInstance)
                     .bindPopup(`<b>${poi.name}</b><br>${poi.address || poi.cityname || ''}`)
                     .openPopup();
+                  pageMapLayers.push(searchMarker);
                 } else {
                   showToast('未找到该地点', 2500, 'warning');
                 }
@@ -698,9 +700,10 @@ function setupMapInteractions() {
                   const lat = parseFloat(data[0].lat);
                   const lon = parseFloat(data[0].lon);
                   pageMapInstance.setView([lat, lon], 14);
-                  L.marker([lat, lon]).addTo(pageMapInstance)
+                  const searchMarker = L.marker([lat, lon]).addTo(pageMapInstance)
                     .bindPopup(data[0].display_name || query)
                     .openPopup();
+                  pageMapLayers.push(searchMarker);
                 } else {
                   showToast('未找到该地点', 2500, 'warning');
                 }
@@ -713,8 +716,24 @@ function setupMapInteractions() {
   }
 }
 
-function renderTripOnPageMap(tripPlan) {
+async function renderTripOnPageMap(tripPlan) {
   if (!tripPlan || !tripPlan.days || !pageMapInstance) return;
+
+  // 检测缺失坐标并补全
+  const hasMissingCoords = tripPlan.days.some(d =>
+    (d.attractions || []).some(a => {
+      const loc = a.location;
+      return !loc || !loc.latitude || !loc.longitude || (loc.latitude === 0 && loc.longitude === 0);
+    })
+  );
+  if (hasMissingCoords) {
+    const fixed = await geocodeAttractions(tripPlan);
+    if (fixed > 0) {
+      console.log(`[Map] renderTripOnPageMap: 补全了 ${fixed} 个景点坐标`);
+      window._autoSaveTrip?.();
+    }
+  }
+
   const allCoords = [];
   let markerCount = 0, routeCount = 0, supplyPointCount = 0;
   const routePanelData = [];

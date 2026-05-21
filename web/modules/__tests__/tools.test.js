@@ -15,6 +15,7 @@ vi.mock('@earendil-works/pi-ai', () => ({
 // Mock context.js
 vi.mock('../context.js', () => ({
   currentTravelers: null,
+  CITY_CENTERS: { '西安': [34.3416, 108.9398], '北京': [39.9042, 116.4074], '上海': [31.2304, 121.4737] },
 }));
 
 // Mock window/document for action-links tool
