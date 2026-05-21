@@ -40,7 +40,7 @@ import { config, resolveApiKey } from './config.js';
 import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
   currentLang, setCurrentLang, showToast, currentTravelers, currentPreferences,
-} from './context.js?v=2';
+} from './context.js?v=3';
 import { feedback } from './feedback.js';
 import { appState } from './app-state.js';
 import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js';

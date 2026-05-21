@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
-import { CITY_CENTERS } from '../context.js';
+import { CITY_CENTERS } from '../context.js?v=3';
 
 // ─── 景点搜索工具 ──────────────────────────────────────
 export const searchAttractionsTool = {

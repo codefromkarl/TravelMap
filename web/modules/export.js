@@ -1,4 +1,4 @@
-import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js?v=2';
+import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js?v=3';
 import { I18N } from './i18n.js';
 import {
   generateShareImage, generateShareLink,

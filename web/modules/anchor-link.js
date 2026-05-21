@@ -7,7 +7,7 @@
  *   3. 聊天区景点点击 → 聚焦到地图对应 marker
  */
 
-import { showToast } from './context.js?v=2';
+import { showToast } from './context.js?v=3';
 
 // ─── 锚点 ID 生成 ─────────────────────────────────────
 
