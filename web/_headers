@@ -1,14 +1,8 @@
 /config.local.js
   X-Robots-Tag: noindex
   Cache-Control: no-store
-  # 敏感配置文件，不应公开访问
-  # 注意：Cloudflare Pages _headers 无法返回 404，只能阻止缓存
-  # 部署时应排除此文件
 
-/modules/*.js
-  Cache-Control: public, max-age=0, must-revalidate
-
-/*.js
+/**
   Cache-Control: public, max-age=0, must-revalidate
 
 /*.css

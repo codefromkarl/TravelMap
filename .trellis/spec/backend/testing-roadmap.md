@@ -157,3 +157,22 @@ web/__tests__/         # Playwright E2E
 - [ ] 覆盖率阈值 ≥ 70%
 - [ ] `npm run check` 作为 PR 合并前置
 - [ ] lint-staged 加入测试文件检查
+
+---
+
+## Phase 6b: E2E 行为测试守卫（吸收自 visionresult）
+
+### 已实现
+
+- [x] 质量守卫添加 E2E 行为检查
+- [x] 测试策略文档添加 E2E 行为测试规范
+- [x] 自动检查 E2E 测试是否有用户操作模拟
+- [x] 自动检查 E2E 测试是否有行为断言
+
+### 检查规则
+
+| 检查项 | 说明 | 阻塞性 |
+|-------|------|-------|
+| 用户操作模拟 | E2E 测试必须有 click/fill/type 等操作 | ✅ |
+| 行为断言 | E2E 测试必须有 toContainText/toHaveValue 等断言 | ✅ |
+| 结构检查限制 | 禁止只有 toBeAttached/toBeVisible | ✅ |

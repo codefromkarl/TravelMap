@@ -116,7 +116,10 @@ export class PostProcessPipeline {
     return this.runSequential(tripPlan, config);
   }
 
-  /** 分组并行执行 */
+  /** Pipeline 整体超时（毫秒） */
+  private static readonly PIPELINE_TIMEOUT_MS = 30_000;
+
+  /** 分组并行执行 — 组内真正并行，组间串行 */
   private async runGrouped(tripPlan: TripPlan, config: PostProcessConfig): Promise<PipelineResult> {
     const logger = getLogger().child({ component: "post-process-pipeline" });
     const pipelineStart = Date.now();
@@ -126,6 +129,22 @@ export class PostProcessPipeline {
     let failureCount = 0;
 
     for (const group of this.groups) {
+      // 检查整体超时
+      if (Date.now() - pipelineStart > PostProcessPipeline.PIPELINE_TIMEOUT_MS) {
+        logger.warn("pipeline 整体超时，跳过剩余分组", {
+          group: group.name,
+          elapsed: Date.now() - pipelineStart,
+        });
+        stepResults.push({
+          stepName: group.name,
+          tripPlan: current,
+          success: false,
+          error: `Pipeline timeout after ${PostProcessPipeline.PIPELINE_TIMEOUT_MS}ms`,
+        });
+        failureCount++;
+        break;
+      }
+
       // 过滤出启用的步骤
       const enabledSteps = group.steps.filter((s) => s.isEnabled(config));
 
@@ -135,7 +154,7 @@ export class PostProcessPipeline {
       }
 
       if (enabledSteps.length === 1) {
-        // 单步骤直接执行，无需 Promise.allSettled
+        // 单步骤直接执行，无需 Promise.all
         const step = enabledSteps[0]!;
         const start = Date.now();
         try {
@@ -220,6 +239,22 @@ export class PostProcessPipeline {
     let failureCount = 0;
 
     for (const step of this.steps) {
+      // 检查整体超时
+      if (Date.now() - pipelineStart > PostProcessPipeline.PIPELINE_TIMEOUT_MS) {
+        logger.warn("pipeline 整体超时，跳过剩余步骤", {
+          step: step.name,
+          elapsed: Date.now() - pipelineStart,
+        });
+        stepResults.push({
+          stepName: step.name,
+          tripPlan: current,
+          success: false,
+          error: `Pipeline timeout after ${PostProcessPipeline.PIPELINE_TIMEOUT_MS}ms`,
+        });
+        failureCount++;
+        break;
+      }
+
       if (!step.isEnabled(config)) {
         logger.debug("步骤跳过（未启用）", { step: step.name });
         continue;

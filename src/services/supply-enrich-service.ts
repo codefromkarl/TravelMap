@@ -13,6 +13,7 @@
  */
 
 import type { Attraction, TripPlan } from "../types/trip.js";
+import { getDefaultLimiter } from "../utils/concurrent.js";
 import { validateRouteSupplies } from "./supply-validation-service.js";
 
 // ─── 配置 ────────────────────────────────────────────────
@@ -52,34 +53,37 @@ export async function enrichAttractionSuppliesWithStats(
   stats.attractionsProcessed++;
 
   const { skipValidated = true } = config;
+  const limiter = getDefaultLimiter();
   const enrichedRoutes = await Promise.all(
     attraction.routes.map(async (route) => {
-      stats.routesProcessed++;
-      const waypoints = [...route.waypoints];
-      let hasChanges = false;
+      return limiter.run(async () => {
+        stats.routesProcessed++;
+        const waypoints = [...route.waypoints];
+        let hasChanges = false;
 
-      for (let i = 0; i < waypoints.length; i++) {
-        const wp = waypoints[i];
-        if (!wp.supplyPoints || wp.supplyPoints.length === 0) continue;
+        for (let i = 0; i < waypoints.length; i++) {
+          const wp = waypoints[i];
+          if (!wp.supplyPoints || wp.supplyPoints.length === 0) continue;
 
-        if (skipValidated) {
-          const allExact = wp.supplyPoints.every(
-            (sp) => sp.locationAccuracy === "exact" && sp.priceConfidence === "api",
-          );
-          if (allExact) {
-            stats.supplyPointsSkipped += wp.supplyPoints.length;
-            continue;
+          if (skipValidated) {
+            const allExact = wp.supplyPoints.every(
+              (sp) => sp.locationAccuracy === "exact" && sp.priceConfidence === "api",
+            );
+            if (allExact) {
+              stats.supplyPointsSkipped += wp.supplyPoints.length;
+              continue;
+            }
           }
+
+          const validated = await validateRouteSupplies(wp.supplyPoints, city);
+          waypoints[i] = { ...wp, supplyPoints: validated };
+          stats.supplyPointsValidated += wp.supplyPoints.length;
+          hasChanges = true;
         }
 
-        const validated = await validateRouteSupplies(wp.supplyPoints, city);
-        waypoints[i] = { ...wp, supplyPoints: validated };
-        stats.supplyPointsValidated += wp.supplyPoints.length;
-        hasChanges = true;
-      }
-
-      if (!hasChanges) return route;
-      return { ...route, waypoints };
+        if (!hasChanges) return route;
+        return { ...route, waypoints };
+      });
     }),
   );
 
@@ -119,10 +123,13 @@ export async function enrichTripPlanSupplies(
   tripPlan: TripPlan,
   config: SupplyEnrichConfig = {},
 ): Promise<TripPlan> {
+  const limiter = getDefaultLimiter();
   const enrichedDays = await Promise.all(
     tripPlan.days.map(async (day) => {
       const enrichedAttractions = await Promise.all(
-        day.attractions.map((attr) => enrichAttractionSupplies(attr, day.city, config)),
+        day.attractions.map((attr) =>
+          limiter.run(() => enrichAttractionSupplies(attr, day.city, config)),
+        ),
       );
       return { ...day, attractions: enrichedAttractions };
     }),
@@ -160,11 +167,14 @@ export async function enrichTripPlanSuppliesWithStats(
     supplyPointsSkipped: 0,
   };
 
+  const limiter = getDefaultLimiter();
   const enrichedDays = await Promise.all(
     tripPlan.days.map(async (day) => {
       const enrichedAttractions = await Promise.all(
         day.attractions.map(async (attr) => {
-          const result = await enrichAttractionSuppliesWithStats(attr, day.city, config, stats);
+          const result = await limiter.run(() =>
+            enrichAttractionSuppliesWithStats(attr, day.city, config, stats),
+          );
           return result.attraction;
         }),
       );

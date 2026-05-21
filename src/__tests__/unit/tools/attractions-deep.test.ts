@@ -18,10 +18,10 @@ describe("search_attractions tool (MSW 深度)", () => {
     env.unset("GOOGLE_MAPS_API_KEY");
 
     const result = await searchAttractionsTool.execute("tc-1", { city: "北京" });
-    const text = (result.content[0] as { text: string }).text;
+    const _text = (result.content[0] as { text: string }).text;
 
     // service 会通过免费数据源（去哪儿/OTM/Wikipedia 等）获取景点
-    expect(text).toContain("景点");
+    expect(_text).toContain("景点");
     expect(result.details.city).toBe("北京");
     expect(result.details.attractions).toBeDefined();
   });
@@ -46,7 +46,7 @@ describe("search_attractions tool (MSW 深度)", () => {
     );
 
     const result = await searchAttractionsTool.execute("tc-2", { city: "未知城市" });
-    const text = (result.content[0] as { text: string }).text;
+    const _text = (result.content[0] as { text: string }).text;
 
     // tool 应能处理空结果或错误
     expect(result.details.city).toBe("未知城市");

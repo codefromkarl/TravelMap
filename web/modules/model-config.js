@@ -1,4 +1,4 @@
-import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey } from './context.js';
+import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey } from './context.js?v=2';
 import { I18N } from './i18n.js';
 import { buildSystemPrompt } from './prompt.js';
 import { getModel } from "@earendil-works/pi-ai";

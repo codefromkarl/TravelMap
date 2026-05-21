@@ -344,3 +344,136 @@ describe('geocodeAttractions', () => {
 当后端或前端逻辑变更时，E2E 测试预期需要同步更新。例如：
 - 地理编码补全后，原本无坐标的景点会生成 marker
 - marker 数量预期需要从 "无坐标=不渲染" 更新为 "补全后=渲染"
+
+---
+
+## E2E 行为测试规范（吸收自 visionresult）
+
+### 核心原则
+
+> **结构检查 ≠ 功能测试**
+> 
+> E2E 测试必须验证**用户行为**，不只是**元素存在**。
+> 如果测试只检查 DOM 结构，功能完全不能用也会通过。
+
+### 禁止模式 ❌
+
+```typescript
+// ❌ 只检查结构 — 功能不能用也会通过
+test("页面有按钮", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#btn")).toBeAttached();
+});
+
+// ❌ 只检查可见性 — 不验证功能
+test("地图可见", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#map")).toBeVisible();
+});
+```
+
+### 必须模式 ✅
+
+```typescript
+// ✅ 模拟用户操作 + 验证行为
+test("点击示例卡片发送消息", async ({ page }) => {
+  await page.goto("/");
+  
+  // 1. 模拟用户操作
+  await page.locator(".prompt-card").first().click();
+  
+  // 2. 验证行为（API 调用、状态变化、内容渲染）
+  await expect(page.locator("chat-message")).toBeVisible();
+});
+
+// ✅ 文件上传 + 结果验证
+test("上传图片触发分析", async ({ page }) => {
+  await page.goto("/");
+  
+  // 1. Mock API
+  const requests = [];
+  page.route("**/api/analyze", route => {
+    requests.push(route.request());
+    route.fulfill({ status: 200, body: '{"result":"ok"}' });
+  });
+  
+  // 2. 模拟用户操作
+  await page.locator("#upload").setInputFiles("test.jpg");
+  
+  // 3. 验证行为
+  expect(requests.length).toBe(1);
+  await expect(page.locator("#result")).toContainText("分析完成");
+});
+```
+
+### E2E 测试关键字
+
+**用户操作关键字**（必须有至少一个）:
+- `click(` / `.click`
+- `fill(`
+- `type(`
+- `press(`
+- `check(`
+- `select(`
+- `hover(`
+- `scroll(`
+- `setInputFiles`
+
+**行为断言关键字**（必须有至少一个）:
+- `toContainText`
+- `toHaveText`
+- `toHaveValue`
+- `toHaveAttribute`
+- `toHaveCSS`
+- `toBeChecked`
+- `toBeDisabled`
+- `toBeEnabled`
+- `waitForSelector`
+- `waitForResponse`
+- `waitForRequest`
+
+### 质量守卫
+
+在 `src/__tests__/quality/quality-guard.test.ts` 中自动检查：
+1. E2E 测试必须有用户操作模拟
+2. E2E 测试必须有行为断言
+3. 禁止只有结构检查
+
+### E2E 测试模板
+
+```typescript
+test.describe("功能名称", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+  });
+
+  test("用户操作应触发预期行为", async ({ page }) => {
+    // 1. Mock API（如果需要）
+    const requests = [];
+    page.route("**/api/endpoint", route => {
+      requests.push(route.request());
+      route.fulfill({ status: 200, body: '{"result":"ok"}' });
+    });
+
+    // 2. 模拟用户操作
+    await page.locator("#target").click();
+
+    // 3. 验证行为
+    expect(requests.length).toBe(1);
+    await expect(page.locator("#result")).toContainText("预期内容");
+  });
+
+  test("失败路径应显示错误提示", async ({ page }) => {
+    // 1. Mock API 返回错误
+    page.route("**/api/endpoint", route => {
+      route.fulfill({ status: 500, body: '{"error":"failed"}' });
+    });
+
+    // 2. 模拟用户操作
+    await page.locator("#target").click();
+
+    // 3. 验证错误处理
+    await expect(page.locator(".error-toast")).toContainText("失败");
+  });
+});
+```

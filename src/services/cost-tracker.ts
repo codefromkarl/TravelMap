@@ -204,3 +204,13 @@ export function getCostTracker(): CostTracker {
   }
   return globalTracker;
 }
+
+/** 设置全局费用追踪器（用于注入独立实例） */
+export function setCostTracker(tracker: CostTracker): void {
+  globalTracker = tracker;
+}
+
+/** 重置全局追踪器（测试用） */
+export function resetCostTracker(): void {
+  globalTracker = null;
+}

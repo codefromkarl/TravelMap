@@ -9,7 +9,7 @@ export { buildUserPrompt, formatTravelers, shouldDigPreferences } from "./agent/
 export { TravelAgent } from "./agent/travel-agent.js";
 export { searchAttractions } from "./services/attraction-service.js";
 export { calculateBudget, checkBudgetOverrun } from "./services/budget-service.js";
-export { registerToolMetadata } from "./services/cost-tracker.js";
+export { registerToolMetadata, resetCostTracker, setCostTracker } from "./services/cost-tracker.js";
 export { dualGeocode, isDomesticCity, resetEngineState } from "./services/dual-map-service.js";
 export { clearSearchCache, searchAttractionsMultiSource } from "./services/multi-source-service.js";
 export { applyPartialEdit, parseTargetDays } from "./services/partial-edit-service.js";

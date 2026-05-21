@@ -55,6 +55,8 @@ export interface FetchOptions extends RequestInit {
   timeout?: number;
   maxRetries?: number;
   baseDelayMs?: number;
+  /** 标记 POST 请求为幂等（允许重试），默认 false */
+  idempotent?: boolean;
 }
 
 /** 敏感 query key 列表 — 这些参数在日志中会被脱敏 */
@@ -109,10 +111,11 @@ export async function fetchWithTimeout(url: string, options: FetchOptions = {}):
   }
 }
 
-/** 指数退避重试（仅对 GET 等幂等请求） */
+/** 指数退避重试（GET/HEAD/OPTIONS 默认重试，POST 需声明 idempotent=true） */
 export async function fetchWithRetry(url: string, options: FetchOptions = {}): Promise<Response> {
   const method = (options.method ?? "GET").toUpperCase();
-  const isIdempotent = method === "GET" || method === "HEAD" || method === "OPTIONS";
+  const isIdempotent =
+    method === "GET" || method === "HEAD" || method === "OPTIONS" || options.idempotent === true;
   const maxRetries = options.maxRetries ?? (isIdempotent ? 3 : 0);
   const baseDelay = options.baseDelayMs ?? (process.env.NODE_ENV === "test" ? 0 : 500);
 
@@ -196,7 +199,8 @@ export function createApiClient(config: ApiClientConfig = {}) {
     async post(path: string, body?: unknown, options: FetchOptions = {}): Promise<Response> {
       const url = baseUrl ? `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}` : path;
       const finalUrl = proxyUrl ? `${proxyUrl}?url=${encodeURIComponent(url)}` : url;
-      return fetchWithTimeout(finalUrl, {
+      // POST 走 fetchWithRetry，调用方可通过 options.idempotent=true 启用重试
+      return fetchWithRetry(finalUrl, {
         ...options,
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers, ...options.headers },

@@ -297,7 +297,15 @@ async function runAgentScenario(
     // 获取最终输出（从 agent 的消息历史中提取）
     const messages = agent.getMessages();
     const lastAssistantMessage = messages.filter((m) => m.role === "assistant").pop();
-    const output = lastAssistantMessage?.content ?? "";
+    const output =
+      typeof lastAssistantMessage?.content === "string"
+        ? lastAssistantMessage.content
+        : Array.isArray(lastAssistantMessage?.content)
+          ? lastAssistantMessage.content
+              .filter((c: any) => c.type === "text")
+              .map((c: any) => c.text)
+              .join("")
+          : "";
     result.outputLength = output.length;
 
     // 1. 结构性检查
@@ -346,7 +354,7 @@ async function runAgentScenario(
     const lastReview = agent.getLastReview();
     if (lastReview) {
       result.reviewScore = lastReview.score;
-      result.reviewIssues = lastReview.issues.map((i) => i.message);
+      result.reviewIssues = lastReview.issues.map((i) => i.description);
     }
 
     // 综合判定

@@ -28,6 +28,8 @@
     "eval:loop:optimize": "bash scripts/eval-loop.sh --optimize",
     "eval:analyze": "node scripts/analyze-attribution.mjs",
     "test:qa": "bash scripts/test-qa-check.sh",
+    "test:gate": "bash scripts/quality-gate.sh",
+    "test:gate:strict": "bash scripts/quality-gate.sh --strict",
     "test:impact": "bash scripts/test-impact.sh",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:e2e": "playwright test --config playwright.config.ts",

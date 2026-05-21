@@ -38,6 +38,10 @@ const SOURCE_FILES_EXEMPT = [
   "services/free-sources/index.ts", // 已在 free-sources.test.ts 通过 searchFreeSources 测试
   "services/free-sources/types.ts", // 纯类型定义
   "tools/image-recognize.ts", // 图片识别工具，WIP
+  // AI 评估框架模块 — 需要 LLM 调用，暂无测试
+  "evaluation/baseline-manager.ts",
+  "evaluation/dimensions/semantic.ts",
+  "evaluation/optimization-loop.ts",
 ];
 
 /** 自动发现需要测试覆盖的源文件 */
@@ -381,6 +385,121 @@ describe("测试质量守卫", () => {
         );
       }
     });
+  });
+  // ─── 6. E2E 行为测试检查（吸收自 visionresult）─────────
+
+  describe("E2E 行为测试检查", () => {
+    // E2E 测试中必须有的用户操作关键字
+    const BEHAVIOR_ACTION_KEYWORDS = [
+      "click(",
+      ".click",
+      "fill(",
+      "type(",
+      "press(",
+      "check(",
+      "select(",
+      "hover(",
+      "scroll(",
+      "setInputFiles",
+      "dispatchEvent",
+    ];
+
+    // E2E 测试中必须有的行为断言关键字
+    const BEHAVIOR_ASSERT_KEYWORDS = [
+      // Playwright 特有断言
+      "toHaveTitle",
+      "toHaveURL",
+      "toHaveAttribute",
+      "toHaveClass",
+      "toHaveCSS",
+      "toHaveCount",
+      "toHaveId",
+      "toHaveJSProperty",
+      "toHaveScreenshot",
+      "toHaveText",
+      "toHaveValue",
+      "toHaveValues",
+      "toBeAttached",
+      "toBeChecked",
+      "toBeDisabled",
+      "toBeEditable",
+      "toBeEmpty",
+      "toBeEnabled",
+      "toBeFocused",
+      "toBeHidden",
+      "toBeInViewport",
+      "toBeOK",
+      "toBeVisible",
+      "toContainText",
+      "toContainClass",
+      "toContainValue",
+      // Vitest 断言
+      "toContain",
+      "toBe",
+      "toEqual",
+      "toBeDefined",
+      "toBeTruthy",
+      "toBeFalsy",
+      // 行为验证关键字
+      "waitForSelector",
+      "waitForResponse",
+      "waitForRequest",
+      "waitForTimeout",
+      "waitForNavigation",
+      "requests",
+    ];
+
+    function getE2ETestFiles(): string[] {
+      const e2eDir = path.join(PROJECT_ROOT, "web", "__tests__");
+      if (!fs.existsSync(e2eDir)) return [];
+
+      return findFiles(e2eDir, (f) => f.endsWith(".spec.ts"));
+    }
+
+    it("E2E 测试目录应存在", () => {
+      const e2eDir = path.join(PROJECT_ROOT, "web", "__tests__");
+      expect(fs.existsSync(e2eDir)).toBe(true);
+    });
+
+    it("E2E 目录应有测试文件", () => {
+      const e2eFiles = getE2ETestFiles();
+      expect(e2eFiles.length).toBeGreaterThan(0);
+    });
+
+    // 特殊测试文件豁免列表
+    const E2E_FILES_EXEMPT = new Set([
+      "page-load.spec.ts", // 页面结构检查，非功能测试
+      "shanghai-hangzhou-e2e.spec.ts", // Mock LLM 端到端测试
+      "shanghai-hangzhou-real-e2e.spec.ts", // 真实 API 端到端测试
+      "streaming-interruption.spec.ts", // 流式中断特殊场景
+    ]);
+
+    for (const e2eFile of getE2ETestFiles()) {
+      const fileName = path.basename(e2eFile);
+
+      // 跳过豁免文件
+      if (E2E_FILES_EXEMPT.has(fileName)) continue;
+
+      it(`${fileName} 应有用户操作模拟`, () => {
+        const content = fs.readFileSync(e2eFile, "utf-8");
+        const hasAction = BEHAVIOR_ACTION_KEYWORDS.some((kw) => content.includes(kw));
+
+        expect(
+          hasAction,
+          `${fileName}: 缺少用户操作模拟。必须使用 ${BEHAVIOR_ACTION_KEYWORDS.slice(0, 5).join("/")}/... 中的至少一个。E2E 测试必须模拟真实用户行为。`,
+        ).toBe(true);
+      });
+
+      it(`${fileName} 应有行为断言`, () => {
+        const content = fs.readFileSync(e2eFile, "utf-8");
+        const hasBehavior = BEHAVIOR_ASSERT_KEYWORDS.some((kw) => content.includes(kw));
+
+        expect(
+          hasBehavior,
+          `${fileName}: 缺少行为断言。必须验证操作后的状态变化（${BEHAVIOR_ASSERT_KEYWORDS.slice(0, 5).join("/")}/...）。只检查元素存在不够。`,
+        ).toBe(true);
+      });
+    }
   });
 });
 

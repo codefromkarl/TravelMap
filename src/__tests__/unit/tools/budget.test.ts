@@ -3,12 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  createMockAttraction,
-  createMockDayPlan,
-  createMockHotel,
-  createMockMeal,
-} from "../../mocks/fixtures.js";
+import { createMockAttraction, createMockDayPlan, createMockMeal } from "../../mocks/fixtures.js";
 
 // Mock budget-service
 vi.mock("../../../services/budget-service.js", () => ({

@@ -63,6 +63,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Quality Gate
+        run: npm run test:gate
+
       - name: Run tests with coverage threshold check
         run: npm run test:coverage
 

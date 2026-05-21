@@ -72,10 +72,10 @@ export function estimateTokens(text: string): number {
 /**
  * 从旧消息中提取关键信息生成规则摘要
  *
- * 提取内容：
- * - 用户原始旅行请求
- * - 已生成的行程概览
- * - 已执行的修改记录
+ * 提取策略（优先级从高到低）：
+ * 1. 尝试从 assistant 消息中解析结构化 TripPlan JSON
+ * 2. 回退到正则匹配常见格式
+ * 3. 兜底：取首条 user 消息前 200 字符
  */
 function generateRuleSummary(oldMessages: MessageLike[]): string {
   const parts: string[] = [];
@@ -84,31 +84,44 @@ function generateRuleSummary(oldMessages: MessageLike[]): string {
   const firstUser = oldMessages.find((m) => m.role === "user");
   if (firstUser) {
     const text = extractText(firstUser.content);
-    // 截断到前 200 字符
     const request = text.slice(0, 200).replace(/\s+/g, " ");
     parts.push(`用户请求: ${request}`);
   }
 
-  // 2. 提取 assistant 输出的关键决策（找包含 JSON 或行程的）
+  // 2. 从 assistant 消息中提取行程概览（结构化优先，正则兜底）
   const assistantMessages = oldMessages.filter((m) => m.role === "assistant");
   let planExtracted = false;
 
   for (const msg of assistantMessages) {
+    if (planExtracted) break;
     const text = extractText(msg.content);
 
-    // 尝试提取城市/天数
-    const cityMatch = text.match(/目的地[:：]\s*([^\n]+)/);
-    const daysMatch = text.match(/(\d+)\s*天/);
-    if (cityMatch && daysMatch && !planExtracted) {
-      parts.push(`行程概览: ${cityMatch[1]} ${daysMatch[1]}天`);
-      planExtracted = true;
+    // 尝试 1: 解析结构化 TripPlan JSON
+    const jsonMatch = text.match(/\{[\s\S]*"days"\s*:\s*\[[\s\S]*\][\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.city && Array.isArray(parsed.days)) {
+          const city = parsed.city;
+          const days = parsed.days.length;
+          const cities = parsed.cities?.join("→") ?? city;
+          parts.push(`行程概览: ${cities} ${days}天`);
+          planExtracted = true;
+          continue;
+        }
+      } catch {
+        // JSON 解析失败，回退到正则
+      }
     }
 
-    // 提取 JSON 中的关键信息
-    const jsonMatch = text.match(/"city"\s*:\s*"([^"]+)"/);
-    const daysJsonMatch = text.match(/"days"\s*:\s*(\d+)/);
-    if (jsonMatch && !planExtracted) {
-      parts.push(`行程概览: ${jsonMatch[1]} ${daysJsonMatch ? `${daysJsonMatch[1]}天` : ""}`);
+    // 尝试 2: 正则匹配多种格式
+    const cityMatch =
+      text.match(/目的地[:：\s]\*{0,2}\s*([^*\n,，]+)/) ||
+      text.match(/城市[:：\s]\*{0,2}\s*([^*\n,，]+)/) ||
+      text.match(/"city"\s*:\s*"([^"]+)"/);
+    const daysMatch = text.match(/(\d+)\s*天/) || text.match(/"travelDays"\s*:\s*(\d+)/);
+    if (cityMatch && daysMatch) {
+      parts.push(`行程概览: ${cityMatch[1].trim()} ${daysMatch[1]}天`);
       planExtracted = true;
     }
   }

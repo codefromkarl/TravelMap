@@ -1,4 +1,4 @@
-import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js';
+import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js?v=2';
 import { I18N } from './i18n.js';
 import { addTraceHeaders, extractTraceId } from './trace.js';
 import { createLogger } from './logger.js';

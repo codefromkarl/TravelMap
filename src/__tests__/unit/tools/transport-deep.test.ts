@@ -21,11 +21,11 @@ describe("search_transport tool (MSW 深度)", () => {
       destCity: "上海",
       date: "2026-06-01",
     });
-    const text = (result.content[0] as { text: string }).text;
+    const _text = (result.content[0] as { text: string }).text;
 
     // MSW handler 返回了杭州→上海的高铁方案
-    expect(text).toContain("杭州");
-    expect(text).toContain("上海");
+    expect(_text).toContain("杭州");
+    expect(_text).toContain("上海");
     expect(result.details.options).toBeDefined();
   });
 
@@ -46,7 +46,7 @@ describe("search_transport tool (MSW 深度)", () => {
       destCity: "拉萨",
       date: "2026-06-01",
     });
-    const text = (result.content[0] as { text: string }).text;
+    const _text = (result.content[0] as { text: string }).text;
 
     // 空结果应被正常处理
     expect(result.details).toBeDefined();

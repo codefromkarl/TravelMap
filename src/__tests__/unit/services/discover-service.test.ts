@@ -153,7 +153,7 @@ describe("discover-service", () => {
               messages: [
                 {
                   role: "assistant",
-                  content: "```json\n" + JSON.stringify(mockResponse) + "\n```",
+                  content: `\`\`\`json\n${JSON.stringify(mockResponse)}\n\`\`\``,
                 },
               ],
             },

@@ -1,4 +1,4 @@
-import { agent, currentTripId, setCurrentTripId, showToast } from './context.js';
+import { agent, currentTripId, setCurrentTripId, showToast } from './context.js?v=2';
 import { listTrips, loadTripById, deleteTripById } from './db.js';
 
 // ─── 格式化日期 ────────────────────────────────────────

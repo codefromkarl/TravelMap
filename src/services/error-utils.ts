@@ -18,7 +18,30 @@ export interface ErrorContext {
 }
 
 /**
- * 为现有 Error 附加上下文（不丢失原始调用栈）
+ * 增强版 Error — 附加上下文并通过 cause 链保留原始错误
+ *
+ * 不修改原始 Error，而是创建新实例并通过 cause 链接。
+ * 这样多层 catch 不会导致消息膨胀或上下文覆盖。
+ */
+export class ContextualError extends Error {
+  readonly context: ErrorContext;
+  readonly originalMessage: string;
+
+  constructor(message: string, ctx: ErrorContext, options?: { cause?: unknown }) {
+    super(message, { cause: options?.cause });
+    this.name = "ContextualError";
+    this.context = ctx;
+    this.originalMessage = message;
+  }
+
+  /** 格式化为带上下文的可读字符串 */
+  format(): string {
+    return `${this.originalMessage} [ctx: ${JSON.stringify(this.context)}]`;
+  }
+}
+
+/**
+ * 为现有 Error 附加上下文（创建新 Error，不修改原始）
  *
  * 用法:
  *   try {
@@ -27,29 +50,24 @@ export interface ErrorContext {
  *     throw withContext(err, { operation: "search_attractions", city, service: "google_places" });
  *   }
  */
-export function withContext(err: unknown, ctx: ErrorContext): Error {
-  if (err instanceof Error) {
-    // 保留原始消息和调用栈，追加上下文
-    const ctxStr = JSON.stringify(ctx);
-    err.message = `${err.message} [ctx: ${ctxStr}]`;
-    (err as Error & { context?: ErrorContext }).context = ctx;
-    return err;
-  }
-  return new Error(String(err), { cause: ctx });
+export function withContext(err: unknown, ctx: ErrorContext): ContextualError {
+  const originalMessage = err instanceof Error ? err.message : String(err);
+  return new ContextualError(originalMessage, ctx, { cause: err });
 }
 
 /**
  * 创建带上下文的 ApiError（用于 service 层统一抛出）
+ *
+ * 返回 ContextualError 而非原地修改 Error。
  */
 export function createServiceError(
   message: string,
   ctx: ErrorContext,
   options?: { status?: number; cause?: unknown },
-): Error {
-  const err = new Error(message, { cause: options?.cause });
-  (err as Error & { context?: ErrorContext; status?: number }).context = ctx;
+): ContextualError {
+  const err = new ContextualError(message, ctx, { cause: options?.cause });
   if (options?.status !== undefined) {
-    (err as Error & { status?: number }).status = options.status;
+    (err as ContextualError & { status?: number }).status = options.status;
   }
   return err;
 }

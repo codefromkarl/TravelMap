@@ -1,9 +1,67 @@
 /**
- * 通用并发工具 — 限制并行度的批量异步处理
+ * 并发限制器 — 控制外部 API 请求的并发数量
+ *
+ * 用于防止单个请求中的并行搜索/丰富操作打爆外部 API 限额。
+ * 基于简单的 semaphore 实现，零外部依赖。
+ *
+ * 用法:
+ *   const limiter = createConcurrencyLimiter(5);
+ *   const results = await Promise.all(items.map(item => limiter.run(() => fetchItem(item))));
  */
 
+export interface ConcurrencyLimiter {
+  /** 在并发限制下执行异步任务 */
+  run<T>(fn: () => Promise<T>): Promise<T>;
+  /** 当前等待队列长度 */
+  readonly pending: number;
+  /** 当前正在执行的任务数 */
+  readonly active: number;
+}
+
 /**
- * 并发映射 — 限制并行度执行异步函数
+ * 创建并发限制器
+ *
+ * @param concurrency 最大并发数（默认 6，适合大多数外部 API）
+ */
+export function createConcurrencyLimiter(concurrency = 6): ConcurrencyLimiter {
+  let activeCount = 0;
+  const queue: Array<() => void> = [];
+
+  function next(): void {
+    if (queue.length > 0 && activeCount < concurrency) {
+      activeCount++;
+      const resolve = queue.shift()!;
+      resolve();
+    }
+  }
+
+  return {
+    async run<T>(fn: () => Promise<T>): Promise<T> {
+      if (activeCount >= concurrency) {
+        await new Promise<void>((resolve) => queue.push(resolve));
+      }
+
+      activeCount++;
+      try {
+        return await fn();
+      } finally {
+        activeCount--;
+        next();
+      }
+    },
+
+    get pending() {
+      return queue.length;
+    },
+
+    get active() {
+      return activeCount;
+    },
+  };
+}
+
+/**
+ * 并发映射 — 限制并行度执行异步函数（向后兼容）
  *
  * @param items 待处理列表
  * @param fn 异步处理函数
@@ -28,6 +86,21 @@ export async function concurrentMap<T, R>(
 
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
   await Promise.all(workers);
-
   return results;
+}
+
+/** 全局默认限制器（用于 supply-enrich、search 等场景） */
+let defaultLimiter: ConcurrencyLimiter | null = null;
+
+/** 获取全局默认并发限制器（最大 6 并发） */
+export function getDefaultLimiter(): ConcurrencyLimiter {
+  if (!defaultLimiter) {
+    defaultLimiter = createConcurrencyLimiter(6);
+  }
+  return defaultLimiter;
+}
+
+/** 重置全局限制器（测试用） */
+export function resetDefaultLimiter(): void {
+  defaultLimiter = null;
 }

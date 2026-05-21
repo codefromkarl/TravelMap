@@ -1,4 +1,4 @@
-import { DB_NAME, DB_VERSION, STORE_NAME, SUPPLY_STORE_NAME } from './context.js';
+import { DB_NAME, DB_VERSION, STORE_NAME, SUPPLY_STORE_NAME } from './context.js?v=2';
 
 // ─── IndexedDB 数据库 ──────────────────────────────────
 export function openDB() {

@@ -11,6 +11,7 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { getModel } from "@earendil-works/pi-ai";
 import { printConfigWarnings } from "../services/config.js";
 import {
+  type CostTracker,
   DEFAULT_HANDOFF_CONFIG,
   getCostTracker,
   type HandoffConfig,
@@ -47,6 +48,8 @@ export interface TravelAgentOptions {
   model?: string;
   /** 模型 Handoff 配置（null 表示不切换模型） */
   handoff?: HandoffConfig | null;
+  /** 费用追踪器（不传则使用全局单例） */
+  costTracker?: CostTracker;
   /**
    * 启用预搜索编排 — 在 LLM 编排前并行调用搜索服务
    * 搜索结果被注入 prompt，LLM 不再需要逐个调用搜索工具
@@ -87,7 +90,7 @@ export class TravelAgent {
   private handoffConfig: HandoffConfig | null;
   private strongModel: ReturnType<typeof getModel>;
   private cheapModel: ReturnType<typeof getModel>;
-  private costTracker = getCostTracker();
+  private costTracker: CostTracker;
   private preSearch: boolean;
   private postProcessConfig: PostProcessorConfig | null;
   private messageCompressionConfig: CompressorOptions | null;
@@ -103,6 +106,7 @@ export class TravelAgent {
     const provider = options.provider ?? "openai";
     const modelId = options.model ?? "gpt-4o";
     this.handoffConfig = options.handoff ?? DEFAULT_HANDOFF_CONFIG;
+    this.costTracker = options.costTracker ?? getCostTracker();
     this.preSearch = options.preSearch ?? true;
     this.postProcessConfig = options.postProcess ?? { enableActionLinks: true };
     this.messageCompressionConfig = options.messageCompression ?? {
@@ -295,9 +299,15 @@ export class TravelAgent {
     // 预搜索编排：并行调用搜索服务，将结果注入 prompt
     if (this.preSearch) {
       const searchStart = Date.now();
+      const PRESEARCH_TIMEOUT_MS = 15_000; // 整体超时 15s，防止单个 provider 挂起
       try {
         const searchBundle = await runWithTrace(createChildSpan("pre-search"), () =>
-          runParallelSearch(request),
+          Promise.race([
+            runParallelSearch(request),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("PreSearch timeout")), PRESEARCH_TIMEOUT_MS),
+            ),
+          ]),
         );
         const searchDuration = Date.now() - searchStart;
         logger.info("预搜索完成", {
@@ -319,8 +329,10 @@ export class TravelAgent {
         getLogger().warn("预搜索失败，降级到手动搜索模式", {
           error: err instanceof Error ? err.message : String(err),
           city: request.city,
+          duration: Date.now() - searchStart,
         });
-        // 失败时 fallback：不注入搜索结果，LLM 仍可手动调用搜索工具
+        // 失败时 fallback：确保 LLM 有搜索工具可用
+        this.setToolsByPhase("search");
       }
     }
 

@@ -8,7 +8,7 @@
  *   session.startFresh() → 清空状态，开始新对话
  */
 
-import { agent, currentTripId, setCurrentTripId } from './context.js';
+import { agent, currentTripId, setCurrentTripId } from './context.js?v=2';
 import { feedback } from './feedback.js';
 import { listTrips } from './db.js';
 import { appState } from './app-state.js';

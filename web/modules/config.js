@@ -5,7 +5,7 @@
  * 使用方法：import { config, resolveApiKey } from './config.js';
  */
 
-import { isProxyMode } from './context.js';
+import { isProxyMode } from './context.js?v=2';
 
 const defaults = {
   deepseekLocal: {

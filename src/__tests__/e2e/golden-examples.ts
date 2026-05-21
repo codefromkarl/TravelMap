@@ -248,7 +248,7 @@ export const GOLDEN_EXAMPLES: GoldenExample[] = [
       /Day\s*\d|第[一二三四五六七]天/, // 包含多天行程
       /交通|火车|高铁|大巴|飞机/, // 包含城际交通
     ],
-    validationFn: (output, toolCalls) => {
+    validationFn: (output, _toolCalls) => {
       const cities = ["昆明", "大理", "丽江"];
       const mentionedCities = cities.filter((c) => output.includes(c));
       if (mentionedCities.length < 2) {

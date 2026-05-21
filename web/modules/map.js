@@ -1,4 +1,4 @@
-import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js';
+import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js?v=2';
 import { I18N } from './i18n.js';
 import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js';
 import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js';

@@ -145,7 +145,7 @@ function checkBudgetReasonability(output: string, context?: EvalContext): CheckR
   // 提取预算数字
   const budgetMatch = output.match(/预算.*?(\d+).*?元|总.*?费用.*?(\d+).*?元|约.*?[¥￥](\d+)/);
   const mentionedBudget = budgetMatch
-    ? parseInt(budgetMatch[1] ?? budgetMatch[2] ?? budgetMatch[3] ?? "0")
+    ? parseInt(budgetMatch[1] ?? budgetMatch[2] ?? budgetMatch[3] ?? "0", 10)
     : 0;
 
   // 如果用户指定了预算

@@ -7,7 +7,7 @@
  *   - 位置缓存（避免重复请求）
  */
 
-import { getAmapGeoKey } from './context.js';
+import { getAmapGeoKey } from './context.js?v=2';
 
 // ─── 位置缓存 ──────────────────────────────────────────────
 

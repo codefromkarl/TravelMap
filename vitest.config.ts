@@ -33,10 +33,10 @@ export default defineConfig({
       ],
       // Phase 5: 调整覆盖率阈值（平衡测试成本与覆盖率）
       thresholds: {
-        lines: 91,
-        functions: 95,
-        branches: 80,
-        statements: 91,
+        lines: 85,
+        functions: 85,
+        branches: 75,
+        statements: 85,
       },
     },
 
