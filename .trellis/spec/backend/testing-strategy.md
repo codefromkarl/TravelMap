@@ -200,3 +200,147 @@ const { request, scenarios } = createMultiCityScenario([
 - [ ] jsdom 环境下运行
 - [ ] localStorage 操作有 beforeEach 清理
 - [ ] 纯逻辑函数优先测试
+
+---
+
+## Worker 数量限制规则（防 OOM）
+
+### 背景
+
+高核心数服务器（>8 核）上，测试框架默认使用大量 worker，可能导致 OOM：
+- vitest `pool: "forks"` 默认 `maxForks = CPU - 1`（28 核 → 27 个 worker）
+- Playwright 默认 `workers = CPU / 2`（28 核 → 14 个 worker）
+- 每个 worker 占用 300-500MB（Node.js 运行时 + MSW + 被测代码）
+- 27 个 worker × 400MB = 10.8 GB → 触发 OOM
+
+### 规则
+
+| 测试框架 | 配置项 | 推荐值 | 原因 |
+|----------|--------|--------|------|
+| vitest + forks | `poolOptions.forks.maxForks` | `4` | 平衡速度与内存 |
+| vitest + threads | `poolOptions.threads.maxThreads` | `4` | 同上 |
+| Playwright | `workers` | `CI ? 2 : 4` | CI 资源有限 |
+
+### 配置模板
+
+**vitest.config.ts**:
+```typescript
+import os from "node:os";
+
+const MAX_WORKERS = process.env.CI
+  ? 2
+  : Math.min(4, os.cpus().length - 1);
+
+export default defineConfig({
+  test: {
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        maxForks: MAX_WORKERS,
+        minForks: 1,
+      },
+    },
+  },
+});
+```
+
+**playwright.config.ts**:
+```typescript
+export default defineConfig({
+  workers: process.env.CI ? 2 : 4,
+});
+```
+
+### 内存预估
+
+| Worker 数量 | 预估内存 | 适用场景 |
+|-------------|----------|----------|
+| 1 | ~400 MB | AI E2E（串行） |
+| 2 | ~800 MB | CI 环境 |
+| 4 | ~1.6 GB | 本地开发（推荐） |
+| 8 | ~3.2 GB | 大内存机器 |
+| 14 | ~5.6 GB | ⚠️ 默认 Playwright |
+| 27 | ~10.8 GB | ⚠️ 默认 vitest forks |
+
+### 检查清单
+
+- [ ] vitest.config.ts 有 `poolOptions.forks.maxForks` 限制
+- [ ] playwright.config.ts 有 `workers` 限制
+- [ ] CI 环境 worker 数量 ≤ 2
+- [ ] 本地开发 worker 数量 ≤ 4
+
+---
+
+## 前端地理编码测试最佳实践
+
+### 问题背景
+
+前端 `map.js` 中的 `geocodeAttractions()` 函数负责自动补全缺失坐标的景点。由于该函数调用高德 API 且依赖浏览器环境，测试需要特殊处理。
+
+### 测试分层
+
+| 测试类型 | 文件 | 环境 | Mock 方式 |
+|---------|------|------|----------|
+| 单元测试 | `web/modules/__tests__/map-geocode.test.js` | jsdom | `vi.mock()` mock 依赖 |
+| 集成测试 | `web/__tests__/flows/geocode-integration.spec.ts` | Playwright | 真实 API |
+| E2E 测试 | `web/__tests__/flows/itinerary-map-linkage.spec.ts` | Playwright | 真实 API |
+
+### 单元测试模板
+
+```javascript
+/**
+ * @vitest-environment jsdom
+ */
+
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock 依赖
+vi.mock('../context.js', () => ({
+  showToast: vi.fn(),
+  getAmapGeoKey: vi.fn(() => 'test-key'),
+  CITY_CENTERS: { '杭州': [30.2741, 120.1551] },
+}));
+
+// 测试用例
+describe('geocodeAttractions', () => {
+  it('有坐标的景点不触发补全', async () => {
+    // ...
+  });
+
+  it('location: null 触发高德 API 补全', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ status: '1', geocodes: [{ location: '120.1484,30.2458' }] }),
+    });
+    // ...
+  });
+
+  it('高德 API 失败时 fallback 到 CITY_CENTERS', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+    // ...
+  });
+});
+```
+
+### 关键测试场景
+
+1. **正常路径**
+   - 有坐标的景点不触发补全
+   - `location: null` 触发高德 API 补全
+   - `location: {0, 0}` 触发补全
+
+2. **降级路径**
+   - 高德 API 失败 → fallback 到 CITY_CENTERS
+   - 无 API Key → 使用 CITY_CENTERS
+   - 网络超时 → 使用 CITY_CENTERS
+
+3. **边界情况**
+   - 空行程返回 0
+   - 无 days 字段返回 0
+   - LRU 缓存命中不重复请求
+   - 批量补全并发控制
+
+### E2E 测试预期更新
+
+当后端或前端逻辑变更时，E2E 测试预期需要同步更新。例如：
+- 地理编码补全后，原本无坐标的景点会生成 marker
+- marker 数量预期需要从 "无坐标=不渲染" 更新为 "补全后=渲染"

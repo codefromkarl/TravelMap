@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
-- **Last Active**: 2026-05-20
+- **Total Sessions**: 11
+- **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~410 | Active |
+| `journal-1.md` | ~454 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-05-21 | 发现模式实现 + 测试体系增强 | `f38ec16`, `48863ba`, `3fc7903`, `95c471d`, `f03db7a`, `cfb5c04`, `036eeb4`, `1845c7b`, `d2fc84c`, `1876bb8`, `a2f5f61` | `main` |
 | 10 | 2026-05-20 | 性能优化 + 架构深化 + 前端增强 | `8a767f6`, `2c662f8`, `053a45d`, `3753a50`, `40afc9c` | `main` |
 | 9 | 2026-05-20 | TravelMap UX 优化 — 骨架屏/错误Toast/QR懒加载/无障碍 | `ddf653c` | `main` |
 | 8 | 2026-05-19 | 追踪基础设施 — logger + trace-context + error-utils | `fd7b0bb` | `main` |
