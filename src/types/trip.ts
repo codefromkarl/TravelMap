@@ -185,6 +185,28 @@ export interface TravelerProfile {
   mobilityImpaired: boolean;
 }
 
+/** 用户当前位置 */
+export interface UserLocation {
+  latitude: number;
+  longitude: number;
+  /** 城市名（可选，由前端自动获取或用户手动输入） */
+  city?: string;
+}
+
+/** 发现模式约束条件 */
+export interface DiscoverConstraints {
+  /** 最大交通时间（小时） */
+  maxTravelHours?: number;
+  /** 总预算上限（元） */
+  maxBudget?: number;
+  /** 行程时长类型 */
+  duration?: "day-trip" | "weekend" | "3-5days" | "flexible";
+  /** 主题标签：亲子/情侣/独行/团建/老年 等 */
+  themes?: string[];
+  /** 活动类型：户外/文化/美食/购物/休闲 等 */
+  activities?: string[];
+}
+
 /** 旅行请求 */
 export interface TripRequest {
   city: string;
@@ -199,6 +221,14 @@ export interface TripRequest {
   language?: string;
   /** 出行人群画像（用于路线风险评估和人群适配） */
   travelers?: TravelerProfile;
+
+  // ─── 发现模式（discover）───
+  /** 运行模式：plan=行程规划（默认），discover=目的地推荐 */
+  mode?: "plan" | "discover";
+  /** 用户当前位置（discover 模式必填） */
+  currentLocation?: UserLocation;
+  /** 发现模式约束条件 */
+  discoverConstraints?: DiscoverConstraints;
 }
 
 // ─── 城际交通方案 ────────────────────────────────────────
@@ -286,4 +316,38 @@ export interface TrvlPriceSource {
   price: number;
   currency: string;
   booking_url?: string;
+}
+
+// ─── 发现模式结果类型 ────────────────────────────────────
+
+/** 目的地推荐结果 */
+export interface DestinationRecommendation {
+  /** 城市名 */
+  city: string;
+  /** 推荐理由 */
+  reason: string;
+  /** 匹配度 0-100 */
+  matchScore: number;
+  /** 从用户位置出发的交通方式 */
+  travelMethod: string;
+  /** 交通时间（如 "2小时高铁"） */
+  travelTime: string;
+  /** 预估花费（元/人） */
+  estimatedBudget: number;
+  /** 亮点标签 */
+  highlights: string[];
+  /** 最佳季节 */
+  bestSeason: string;
+  /** 适合人群 */
+  suitableFor: string[];
+}
+
+/** 发现模式完整结果 */
+export interface DiscoverResult {
+  /** 用户位置 */
+  userLocation: UserLocation;
+  /** 推荐列表（按匹配度排序） */
+  destinations: DestinationRecommendation[];
+  /** 推荐摘要（自然语言） */
+  summary: string;
 }
