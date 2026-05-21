@@ -207,5 +207,15 @@ export function validateTripPlanConsistency(tripPlan: TripPlan): TripPlanConsist
     }
   }
 
+  // 坐标完整性检查
+  for (const day of tripPlan.days) {
+    for (const attr of day.attractions) {
+      const loc = attr.location;
+      if (!loc || !loc.latitude || !loc.longitude || (loc.latitude === 0 && loc.longitude === 0)) {
+        errors.push(`${day.date} 的景点 "${attr.nameZh || attr.name}" 缺少坐标（location），地图无法渲染`);
+      }
+    }
+  }
+
   return { valid: errors.length === 0, warnings, errors };
 }

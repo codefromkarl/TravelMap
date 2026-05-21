@@ -1,4 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
+import { validateAndWarn, validateToMarkdown, validateTripPlanSchema } from "./validate-trip.js";
 
 // ─── 补给详情丰富工具 ──────────────────────────────────
 export const enrichSupplyDetailsTool = {
@@ -36,8 +37,14 @@ export const enrichSupplyDetailsTool = {
   }),
   execute: async (_id, params) => {
     const { tripPlan } = params;
+    // 校验 tripPlan 坐标完整性
+    const validation = validateAndWarn(tripPlan);
     // 同步行程数据到地图（解耦对 generate_action_links 的单点依赖）
     if (tripPlan && tripPlan.days) {
+      const schemaResult = validateTripPlanSchema(tripPlan);
+      if (!schemaResult.valid) {
+        console.warn('[TripPlan] 结构校验失败:', schemaResult.errors);
+      }
       window._lastTripPlan = tripPlan;
       document.getElementById("btn-map")?.classList.remove("disabled-ghost");
       if (window.currentPage === "page-map" && typeof window._initPageMap === "function") {
@@ -73,6 +80,10 @@ export const enrichSupplyDetailsTool = {
     lines.push(`---`);
     lines.push(`共 **${totalSupplyPoints}** 个补给点，其中 **${exactCount}** 个已验证精确坐标。`);
     lines.push(`> 💡 提示：精确坐标和实时价格需要配置高德/Google API Key 后自动获取。`);
+    if (validation.hasIssues) {
+      lines.push('');
+      lines.push(`> ⚠️ ${validation.summary}`);
+    }
 
     return {
       content: [{ type: "text", text: lines.join("\n") }],

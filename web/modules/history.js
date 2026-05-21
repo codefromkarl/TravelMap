@@ -95,6 +95,14 @@ export async function renderHistory() {
         // 恢复 tripPlan（结构化数据）
         if (trip.tripPlan) {
           window._lastTripPlan = trip.tripPlan;
+          // 校验坐标完整性
+          try {
+            const { validateAndWarn } = await import('./tools/validate-trip.js');
+            const result = validateAndWarn(trip.tripPlan);
+            if (result.hasIssues) {
+              showToast('行程数据不完整：' + result.missingCoords.length + ' 个景点缺少坐标', 5000, 'warning');
+            }
+          } catch (_) { /* 校验模块加载失败不阻塞恢复 */ }
           // 触发地图渲染
           if (typeof window._renderTripAnimated === "function") {
             window._renderTripAnimated(trip.tripPlan);

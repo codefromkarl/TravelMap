@@ -388,6 +388,39 @@ test.describe("页面地图功能测试", () => {
     expect(popupText).toContain("西湖");
   });
 
+  // ── 6b. 骨架数据不应渲染 marker ──
+  test("骨架 tripPlan（无坐标）不应渲染景点 marker", async ({ page }) => {
+    await gotoPage(page, "/index.html");
+    await waitForMapReady(page);
+
+    // 注入骨架数据（无坐标）
+    await page.evaluate(() => {
+      (window as any)._lastTripPlan = {
+        city: "西安",
+        days: [
+          {
+            day: 1,
+            city: "西安",
+            attractions: [
+              { name: "西安城墙", nameZh: "西安城墙" },  // 无 location
+              { name: "钟楼", nameZh: "钟楼" },          // 无 location
+            ],
+          },
+        ],
+      };
+      if ((window as any)._renderTripOnPageMap) {
+        (window as any)._renderTripOnPageMap((window as any)._lastTripPlan);
+      }
+    });
+    await page.waitForTimeout(1200);
+
+    // 骨架数据不应渲染任何 attraction-marker
+    const markerCount = await page.evaluate(() =>
+      document.querySelectorAll(".attraction-marker").length
+    );
+    expect(markerCount).toBe(0);
+  });
+
   // ── 7. 状态栏与图例更新 ──
   test("模拟行程渲染后，状态栏和图例正确显示", async ({ page }) => {
     await gotoPage(page, "/index.html");

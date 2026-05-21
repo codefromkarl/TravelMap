@@ -1,4 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
+import { validateAndWarn, validateTripPlanSchema } from "./validate-trip.js";
 
 // ─── 伴游问答工具 ──────────────────────────────────
 export const companionQATool = {
@@ -54,8 +55,14 @@ export const companionQATool = {
   }),
   execute: async (_id, params) => {
     const { question, tripPlan } = params;
+    // 校验 tripPlan 坐标完整性
+    validateAndWarn(tripPlan);
     // 同步行程数据到地图（解耦对 generate_action_links 的单点依赖）
     if (tripPlan && tripPlan.days) {
+      const schemaResult = validateTripPlanSchema(tripPlan);
+      if (!schemaResult.valid) {
+        console.warn('[TripPlan] 结构校验失败:', schemaResult.errors);
+      }
       window._lastTripPlan = tripPlan;
       document.getElementById("btn-map")?.classList.remove("disabled-ghost");
       if (window.currentPage === "page-map" && typeof window._initPageMap === "function") {

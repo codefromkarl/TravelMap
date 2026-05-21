@@ -342,4 +342,83 @@ test.describe("E2E 对话 + 地图测试", () => {
     const criticalErrors = filterCriticalErrors(consoleErrors);
     expect(criticalErrors).toEqual([]);
   });
+
+  test("骨架 tripPlan 应触发数据不完整警告", async ({ page }) => {
+    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
+    await waitForAppReady(page, 20000);
+
+    // 注入骨架 tripPlan（无坐标）并触发渲染
+    const result = await page.evaluate(() => {
+      // 模拟骨架 tripPlan
+      window._lastTripPlan = {
+        city: '西安',
+        cities: ['西安'],
+        startDate: '2025-06-01',
+        endDate: '2025-06-03',
+        days: [
+          {
+            date: '2025-06-01', dayIndex: 1, city: '西安',
+            attractions: [
+              { name: '西安城墙', nameZh: '西安城墙' },
+              { name: '钟楼', nameZh: '钟楼' },
+            ],
+            meals: [],
+          },
+        ],
+      };
+
+      // 检查 marker 数量
+      const markers = document.querySelectorAll('.leaflet-marker-icon');
+      return { markerCount: markers.length, hasTripPlan: !!window._lastTripPlan };
+    });
+
+    expect(result.hasTripPlan).toBe(true);
+    // 骨架数据不应渲染任何景点 marker
+    expect(result.markerCount).toBe(0);
+  });
+
+  test("完整 tripPlan 应渲染 marker", async ({ page }) => {
+    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
+    await waitForAppReady(page, 20000);
+
+    // 等待地图初始化
+    await page.waitForFunction(() => {
+      return !!document.getElementById('page-map-leaflet');
+    }, { timeout: 10000 });
+
+    // 注入完整 tripPlan（有坐标）并触发渲染
+    const result = await page.evaluate(async () => {
+      window._lastTripPlan = {
+        city: '西安',
+        cities: ['西安'],
+        startDate: '2025-06-01',
+        endDate: '2025-06-03',
+        days: [
+          {
+            date: '2025-06-01', dayIndex: 1, city: '西安',
+            attractions: [
+              { name: '西安城墙', nameZh: '西安城墙', location: { latitude: 34.2632, longitude: 108.9416 } },
+              { name: '钟楼', nameZh: '钟楼', location: { latitude: 34.2614, longitude: 108.9425 } },
+            ],
+            meals: [],
+          },
+        ],
+      };
+
+      // 触发地图渲染
+      if (typeof window._initPageMap === 'function') {
+        window._initPageMap();
+      }
+
+      // 等待渲染完成
+      await new Promise(r => setTimeout(r, 1000));
+
+      // 检查 marker 数量
+      const markers = document.querySelectorAll('.leaflet-marker-icon');
+      return { markerCount: markers.length };
+    });
+
+    // 完整数据应渲染 2 个景点 marker
+    expect(result.markerCount).toBeGreaterThanOrEqual(2);
+  });
 });

@@ -7,6 +7,7 @@ import { ActionLinksStep } from "./steps/action-links-step.js";
 import { BudgetCalcStep } from "./steps/budget-calc-step.js";
 import { BudgetCheckStep } from "./steps/budget-check-step.js";
 import { ConsistencyCheckStep } from "./steps/consistency-check-step.js";
+import { GeocodeEnrichStep } from "./steps/geocode-enrich-step.js";
 import { HotelEnrichStep } from "./steps/hotel-enrich-step.js";
 import { ReservationTimelineStep } from "./steps/reservation-timeline-step.js";
 import { RestaurantEnrichStep } from "./steps/restaurant-enrich-step.js";
@@ -30,6 +31,7 @@ export function createDefaultPipeline(): PostProcessPipeline {
     .addGroup({
       name: "enrich-and-calc",
       steps: [
+        new GeocodeEnrichStep(),  // 最先执行：补全缺失坐标
         new RestaurantEnrichStep(),
         new TransportEnrichStep(),
         new HotelEnrichStep(),

@@ -37,7 +37,8 @@ export interface ReviewIssue {
     | "time" // 时间不合理（超 12h、景点太少）
     | "crowd" // 人群适配（老人安排登山等）
     | "meal" // 餐饮缺失
-    | "transfer"; // 城际衔接问题
+    | "transfer" // 城际衔接问题
+    | "data"; // 数据完整性（缺坐标、缺描述等）
   /** 问题描述 */
   description: string;
   /** 修复建议（用于 steer） */
@@ -67,6 +68,7 @@ const REVIEW_SYSTEM_PROMPT = `你是行程质量审查员。分析旅行计划 J
 3. **人群适配**：如果提供了出行人群，是否照顾了老人/儿童/孕妇/行动不便者
 4. **餐饮完整性**：每天是否包含早中晚三餐
 5. **城际衔接**：多城市行程的移动日是否标注了交通方案
+6. **数据完整性**：每个景点是否包含 location（latitude/longitude 非零）、description、visitDuration；缺少坐标会导致地图无法渲染，这是 error 级别问题
 
 输出格式（严格 JSON，不要输出其他内容）：
 {

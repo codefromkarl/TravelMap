@@ -89,4 +89,64 @@ describe("getMockUGC", () => {
       expect(typeof r.tips).toBe("string");
     }
   });
+
+  it("西安兵马俑应有 UGC 数据", () => {
+    const result = getMockUGC("西安", "秦始皇兵马俑博物馆");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].source).toBe("xiaohongshu");
+    expect(result[0].rating).toBeGreaterThan(4);
+  });
+});
+
+// ─── 新增城市覆盖 ───────────────────────────────────────
+
+describe("新增城市 mock 数据", () => {
+  it("西安应返回 5 个景点", () => {
+    const result = getMockAttractions({ city: "西安" });
+    expect(result).toHaveLength(5);
+  });
+
+  it("西安景点应有正确坐标（非上海坐标）", () => {
+    const result = getMockAttractions({ city: "西安" });
+    for (const a of result) {
+      // 西安纬度应在 34 附近，不应是上海的 31.23
+      expect(a.location.latitude).toBeGreaterThan(33);
+      expect(a.location.latitude).toBeLessThan(36);
+      expect(a.location.longitude).toBeGreaterThan(108);
+      expect(a.location.longitude).toBeLessThan(110);
+    }
+  });
+
+  it("成都应返回 3 个景点", () => {
+    const result = getMockAttractions({ city: "成都" });
+    expect(result).toHaveLength(3);
+  });
+
+  it("杭州应返回 2 个景点", () => {
+    const result = getMockAttractions({ city: "杭州" });
+    expect(result).toHaveLength(2);
+  });
+});
+
+// ─── genericMock 坐标修正 ────────────────────────────────
+
+describe("genericMock 坐标修正", () => {
+  it("未收录城市应使用当地坐标（非上海默认坐标）", () => {
+    // 拉萨有预定义坐标
+    const result = getMockAttractions({ city: "拉萨" });
+    expect(result[0].location.latitude).toBeCloseTo(29.65, 0);
+    expect(result[0].location.longitude).toBeCloseTo(91.1, 0);
+  });
+
+  it("完全未知城市应 fallback 到上海坐标", () => {
+    const result = getMockAttractions({ city: "未知小城" });
+    expect(result[0].location.latitude).toBeCloseTo(31.23, 0);
+    expect(result[0].location.longitude).toBeCloseTo(121.47, 0);
+  });
+
+  it("重庆应使用正确坐标", () => {
+    const result = getMockAttractions({ city: "重庆" });
+    expect(result[0].location.latitude).toBeCloseTo(29.43, 0);
+    expect(result[0].location.longitude).toBeCloseTo(106.91, 0);
+  });
 });

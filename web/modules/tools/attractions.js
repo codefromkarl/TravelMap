@@ -1,4 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
+import { CITY_CENTERS } from '../context.js';
 
 // ─── 景点搜索工具 ──────────────────────────────────────
 export const searchAttractionsTool = {
@@ -39,8 +40,13 @@ export const searchAttractionsTool = {
         { name: "华清宫", nameZh: "华清宫", address: "临潼区华清路38号", ticketPrice: 120, visitDuration: 120, description: "唐代皇家温泉行宫", location: { latitude: 34.3622, longitude: 109.2984 } },
       ],
     };
+    const cityCenter = CITY_CENTERS[city];
+    const fallbackLat = cityCenter ? cityCenter[0] : 35.86;
+    const fallbackLng = cityCenter ? cityCenter[1] : 104.20;
     const attractions = mockData[city] || [
-      { name: `${city}中心公园`, nameZh: `${city}中心公园`, address: `${city}市中心`, ticketPrice: 0, visitDuration: 120, description: `${city}主要城市公园`, location: { latitude: 31.23, longitude: 121.47 } },
+      { name: `${city}博物馆`, nameZh: `${city}博物馆`, address: `${city}市中心`, ticketPrice: 0, visitDuration: 180, description: `${city}代表性博物馆`, location: { latitude: fallbackLat + 0.01, longitude: fallbackLng + 0.01 } },
+      { name: `${city}老街`, nameZh: `${city}老街`, address: `${city}老城区`, ticketPrice: 0, visitDuration: 120, description: `${city}历史街区`, location: { latitude: fallbackLat - 0.01, longitude: fallbackLng + 0.005 } },
+      { name: `${city}公园`, nameZh: `${city}公园`, address: `${city}市中心`, ticketPrice: 0, visitDuration: 90, description: `${city}主要城市公园`, location: { latitude: fallbackLat + 0.005, longitude: fallbackLng - 0.01 } },
     ];
     return {
       content: [{ type: "text", text: `## ${city}景点搜索结果\n\n${attractions.map((a, i) => `${i+1}. **${a.name}** — ¥${a.ticketPrice}\n   ${a.description} | 建议${a.visitDuration}分钟`).join("\n\n")}` }],

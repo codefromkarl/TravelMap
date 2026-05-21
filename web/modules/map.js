@@ -58,7 +58,94 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
   return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-// (已清理：侧边栏弹框地图 leafletMap / renderTripOnMap 已废弃，统一使用全屏 pageMapInstance)
+// ─── 景点坐标补全（地理编码） ────────────────────────────
+// 当 tripPlan 中的景点缺少 location 时，通过高德地理编码 API 补全
+const _geoCache = new Map();
+
+/**
+ * 通过高德地理编码 API 获取景点坐标
+ * @param {string} name - 景点名称
+ * @param {string} city - 城市名
+ * @returns {{latitude:number,longitude:number}|null}
+ */
+async function _geocodeOne(name, city) {
+  const key = `${city}:${name}`;
+  if (_geoCache.has(key)) return _geoCache.get(key);
+
+  const geoKey = getAmapGeoKey();
+  if (!geoKey) { _geoCache.set(key, null); return null; }
+
+  try {
+    const url = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}&key=${geoKey}&output=json`;
+    const resp = await fetchWithTimeout(url, {}, 5000);
+    const data = await resp.json();
+    if (data.status === '1' && data.geocodes?.length > 0) {
+      const [lng, lat] = data.geocodes[0].location.split(',').map(Number);
+      const result = { latitude: lat, longitude: lng };
+      _geoCache.set(key, result);
+      return result;
+    }
+  } catch (e) {
+    console.warn('[Map] 地理编码失败:', name, e.message);
+  }
+  _geoCache.set(key, null);
+  return null;
+}
+
+/**
+ * 批量补全 tripPlan 中缺失坐标的景点
+ * 优先用高德 API，fallback 到 CITY_CENTERS 附近随机偏移
+ * @param {object} tripPlan
+ * @returns {Promise<number>} 补全的景点数量
+ */
+async function geocodeAttractions(tripPlan) {
+  if (!tripPlan?.days) return 0;
+
+  let fixedCount = 0;
+  const pending = [];
+
+  for (const day of tripPlan.days) {
+    const city = day.city || tripPlan.city || '';
+    for (const attr of day.attractions || []) {
+      const loc = attr.location;
+      const hasValidLoc = loc && loc.latitude && loc.longitude && (loc.latitude !== 0 || loc.longitude !== 0);
+      if (!hasValidLoc) {
+        pending.push({ attr, city });
+      }
+    }
+  }
+
+  if (pending.length === 0) return 0;
+
+  // 并发地理编码（最多 5 个并发）
+  const BATCH = 5;
+  for (let i = 0; i < pending.length; i += BATCH) {
+    const batch = pending.slice(i, i + BATCH);
+    const results = await Promise.all(
+      batch.map(({ attr, city }) => _geocodeOne(attr.nameZh || attr.name, city))
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const { attr, city } = batch[j];
+      const geoResult = results[j];
+      if (geoResult) {
+        attr.location = geoResult;
+        fixedCount++;
+      } else {
+        // fallback：使用城市中心 + 随机偏移（约 2km 范围）
+        const center = CITY_CENTERS[city];
+        if (center) {
+          const jitter = () => (Math.random() - 0.5) * 0.03;
+          attr.location = { latitude: center[0] + jitter(), longitude: center[1] + jitter() };
+          fixedCount++;
+        }
+      }
+    }
+  }
+
+  return fixedCount;
+}
+
+window._geocodeAttractions = geocodeAttractions;
 
 // ─── 一键丰富补给详情 ─────────────────────────────────
 document.getElementById("btn-enrich-supplies")?.addEventListener("click", async () => {
@@ -341,7 +428,15 @@ export function initPageMap() {
 
       if (window._lastTripPlan) {
         if (emptyHint) emptyHint.style.display = 'none';
-        renderTripOnPageMap(window._lastTripPlan);
+        // 先补全缺失坐标，再渲染
+        geocodeAttractions(window._lastTripPlan).then(count => {
+          if (count > 0) {
+            console.log(`[Map] 补全了 ${count} 个景点坐标`);
+            // 回写 IndexedDB，持久化补全后的坐标
+            window._autoSaveTrip?.();
+          }
+          renderTripOnPageMap(window._lastTripPlan);
+        });
       }
       pageMapInstance.invalidateSize();
     }, 80);
@@ -353,7 +448,14 @@ export function initPageMap() {
     if (emptyHint) emptyHint.style.display = 'none';
     for (const layer of pageMapLayers) pageMapInstance.removeLayer(layer);
     pageMapLayers = [];
-    renderTripOnPageMap(window._lastTripPlan);
+    // 先补全缺失坐标，再渲染
+    geocodeAttractions(window._lastTripPlan).then(count => {
+      if (count > 0) {
+        console.log(`[Map] 补全了 ${count} 个景点坐标`);
+        window._autoSaveTrip?.();
+      }
+      renderTripOnPageMap(window._lastTripPlan);
+    });
   } else {
     if (emptyHint) emptyHint.style.display = 'flex';
   }
@@ -815,6 +917,12 @@ function renderTripOnPageMap(tripPlan) {
 
   if (markerCount > 0) document.getElementById('page-map-legend')?.classList.add('show');
   renderRoutePanel(routePanelData);
+
+  // 坐标完整性检查：有景点但 0 marker → 提示用户数据不完整
+  const totalAttractions = tripPlan.days?.reduce((sum, d) => sum + (d.attractions?.length || 0), 0) || 0;
+  if (markerCount === 0 && totalAttractions > 0) {
+    showToast('行程数据不完整：' + totalAttractions + ' 个景点缺少坐标，建议重新生成行程', 6000, 'warning');
+  }
 }
 
 // ─── 逐步动画渲染 ──────────────────────────────────────
@@ -829,6 +937,10 @@ let _animAbort = false; // 用于取消正在进行的动画
  */
 async function renderTripAnimated(tripPlan) {
   if (!tripPlan || !tripPlan.days || !pageMapInstance) return;
+
+  // 补全缺失坐标
+  const geoFixed = await geocodeAttractions(tripPlan);
+  if (geoFixed > 0) console.log(`[Map] renderTripAnimated: 补全了 ${geoFixed} 个景点坐标`);
 
   // 取消上一次动画
   _animAbort = true;
@@ -1066,6 +1178,12 @@ async function renderTripAnimated(tripPlan) {
   if (sd) sd.innerHTML = '📅 <span class="dot-label">天数</span> ' + (tripPlan.days?.length||0);
   if (markerCount > 0) document.getElementById('page-map-legend')?.classList.add('show');
   renderRoutePanel(routePanelData);
+
+  // 坐标完整性检查：有景点但 0 marker → 提示用户数据不完整
+  const totalAttractions = tripPlan.days?.reduce((sum, d) => sum + (d.attractions?.length || 0), 0) || 0;
+  if (markerCount === 0 && totalAttractions > 0) {
+    showToast('行程数据不完整：' + totalAttractions + ' 个景点缺少坐标，建议重新生成行程', 6000, 'warning');
+  }
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }

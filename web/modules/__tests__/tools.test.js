@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 
 // Mock pi-ai Type system
 vi.mock('@earendil-works/pi-ai', () => ({
@@ -271,5 +271,141 @@ describe('enrich_supply_details tool', () => {
     });
     expect(result.content[0].text).toContain('补给详情');
     expect(result.details.totalSupplyPoints).toBe(1);
+  });
+});
+
+// ─── 骨架数据场景测试（坐标缺失）─────────────────────────
+
+describe('骨架数据防护：坐标缺失检测', () => {
+  const skeletonTripPlan = {
+    city: '西安',
+    cities: ['西安'],
+    startDate: '2025-06-01',
+    endDate: '2025-06-03',
+    days: [
+      {
+        date: '2025-06-01', dayIndex: 1, city: '西安',
+        attractions: [
+          { name: '西安城墙', nameZh: '西安城墙' },  // 无 location
+          { name: '钟楼', nameZh: '钟楼', location: { latitude: 0, longitude: 0 } },  // 坐标为 0
+        ],
+      },
+      {
+        date: '2025-06-02', dayIndex: 2, city: '西安',
+        attractions: [
+          { name: '秦始皇兵马俑博物馆', nameZh: '秦始皇兵马俑博物馆' },  // 无 location
+        ],
+      },
+    ],
+  };
+
+  it('generate_action_links 应检测到坐标缺失并注入警告', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await tools.generateActionLinksTool.execute('id', { tripPlan: skeletonTripPlan });
+    expect(result.content[0].text).toContain('缺少坐标');
+    expect(result.content[0].text).toContain('3');  // 3 个景点缺坐标
+    expect(warnSpy).toHaveBeenCalled();
+    expect(warnSpy.mock.calls[0][0]).toContain('坐标缺失');
+    warnSpy.mockRestore();
+  });
+
+  it('generate_action_links 仍应正常生成链接（不因缺坐标而崩溃）', async () => {
+    const result = await tools.generateActionLinksTool.execute('id', { tripPlan: skeletonTripPlan });
+    expect(result.content[0].text).toContain('行动链接');
+    expect(result.details.linkCount).toBeGreaterThan(0);
+    expect(result.details.tripPlan).toBe(skeletonTripPlan);
+  });
+
+  it('enrich_supply_details 应检测到坐标缺失', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await tools.enrichSupplyDetailsTool.execute('id', { tripPlan: skeletonTripPlan });
+    expect(warnSpy).toHaveBeenCalled();
+    expect(warnSpy.mock.calls.some(c => String(c[0]).includes('坐标缺失'))).toBe(true);
+    warnSpy.mockRestore();
+  });
+
+  it('query_trip_data 应检测到坐标缺失', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await tools.companionQATool.execute('id', {
+      question: '西安城墙门票多少钱',
+      tripPlan: skeletonTripPlan,
+    });
+    expect(warnSpy).toHaveBeenCalled();
+    expect(warnSpy.mock.calls.some(c => String(c[0]).includes('坐标缺失'))).toBe(true);
+    warnSpy.mockRestore();
+  });
+
+  it('完整坐标的 tripPlan 不应触发警告', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const completeTripPlan = {
+      ...skeletonTripPlan,
+      days: skeletonTripPlan.days.map(d => ({
+        ...d,
+        attractions: d.attractions.map(a => ({
+          ...a,
+          location: { latitude: 34.26, longitude: 108.94 },
+        })),
+      })),
+    };
+    await tools.generateActionLinksTool.execute('id', { tripPlan: completeTripPlan });
+    const coordWarnings = warnSpy.mock.calls.filter(c => String(c[0]).includes('坐标缺失'));
+    expect(coordWarnings.length).toBe(0);
+    warnSpy.mockRestore();
+  });
+});
+
+// ─── TripPlan 结构校验测试 ───────────────────────────────
+
+describe('TripPlan 结构校验 (validateTripPlanSchema)', () => {
+  // 动态导入校验函数
+  let validateTripPlanSchema;
+
+  beforeAll(async () => {
+    const mod = await import('../tools/validate-trip.js');
+    validateTripPlanSchema = mod.validateTripPlanSchema;
+  });
+
+  it('合法 tripPlan 应通过校验', () => {
+    const result = validateTripPlanSchema({
+      city: '北京',
+      days: [{ date: '2025-06-01', attractions: [{ name: '故宫' }] }],
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors.length).toBe(0);
+  });
+
+  it('null tripPlan 应校验失败', () => {
+    const result = validateTripPlanSchema(null);
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('为空');
+  });
+
+  it('缺少 city 应校验失败', () => {
+    const result = validateTripPlanSchema({ days: [] });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('city');
+  });
+
+  it('缺少 days 数组应校验失败', () => {
+    const result = validateTripPlanSchema({ city: '北京' });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('days');
+  });
+
+  it('景点缺少 name 应校验失败', () => {
+    const result = validateTripPlanSchema({
+      city: '北京',
+      days: [{ date: '2025-06-01', attractions: [{ visitDuration: 120 }] }],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('name');
+  });
+
+  it('空 attractions 数组应通过校验', () => {
+    const result = validateTripPlanSchema({
+      city: '北京',
+      days: [{ date: '2025-06-01', attractions: [] }],
+    });
+    expect(result.valid).toBe(true);
   });
 });

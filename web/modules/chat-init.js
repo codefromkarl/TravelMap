@@ -206,6 +206,11 @@ export async function initApp() {
           const details = msg.details;
           if (details && details.tripPlan) {
             window._lastTripPlan = details.tripPlan;
+            // 校验坐标完整性
+            try {
+              const { validateAndWarn } = await import('./tools/validate-trip.js');
+              validateAndWarn(details.tripPlan);
+            } catch (_) { /* 校验模块加载失败不阻塞 */ }
             document.getElementById("btn-map")?.classList.remove("disabled-ghost");
             if (window.currentPage === "page-map") {
               if (typeof window._initPageMap === "function") window._initPageMap();
@@ -389,6 +394,8 @@ export async function initApp() {
         .catch(err => console.error("[AutoSave] 保存失败:", err));
     }, 1000);
   }
+  // 暴露给 map.js 供 geocoding 完成后回写
+  window._autoSaveTrip = autoSaveTrip;
 
   // ─── 初始化 ChatPanel ─────────────────────────────────
   document.getElementById("loading")?.remove();

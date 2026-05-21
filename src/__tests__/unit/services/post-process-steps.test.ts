@@ -11,12 +11,14 @@ import { ActionLinksStep } from "../../../services/post-process/steps/action-lin
 import { BudgetCalcStep } from "../../../services/post-process/steps/budget-calc-step.js";
 import { BudgetCheckStep } from "../../../services/post-process/steps/budget-check-step.js";
 import { ConsistencyCheckStep } from "../../../services/post-process/steps/consistency-check-step.js";
+import { GeocodeEnrichStep } from "../../../services/post-process/steps/geocode-enrich-step.js";
 import { HotelEnrichStep } from "../../../services/post-process/steps/hotel-enrich-step.js";
 import { ReservationTimelineStep } from "../../../services/post-process/steps/reservation-timeline-step.js";
 import { RestaurantEnrichStep } from "../../../services/post-process/steps/restaurant-enrich-step.js";
 import { TransportEnrichStep } from "../../../services/post-process/steps/transport-enrich-step.js";
 
 const steps: PostProcessStep[] = [
+  new GeocodeEnrichStep(),
   new RestaurantEnrichStep(),
   new TransportEnrichStep(),
   new HotelEnrichStep(),

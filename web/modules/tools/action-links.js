@@ -1,4 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
+import { validateAndWarn, validateToMarkdown, validateTripPlanSchema } from "./validate-trip.js";
 
 // ─── 行动链接工具 ────────────────────────────────────
 export const generateActionLinksTool = {
@@ -85,7 +86,17 @@ export const generateActionLinksTool = {
       }
     }
     lines.splice(1, 0, `生成了 **${linkCount}** 个实用链接`);
+    // 校验 tripPlan 坐标完整性
+    const validation = validateAndWarn(tripPlan);
+    if (validation.hasIssues) {
+      lines.push('');
+      lines.push(`> ⚠️ ${validation.summary}`);
+    }
     // 保存行程数据供地图渲染
+    const schemaResult = validateTripPlanSchema(tripPlan);
+    if (!schemaResult.valid) {
+      console.warn('[TripPlan] 结构校验失败:', schemaResult.errors);
+    }
     window._lastTripPlan = tripPlan;
     // 启用地图按钮
     document.getElementById("btn-map")?.classList.remove("disabled-ghost");
