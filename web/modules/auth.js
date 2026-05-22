@@ -27,18 +27,15 @@ export async function checkAuth() {
       onAuthenticated(data);
       return true;
     }
-    if (data.ssoUrl) {
-      window.location.href = data.ssoUrl;
-      return false;
-    }
   } catch {}
+  // 未登录 → 显示登录弹窗
+  authOverlay?.classList.add('visible');
+  logger.info('未登录，显示登录弹窗');
   return false;
 }
 
 export async function requireAuth() {
   if (currentUser) return true;
-  const ok = await checkAuth();
-  if (ok) return true;
   authOverlay?.classList.add('visible');
   return false;
 }
@@ -48,10 +45,13 @@ export function onAuthenticated(data) {
   const avatarEl = document.getElementById('quota-avatar');
   const nameEl = document.getElementById('quota-name');
   const countEl = document.getElementById('quota-count');
-  if (avatarEl) avatarEl.src = data.user.avatar || '';
+  if (avatarEl) { avatarEl.src = data.user.avatar || ''; avatarEl.style.display = ''; }
   if (nameEl) nameEl.textContent = data.user.name;
   if (countEl) countEl.textContent = data.quota.remaining;
   quotaBar?.classList.add('visible');
+  // 恢复退出按钮
+  const logoutBtn = document.getElementById('btn-logout');
+  if (logoutBtn) logoutBtn.style.display = '';
   document.querySelectorAll('.oauth-btn').forEach(btn => {
     if (btn.tagName === 'A') {
       const url = new URL(btn.href);
@@ -74,6 +74,7 @@ document.getElementById('btn-logout')?.addEventListener('click', async () => {
   setCurrentUser(null);
   setQuotaRemaining(0);
   quotaBar?.classList.remove('visible');
+  // 登出后显示登录弹窗
   authOverlay?.classList.add('visible');
 });
 
@@ -102,15 +103,17 @@ function installFetchProxy() {
     if (!matchedProvider) {
       return origFetch.call(this, input, init);
     }
+
+    // 未登录 → 弹出登录框，不发送请求
     if (!currentUser) {
-      const loggedIn = await requireAuth();
-      if (!loggedIn) {
-        return new Response(JSON.stringify({ error: { message: 'Login required' } }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
+      authOverlay?.classList.add('visible');
+      showToast(I18N[currentLang]?.loginRequired || '请先登录后再使用', 5000);
+      return new Response(JSON.stringify({ error: { message: 'Login required' }, code: 'AUTH_REQUIRED' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
+
     let body = init?.body;
     if (body && typeof body === 'string') {
       try {
@@ -145,7 +148,8 @@ function installFetchProxy() {
     if (resp.status === 403) {
       const data = await resp.clone().json().catch(() => ({}));
       if (data.code === 'QUOTA_EXCEEDED') {
-        showToast(I18N[currentLang]?.quotaExhausted || '免费体验次数已用完', 5000);
+        authOverlay?.classList.add('visible');
+        showToast(I18N[currentLang]?.quotaExhausted || '免费体验次数已用完，登录后可获得更多次数', 5000);
       }
       return resp;
     }
