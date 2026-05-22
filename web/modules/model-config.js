@@ -1,9 +1,9 @@
-import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey } from './context.js?v=7';
-import { I18N } from './i18n.js?v=7';
-import { buildSystemPrompt } from './prompt.js?v=7';
+import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey, getTestedProviders, addTestedProvider, removeTestedProvider } from './context.js?v=10';
+import { I18N } from './i18n.js?v=10';
+import { buildSystemPrompt } from './prompt.js?v=10';
 import { getModel } from "@earendil-works/pi-ai";
 import { getAppStorage } from "@earendil-works/pi-web-ui";
-import { config } from './config.js?v=7';
+import { config } from './config.js?v=10';
 
 // ─── 模型配置弹窗 ──────────────────────────────────
 document.getElementById('btn-open-model')?.addEventListener('click', () => {
@@ -83,6 +83,97 @@ function updateModelOptions(provider) {
   }
 }
 
+// 获取可用的服务商列表（免费 + 测试成功）
+function getAvailableProviders() {
+  const freeProviders = ['deepseek-local']; // 服务端免费内置
+  const testedProviders = getTestedProviders();
+  // 合并去重
+  const allProviders = [...new Set([...freeProviders, ...testedProviders])];
+  return allProviders;
+}
+
+// 更新服务商下拉框选项
+function updateProviderOptions() {
+  const provSelect = document.getElementById('cfg-provider');
+  if (!provSelect) return;
+
+  const availableProviders = getAvailableProviders();
+  const currentValue = provSelect.value;
+
+  // 服务商显示名称映射
+  const providerNames = {
+    'deepseek-local': 'DeepSeek 本地 (免费)',
+    'openai': 'OpenAI',
+    'anthropic': 'Anthropic',
+    'google': 'Google',
+    'deepseek': 'DeepSeek',
+    'openrouter': 'OpenRouter',
+    'custom': '自定义 / Custom'
+  };
+
+  provSelect.innerHTML = availableProviders.map(p => 
+    `<option value="${p}">${providerNames[p] || p}</option>`
+  ).join('');
+
+  // 恢复选中状态
+  if (availableProviders.includes(currentValue)) {
+    provSelect.value = currentValue;
+  }
+}
+
+// 显示添加服务商对话框
+function showAddProviderDialog() {
+  const dialog = document.getElementById('add-provider-dialog');
+  if (dialog) dialog.classList.add('open');
+}
+
+// 测试 API Key
+async function testApiKey(provider, apiKey) {
+  try {
+    const models = PROVIDER_MODELS[provider];
+    if (!models || models.length === 0) return false;
+    
+    const testModel = models[0]; // 使用第一个模型测试
+    const model = getModel(provider, testModel);
+    if (!model) return false;
+
+    // 使用 fetch 直接测试 API
+    const baseUrl = model.baseUrl || getProviderBaseUrl(provider);
+    const testUrl = `${baseUrl}/chat/completions`;
+    
+    const response = await fetch(testUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: testModel,
+        messages: [{ role: 'user', content: 'Reply with: ok' }],
+        max_tokens: 10
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.error(`API key test failed for ${provider}:`, err);
+    return false;
+  }
+}
+
+// 获取服务商默认 Base URL
+function getProviderBaseUrl(provider) {
+  const urls = {
+    'openai': 'https://api.openai.com/v1',
+    'anthropic': 'https://api.anthropic.com/v1',
+    'google': 'https://generativelanguage.googleapis.com/v1beta',
+    'deepseek': 'https://api.deepseek.com/v1',
+    'openrouter': 'https://openrouter.ai/api/v1'
+  };
+  return urls[provider] || '';
+}
+
 function saveInput(inputId, storageKey) {
   const val = document.getElementById(inputId)?.value;
   if (val !== undefined && val !== null) localStorage.setItem(storageKey, val);
@@ -106,7 +197,7 @@ document.getElementById('cfg-provider')?.addEventListener('change', (e) => {
   }
 });
 
-document.getElementById('btn-save-model')?.addEventListener('click', () => {
+document.getElementById('btn-save-model')?.addEventListener('click', async () => {
   const provider = document.getElementById('cfg-provider')?.value;
   const apiKey = document.getElementById('cfg-apikey')?.value;
 
@@ -140,12 +231,32 @@ document.getElementById('btn-save-model')?.addEventListener('click', () => {
   const thinkingLevel = document.getElementById('cfg-thinking-level')?.value || 'medium';
   localStorage.setItem('travel-agent-thinking', thinkingLevel);
 
+  // 测试 API Key（非免费和非自定义服务商）
+  const freeProviders = ['deepseek-local'];
+  if (!freeProviders.includes(provider) && provider !== 'custom' && apiKey) {
+    const testBtn = document.getElementById('btn-test-apikey');
+    if (testBtn) { testBtn.disabled = true; testBtn.textContent = '⏳ 测试中...'; }
+    
+    const isValid = await testApiKey(provider, apiKey);
+    
+    if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🔑 测试 Key'; }
+    
+    if (isValid) {
+      addTestedProvider(provider);
+      updateProviderOptions();
+      showToast('API Key 测试成功，已添加到可用服务商', 2500, 'success');
+    } else {
+      showToast('API Key 测试失败，请检查 Key 是否正确', 3000, 'error');
+      return; // 测试失败不保存配置
+    }
+  }
+
   try {
     if (provider === 'deepseek-local') {
       const useReasoning = config.deepseekLocal.reasoning !== false;
       agent.state.model = {
         id: modelId || config.deepseekLocal.defaultModel, name: 'DeepSeek V4 Flash', api: 'openai-completions',
-        provider: 'deepseek',
+        provider: 'openai',  // 使用 openai provider 以避免 deepseek 的 API Key 检查
         baseUrl: config.deepseekLocal.baseUrl,
         reasoning: useReasoning, input: ['text'],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -234,3 +345,115 @@ document.getElementById('btn-fetch-models')?.addEventListener('click', async () 
     if (btn) { btn.disabled = false; btn.textContent = originalText; }
   }
 });
+
+// ─── 添加服务商对话框 ────────────────────────────────
+document.getElementById('btn-add-provider')?.addEventListener('click', () => {
+  showAddProviderDialog();
+});
+
+document.getElementById('btn-close-add-provider')?.addEventListener('click', () => {
+  const dialog = document.getElementById('add-provider-dialog');
+  if (dialog) dialog.classList.remove('open');
+});
+
+document.getElementById('add-provider-overlay')?.addEventListener('click', (e) => {
+  if (e.target.id === 'add-provider-overlay') e.target.classList.remove('open');
+});
+
+// 添加服务商确认
+document.getElementById('btn-confirm-add-provider')?.addEventListener('click', async () => {
+  const provider = document.getElementById('add-provider-select')?.value;
+  const apiKey = document.getElementById('add-provider-apikey')?.value?.trim();
+
+  if (!provider || !apiKey) {
+    showToast('请选择服务商并输入 API Key', 2500, 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btn-confirm-add-provider');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 测试中...'; }
+
+  const isValid = await testApiKey(provider, apiKey);
+
+  if (btn) { btn.disabled = false; btn.textContent = '确认添加'; }
+
+  if (isValid) {
+    addTestedProvider(provider);
+    localStorage.setItem(`api-key-${provider}`, apiKey);
+    updateProviderOptions();
+    
+    // 关闭对话框
+    const dialog = document.getElementById('add-provider-dialog');
+    if (dialog) dialog.classList.remove('open');
+    
+    // 切换到新添加的服务商
+    const provSelect = document.getElementById('cfg-provider');
+    if (provSelect) {
+      provSelect.value = provider;
+      updateModelOptions(provider);
+    }
+    
+    showToast(`已添加 ${provider} 服务商`, 2500, 'success');
+  } else {
+    showToast('API Key 测试失败，请检查 Key 是否正确', 3000, 'error');
+  }
+});
+
+// 删除服务商
+document.getElementById('btn-remove-provider')?.addEventListener('click', () => {
+  const provider = document.getElementById('cfg-provider')?.value;
+  if (!provider || provider === 'deepseek-local') {
+    showToast('无法删除免费服务商', 2500, 'warning');
+    return;
+  }
+
+  removeTestedProvider(provider);
+  localStorage.removeItem(`api-key-${provider}`);
+  updateProviderOptions();
+  
+  // 切换到默认服务商
+  const provSelect = document.getElementById('cfg-provider');
+  if (provSelect) {
+    provSelect.value = 'deepseek-local';
+    updateModelOptions('deepseek-local');
+  }
+  
+  showToast(`已删除 ${provider} 服务商`, 2500, 'success');
+});
+
+// 测试 API Key 按钮
+document.getElementById('btn-test-apikey')?.addEventListener('click', async () => {
+  const provider = document.getElementById('cfg-provider')?.value;
+  const apiKey = document.getElementById('cfg-apikey')?.value?.trim();
+
+  if (!provider || provider === 'deepseek-local') {
+    showToast('免费服务商无需测试', 2500, 'warning');
+    return;
+  }
+
+  if (!apiKey) {
+    showToast('请先输入 API Key', 2500, 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btn-test-apikey');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 测试中...'; }
+
+  const isValid = await testApiKey(provider, apiKey);
+
+  if (btn) { btn.disabled = false; btn.textContent = '🔑 测试 Key'; }
+
+  if (isValid) {
+    addTestedProvider(provider);
+    localStorage.setItem(`api-key-${provider}`, apiKey);
+    updateProviderOptions();
+    showToast('API Key 测试成功！', 2500, 'success');
+  } else {
+    showToast('API Key 测试失败，请检查 Key 是否正确', 3000, 'error');
+  }
+});
+
+// ─── 初始化 ──────────────────────────────────────────
+// 页面加载时更新服务商选项
+updateProviderOptions();
+loadModelConfig();

@@ -8,10 +8,10 @@
  *   session.startFresh() → 清空状态，开始新对话
  */
 
-import { agent, currentTripId, setCurrentTripId, currentLang } from './context.js?v=7';
-import { feedback, showToast } from './feedback.js?v=7';
-import { listTrips } from './db.js?v=7';
-import { appState } from './app-state.js?v=7';
+import { agent, currentTripId, setCurrentTripId, currentLang } from './context.js?v=10';
+import { feedback, showToast } from './feedback.js?v=10';
+import { listTrips } from './db.js?v=10';
+import { appState } from './app-state.js?v=10';
 
 // ─── 坐标完整性检查 ────────────────────────────────────
 function countMissingLocations(tripPlan) {
@@ -162,7 +162,7 @@ async function _doRestore(trip, lang) {
 
     // 校验坐标完整性
     try {
-      const { validateAndWarn } = await import('./tools/validate-trip.js?v=7');
+      const { validateAndWarn } = await import('./tools/validate-trip.js?v=10');
       const result = validateAndWarn(trip.tripPlan);
       if (result.hasIssues) {
         feedback.warning(

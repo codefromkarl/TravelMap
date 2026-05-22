@@ -8,8 +8,8 @@
  *   - 集成 perf-trace 追踪 span 耗时
  */
 
-import { createLogger } from './logger.js?v=7';
-import { startSpan, endSpan, cleanupOldTraces } from './perf-trace.js?v=7';
+import { createLogger } from './logger.js?v=10';
+import { startSpan, endSpan, cleanupOldTraces } from './perf-trace.js?v=10';
 
 const traceLogger = createLogger('trace');
 

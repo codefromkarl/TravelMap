@@ -52,10 +52,10 @@
   <script type="importmap">
     {
       "imports": {
-        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=7",
-        "@earendil-works/pi-ai": "./pi-bundle.js?v=7",
-        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=7",
-        "lit": "./pi-bundle.js?v=7",
+        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=10",
+        "@earendil-works/pi-ai": "./pi-bundle.js?v=10",
+        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=10",
+        "lit": "./pi-bundle.js?v=10",
         "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
       }
     }
@@ -321,35 +321,26 @@
           <h3 data-i18n="providerSection">AI 服务商</h3>
           <div class="setting-row">
             <label data-i18n="providerLabel">服务商</label>
-            <select id="cfg-provider">
-              <option value="deepseek-local" selected>DeepSeek 本地 (免费)</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="google">Google</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="openrouter">OpenRouter</option>
-              <option value="custom">自定义 / Custom</option>
-            </select>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="cfg-provider" style="flex:1">
+                <option value="deepseek-local" selected>DeepSeek 本地 (免费)</option>
+              </select>
+              <button id="btn-add-provider" style="padding:4px 8px;border-radius:4px;border:1px solid var(--color-border-default);background:var(--color-bg-elevated);color:var(--color-text-secondary);cursor:pointer;white-space:nowrap" title="添加服务商">➕ 添加</button>
+              <button id="btn-remove-provider" style="padding:4px 8px;border-radius:4px;border:1px solid var(--color-border-default);background:var(--color-bg-elevated);color:var(--color-text-secondary);cursor:pointer;white-space:nowrap" title="删除当前服务商">🗑️ 删除</button>
+            </div>
           </div>
           <div class="setting-row">
             <label data-i18n="modelLabel">模型</label>
             <select id="cfg-model">
-              <option value="gpt-4o">GPT-4o</option>
-              <option value="gpt-4o-mini">GPT-4o Mini</option>
-              <option value="gpt-4-turbo">GPT-4 Turbo</option>
-              <option value="o1">o1</option>
-              <option value="o3-mini">o3 Mini</option>
-              <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-              <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-              <option value="deepseek-chat">DeepSeek Chat</option>
-              <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+              <option value="deepseek-v4-flash">deepseek-v4-flash</option>
             </select>
           </div>
           <div class="setting-row">
             <label data-i18n="llmKeyLabel">LLM API Key</label>
-            <input type="password" id="cfg-apikey" placeholder="sk-..." autocomplete="off">
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="password" id="cfg-apikey" placeholder="sk-..." autocomplete="off" style="flex:1">
+              <button id="btn-test-apikey" style="padding:4px 8px;border-radius:4px;border:1px solid var(--color-border-default);background:var(--color-bg-elevated);color:var(--color-text-secondary);cursor:pointer;white-space:nowrap" title="测试 API Key">🔑 测试 Key</button>
+            </div>
           </div>
           <!-- 自定义 LLM 配置（仅当选择 custom 时显示） -->
           <div id="custom-llm-config" style="display:none">
@@ -433,6 +424,40 @@
         </div>
 
         <button class="save-settings-btn" id="btn-save-model" data-i18n="saveSettings">保存配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加服务商对话框 -->
+    <div id="add-provider-overlay">
+      <div id="add-provider-dialog">
+        <div class="model-modal-header">
+          <h2>➕ 添加服务商</h2>
+          <button class="close-btn" id="btn-close-add-provider">✕</button>
+        </div>
+        <div class="model-modal-body">
+          <div class="setting-section">
+            <h3>选择服务商</h3>
+            <div class="setting-row">
+              <label>服务商</label>
+              <select id="add-provider-select">
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="google">Google</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="custom">自定义 / Custom</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label>API Key</label>
+              <input type="password" id="add-provider-apikey" placeholder="sk-..." autocomplete="off">
+            </div>
+            <div class="setting-row">
+              <p style="font-size:12px;color:var(--color-text-secondary);margin:0">添加前会自动测试 API Key 是否有效</p>
+            </div>
+          </div>
+          <button class="save-settings-btn" id="btn-confirm-add-provider">确认添加</button>
         </div>
       </div>
     </div>
@@ -599,8 +624,8 @@
 
   <!-- Trace Waterfall Panel -->
   <script type="module">
-    import { showPanel } from './modules/waterfall.js?v=7';
-    import { getCurrentTraceId } from './modules/trace.js?v=7';
+    import { showPanel } from './modules/waterfall.js?v=10';
+    import { getCurrentTraceId } from './modules/trace.js?v=10';
     document.getElementById('trace-id-display')?.addEventListener('click', () => {
       const traceId = getCurrentTraceId();
       if (traceId) {
@@ -671,21 +696,21 @@
     }
 
     // ─── 自初始化模块（执行 side-effect） ────────────────
-    import './modules/storage.js?v=7';
-    import './modules/panels.js?v=7';
-    import './modules/auth.js?v=7';
-    import './modules/travelers.js?v=7';
-    import './modules/export.js?v=7';
-    import './modules/history.js?v=7';
-    import './modules/map.js?v=7';
-    import './modules/weather-chart.js?v=7';
-    import './modules/model-config.js?v=7';
-    import { initPageMap } from './modules/map.js?v=7';
-    import { showToast } from './modules/context.js?v=7';
+    import './modules/storage.js?v=10';
+    import './modules/panels.js?v=10';
+    import './modules/auth.js?v=10';
+    import './modules/travelers.js?v=10';
+    import './modules/export.js?v=10';
+    import './modules/history.js?v=10';
+    import './modules/map.js?v=10';
+    import './modules/weather-chart.js?v=10';
+    import './modules/model-config.js?v=10';
+    import { initPageMap } from './modules/map.js?v=10';
+    import { showToast } from './modules/context.js?v=10';
 
     // ─── 启动应用 ────────────────────────────────────────
-    import { initApp } from './modules/chat-init.js?v=7';
-    import { detectProxyMode, checkAuth } from './modules/auth.js?v=7';
+    import { initApp } from './modules/chat-init.js?v=10';
+    import { detectProxyMode, checkAuth } from './modules/auth.js?v=10';
 
     // 代理模式检测 + 认证
     detectProxyMode();

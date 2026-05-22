@@ -38,6 +38,34 @@ export const DB_VERSION = 3;
 export const STORE_NAME = "trips";
 export const SUPPLY_STORE_NAME = "supplyPoints";
 
+// 测试成功的 provider 列表存储 key
+export const TESTED_PROVIDERS_KEY = "travel-agent-tested-providers";
+
+// 获取测试成功的 provider 列表
+export function getTestedProviders() {
+  try {
+    const stored = localStorage.getItem(TESTED_PROVIDERS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+// 保存测试成功的 provider
+export function addTestedProvider(provider) {
+  const providers = getTestedProviders();
+  if (!providers.includes(provider)) {
+    providers.push(provider);
+    localStorage.setItem(TESTED_PROVIDERS_KEY, JSON.stringify(providers));
+  }
+}
+
+// 移除测试成功的 provider
+export function removeTestedProvider(provider) {
+  const providers = getTestedProviders().filter(p => p !== provider);
+  localStorage.setItem(TESTED_PROVIDERS_KEY, JSON.stringify(providers));
+}
+
 // 高德地图默认 Key（仅白名单域名 + localhost 使用）
 export const _DEFAULT_AMAP_KEY = 'e134de721c4969afee0b5b82f2a232a4'; // Web端(JS API) - 地图瓦片
 export const _DEFAULT_AMAP_GEO_KEY = '74301f4873f7e09e18c9e39bf65c6256'; // Web服务 - 地理编码
@@ -122,7 +150,7 @@ export const RISK_COLORS = {
 
 // ─── 工具函数 ────────────────────────────────────────────
 // showToast 已迁移到 feedback.js，这里 re-export 保持向后兼容
-export { showToast } from './feedback.js?v=7';
+export { showToast } from './feedback.js?v=10';
 
 export function isDomesticCityForMap(city) {
   return DOMESTIC_CITIES.some(c => city.includes(c) || c.includes(city));

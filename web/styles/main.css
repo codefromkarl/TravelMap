@@ -1581,7 +1581,8 @@
     #travelers-panel .close-btn:hover { color: var(--color-text-primary); }
 
     /* ─── 模型配置弹窗 ─────────────────────────────────── */
-    #model-modal-overlay {
+    #model-modal-overlay,
+    #add-provider-overlay {
       display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -1591,8 +1592,10 @@
       align-items: flex-start;
       padding-top: 60px;
     }
-    #model-modal-overlay.open { display: flex; }
-    #model-modal {
+    #model-modal-overlay.open,
+    #add-provider-overlay.open { display: flex; }
+    #model-modal,
+    #add-provider-dialog {
       background: var(--color-bg-surface);
       border: 1px solid var(--color-border-subtle);
       border-radius: 16px;
@@ -1602,7 +1605,8 @@
       overflow-y: auto;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     }
-    #model-modal-header {
+    #model-modal-header,
+    #add-provider-dialog .model-modal-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1629,8 +1633,10 @@
       padding: 4px 8px;
       border-radius: 6px;
     }
-    #model-modal .close-btn:hover { color: var(--color-text-primary); background: var(--color-bg-elevated); }
-    #model-modal-body { padding: 20px 24px; }
+    #model-modal .close-btn:hover,
+    #add-provider-dialog .close-btn:hover { color: var(--color-text-primary); background: var(--color-bg-elevated); }
+    #model-modal-body,
+    #add-provider-dialog .model-modal-body { padding: 20px 24px; }
     .setting-section {
       background: var(--color-bg-surface);
       border: 1px solid var(--color-border-subtle);
