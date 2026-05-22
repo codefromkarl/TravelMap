@@ -588,6 +588,38 @@ let _poiLastTime = 0; // 上次 POI 请求时间（节流）
 const _POI_THROTTLE_MS = 800; // 两次点击最短间隔
 const _POI_GRID = 0.002; // 约200m 网格精度，同一格内复用缓存
 
+/**
+ * 判断当前是否使用高德瓦片
+ * 高德瓦片使用 GCJ-02 坐标系，OSM 瓦片使用 WGS-84 坐标系
+ * 当使用高德瓦片时，需要将 WGS-84 坐标转换为 GCJ-02
+ */
+function isUsingAmapTiles() {
+  // 如果有高德 Key 且当前图层是高德瓦片
+  const AMAP_KEY = getAmapKey();
+  if (!AMAP_KEY) return false;
+  return pageMapCurrentLayer === 'standard' || pageMapCurrentLayer === 'satellite';
+}
+
+/**
+ * 将 WGS-84 坐标转换为当前瓦片所需的坐标系
+ * - 高德瓦片：WGS-84 → GCJ-02
+ * - OSM 瓦片：保持 WGS-84
+ */
+function toTileCoords(lat, lng) {
+  if (isUsingAmapTiles()) {
+    const gcj = wgs84ToGcj02(lat, lng);
+    return [gcj.lat, gcj.lng];
+  }
+  return [lat, lng];
+}
+
+/**
+ * 将 WGS-84 坐标数组转换为当前瓦片所需的坐标系
+ */
+function toTileCoordsArray(coords) {
+  return coords.map(([lat, lng]) => toTileCoords(lat, lng));
+}
+
 export function initPageMap() {
   const container = document.getElementById('page-map-container');
   if (!container || !L) return;
@@ -983,7 +1015,8 @@ async function renderTripOnPageMap(tripPlan) {
           (attr.tips ? '<div class="popup-tips">💡 ' + attr.tips + '</div>' : '') +
           '</div>';
         const attrName = attr.nameZh || attr.name || '景点';
-        const marker = L.marker([loc.latitude, loc.longitude], { icon, interactive: true }).bindPopup(popupHtml, { maxWidth: 280 });
+        const [markerLat, markerLng] = toTileCoords(loc.latitude, loc.longitude);
+        const marker = L.marker([markerLat, markerLng], { icon, interactive: true }).bindPopup(popupHtml, { maxWidth: 280 });
         marker.addTo(pageMapInstance);
         marker.on('click', () => scrollChatToAttraction(attrName));
         pageMapLayers.push(marker);
@@ -1001,7 +1034,7 @@ async function renderTripOnPageMap(tripPlan) {
         if (route && route.waypoints && route.waypoints.length > 1) {
           const path = route.waypoints
             .filter(wp => wp.location && (wp.location.latitude !== 0 || wp.location.longitude !== 0))
-            .map(wp => [wp.location.latitude, wp.location.longitude]);
+            .map(wp => toTileCoords(wp.location.latitude, wp.location.longitude));
           if (path.length > 1) {
             const riskLevel = route.riskAssessment?.riskLevel || 1;
             const rc = RISK_COLORS[riskLevel] || RISK_COLORS[1];
@@ -1085,7 +1118,8 @@ async function renderTripOnPageMap(tripPlan) {
       if (r && r.location && r.location.latitude && r.location.longitude) {
         const { iconOptions, popupHtml } = markerRegistry.create('restaurant', r);
         const rIcon = L.divIcon(iconOptions);
-        const rMarker = L.marker([r.location.latitude, r.location.longitude], { icon: rIcon, interactive: true }).bindPopup('<div class="map-popup">' + popupHtml + '</div>', { maxWidth: 260 });
+        const [rLat, rLng] = toTileCoords(r.location.latitude, r.location.longitude);
+        const rMarker = L.marker([rLat, rLng], { icon: rIcon, interactive: true }).bindPopup('<div class="map-popup">' + popupHtml + '</div>', { maxWidth: 260 });
         rMarker.addTo(pageMapInstance);
         pageMapLayers.push(rMarker);
         allCoords.push([r.location.latitude, r.location.longitude]);
@@ -1106,7 +1140,8 @@ async function renderTripOnPageMap(tripPlan) {
     if (hotelLoc?.latitude && hotelLoc.longitude && (hotelLoc.latitude !== 0 || hotelLoc.longitude !== 0)) {
       const { iconOptions, popupHtml } = markerRegistry.create('hotel', day.hotel);
       const hIcon = L.divIcon(iconOptions);
-      const hMarker = L.marker([hotelLoc.latitude, hotelLoc.longitude], { icon: hIcon, interactive: true }).bindPopup(popupHtml, { maxWidth: 260 });
+      const [hLat, hLng] = toTileCoords(hotelLoc.latitude, hotelLoc.longitude);
+      const hMarker = L.marker([hLat, hLng], { icon: hIcon, interactive: true }).bindPopup(popupHtml, { maxWidth: 260 });
       hMarker.addTo(pageMapInstance);
       pageMapLayers.push(hMarker);
       allCoords.push([hotelLoc.latitude, hotelLoc.longitude]);
@@ -1326,7 +1361,7 @@ async function renderTripAnimated(tripPlan) {
         if (route && route.waypoints && route.waypoints.length > 1) {
           const path = route.waypoints
             .filter(wp => wp.location && (wp.location.latitude !== 0 || wp.location.longitude !== 0))
-            .map(wp => [wp.location.latitude, wp.location.longitude]);
+            .map(wp => toTileCoords(wp.location.latitude, wp.location.longitude));
           if (path.length > 1) {
             const riskLevel = route.riskAssessment?.riskLevel || 1;
             const rc = RISK_COLORS[riskLevel] || RISK_COLORS[1];
