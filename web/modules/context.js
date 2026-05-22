@@ -98,6 +98,7 @@ export const LLM_HOSTS = {
   'generativelanguage.googleapis.com': 'google',
   'api.deepseek.com': 'deepseek',
   'openrouter.ai': 'openrouter',
+  'token.sensenova.cn': 'sensenova',
 };
 
 // ─── 预设模型列表 ──────────────────────────────────────
@@ -108,6 +109,7 @@ export const PROVIDER_MODELS = {
   google: ['gemini-2.5-pro', 'gemini-2.5-flash'],
   deepseek: ['deepseek-chat', 'deepseek-reasoner'],
   openrouter: ['openai/gpt-4o', 'anthropic/claude-sonnet-4-20250514', 'google/gemini-2.5-pro'],
+  sensenova: ['deepseek-v4-flash'],
   custom: [],
 };
 

@@ -46,6 +46,12 @@ const PROVIDERS = {
     authHeader: "Authorization",
     authPrefix: "Bearer ",
   },
+  sensenova: {
+    baseUrl: "https://token.sensenova.cn",
+    path: "/v1/chat/completions",
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+  },
 };
 
 const MAX_BODY = 256 * 1024;

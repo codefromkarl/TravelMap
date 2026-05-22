@@ -96,6 +96,15 @@ export async function initApp() {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: 128000, maxTokens: 4096,
     };
+  } else if (provider === "sensenova") {
+    model = {
+      id: modelId || "deepseek-v4-flash", name: "商汤 DeepSeek V4 Flash", api: "openai-completions",
+      provider: "sensenova",
+      baseUrl: "https://token.sensenova.cn/v1",
+      reasoning: true, input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128000, maxTokens: 8192,
+    };
   } else {
     model = getModel(provider, modelId);
   }
