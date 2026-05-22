@@ -73,10 +73,6 @@ export function onRequestHead() {
   return new Response(null, { status: 405, headers: COMMON_HEADERS });
 }
 
-export function onRequest(context) {
-  return jsonResponse(405, { error: "Method not allowed" });
-}
-
 // ─── 主处理 POST ────────────────────────────────────────────
 export async function onRequestPost(context) {
   const { request, env } = context;

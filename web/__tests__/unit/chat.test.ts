@@ -8,7 +8,6 @@ import {
   onRequestPost,
   onRequestOptions,
   onRequestHead,
-  onRequest,
 } from "../../functions/api/chat.js";
 import { signJwt } from "../../functions/_lib/jwt.js";
 
@@ -87,12 +86,6 @@ describe("HTTP 方法处理", () => {
     const resp = onRequestHead();
     expect(resp.status).toBe(405);
   });
-
-  it("GET 应返回 405", () => {
-    const resp = onRequest();
-    expect(resp.status).toBe(405);
-    // 默认导出是 onRequest，不是 onRequestGet
-  });
 });
 
 // ─── API Key 检查 ──────────────────────────────────────────
@@ -167,7 +160,7 @@ describe("配额检查", () => {
     const kv = createMockKv();
     kv._store["user:u-exhausted"] = JSON.stringify({
       id: "u-exhausted",
-      usage: { apiCalls: 20 },
+      usage: { apiCalls: 200 },
     });
 
     const ctx = createTestContext({
@@ -362,7 +355,7 @@ describe("响应配额头", () => {
     });
     const resp = await onRequestPost(ctx);
     const remaining = resp.headers.get("X-Quota-Remaining");
-    // 消耗了 1 次后为 20 - 6 = 14（consumeQuota 先把 apiCalls 从 5 增到 6）
-    expect(remaining).toBe("14");
+    // 消耗了 1 次后为 200 - 6 = 194（consumeQuota 先把 apiCalls 从 5 增到 6）
+    expect(remaining).toBe("194");
   });
 });
