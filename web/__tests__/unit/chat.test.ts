@@ -5,9 +5,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  onRequestPost,
+  onRequest,
   onRequestOptions,
-  onRequestHead,
 } from "../../functions/api/chat.js";
 import { signJwt } from "../../functions/_lib/jwt.js";
 
@@ -82,8 +81,15 @@ describe("HTTP 方法处理", () => {
     expect(resp.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS");
   });
 
-  it("HEAD 应返回 405", () => {
-    const resp = onRequestHead();
+  it("HEAD 应返回 405", async () => {
+    const ctx = createTestContext({ method: "HEAD" });
+    const resp = await onRequest(ctx);
+    expect(resp.status).toBe(405);
+  });
+
+  it("GET 应返回 405", async () => {
+    const ctx = createTestContext({ method: "GET" });
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(405);
   });
 });
@@ -95,7 +101,7 @@ describe("API Key 配置检查", () => {
       env: { LLM_API_KEY: "", OPENAI_API_KEY: "" },
       cookie: "auth_token=dummy",
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(503);
     const body = await resp.json();
     expect(body.error).toBe("Service not configured");
@@ -121,7 +127,7 @@ describe("API Key 配置检查", () => {
       body: { messages: [{ role: "user", content: "hi" }] },
       kv,
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(200);
   });
 });
@@ -130,7 +136,7 @@ describe("API Key 配置检查", () => {
 describe("认证守卫", () => {
   it("无 Cookie 应返回 401", async () => {
     const ctx = createTestContext({ cookie: undefined });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(401);
     const body = await resp.json();
     expect(body.code).toBe("AUTH_REQUIRED");
@@ -138,7 +144,7 @@ describe("认证守卫", () => {
 
   it("无效 JWT 应返回 401", async () => {
     const ctx = createTestContext({ cookie: "auth_token=invalid.token.here" });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(401);
   });
 
@@ -148,7 +154,7 @@ describe("认证守卫", () => {
     const ctx = createTestContext({
       cookie: `auth_token=${token}`,
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(401);
   });
 });
@@ -168,7 +174,7 @@ describe("配额检查", () => {
       body: { messages: [] },
       kv,
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(403);
     const body = await resp.json();
     expect(body.code).toBe("QUOTA_EXCEEDED");
@@ -190,7 +196,7 @@ describe("配额检查", () => {
     });
     // 不设 kv — env 中 RATE_LIMIT_KV 为 undefined
     delete ctx.env.RATE_LIMIT_KV;
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(200);
   });
 });
@@ -226,7 +232,7 @@ describe("请求体解析", () => {
 
   it("无效 JSON 应返回 400", async () => {
     const ctx = await makeAuthedRequest("not json at all");
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(400);
     const data = await resp.json();
     expect(data.error).toBe("Invalid JSON");
@@ -236,7 +242,7 @@ describe("请求体解析", () => {
     // 构造超过 256KB 的请求体
     const hugeBody = JSON.stringify({ messages: [{ content: "x".repeat(256 * 1024) }] });
     const ctx = await makeAuthedRequest(hugeBody);
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(413);
   });
 });
@@ -253,7 +259,7 @@ describe("Provider 路由", () => {
       body: { _provider: "nonexistent_provider", messages: [] },
       kv,
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(400);
     const data = await resp.json();
     expect(data.error).toContain("Unsupported provider");
@@ -277,7 +283,7 @@ describe("Provider 路由", () => {
       env: { LLM_PROVIDER: "anthropic" },
       kv,
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(200);
 
     // 检查 fetch 被调用时的 URL
@@ -303,7 +309,7 @@ describe("Provider 路由", () => {
       body: { _provider: "openai", messages: [{ role: "user", content: "hi" }] },
       kv,
     });
-    await onRequestPost(ctx);
+    await onRequest(ctx);
 
     // 提取转发的 body
     const fetchCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
@@ -326,7 +332,7 @@ describe("上游错误处理", () => {
       body: { messages: [{ role: "user", content: "hi" }] },
       kv,
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     expect(resp.status).toBe(502);
     const data = await resp.json();
     expect(data.error).toBe("Upstream service unavailable");
@@ -353,7 +359,7 @@ describe("响应配额头", () => {
       body: { messages: [{ role: "user", content: "hi" }] },
       kv,
     });
-    const resp = await onRequestPost(ctx);
+    const resp = await onRequest(ctx);
     const remaining = resp.headers.get("X-Quota-Remaining");
     // 消耗了 1 次后为 200 - 6 = 194（consumeQuota 先把 apiCalls 从 5 增到 6）
     expect(remaining).toBe("194");

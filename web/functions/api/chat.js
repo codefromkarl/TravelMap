@@ -69,12 +69,17 @@ export function onRequestOptions() {
   return new Response(null, { status: 204, headers: COMMON_HEADERS });
 }
 
-export function onRequestHead() {
-  return new Response(null, { status: 405, headers: COMMON_HEADERS });
+// ─── 主处理 ────────────────────────────────────────────────
+// 使用 onRequest（而非 onRequestPost）因为 Cloudflare Pages Functions
+// 对 method-specific handler 的路由不可靠，onRequest catch-all 更稳定。
+export async function onRequest(context) {
+  if (context.request.method !== 'POST') {
+    return new Response(null, { status: 405, headers: COMMON_HEADERS });
+  }
+  return handlePost(context);
 }
 
-// ─── 主处理 POST ────────────────────────────────────────────
-export async function onRequestPost(context) {
+async function handlePost(context) {
   const { request, env } = context;
 
   // ── 提取 traceId ──
