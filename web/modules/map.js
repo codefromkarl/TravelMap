@@ -6,6 +6,17 @@ import { getCachedCoord, setCachedCoord } from './coord-cache.js?v=4';
 import { markerRegistry } from './markers.js?v=4';
 import { routePlanner } from './route-planner.js?v=4';
 
+// ─── XSS 防护：HTML 转义 ──────────────────────────────
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ═══════════════════════════════════════════════════════
 // 坐标系转换：WGS-84 (GPS) → GCJ-02 (火星坐标/高德)
 // Leaflet 使用 WGS-84，高德 API 需要 GCJ-02，直接传会导致偏移
@@ -181,8 +192,11 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
     const points = await fetchFn(fromLoc.latitude, fromLoc.longitude, toLoc.latitude, toLoc.longitude);
     if (!points || points.length < 2) continue;
 
+    // 坐标转换：WGS-84 → GCJ-02（高德瓦片时）
+    const tilePoints = points.map(([lat, lng]) => toTileCoords(lat, lng));
+
     // 绘制路线 polyline
-    const polyline = L.polyline(points, {
+    const polyline = L.polyline(tilePoints, {
       color: mode === 'driving' ? '#6366f1' : '#10b981',
       weight: 3,
       opacity: 0.7,
@@ -866,7 +880,7 @@ function setupMapInteractions() {
       if (chatBody) {
         const userBubble = document.createElement('div');
         userBubble.className = 'quick-prompt-user-msg';
-        userBubble.innerHTML = `<div class="qp-msg-content">${prompt}</div>`;
+        userBubble.innerHTML = `<div class="qp-msg-content">${escapeHtml(prompt)}</div>`;
         chatBody.appendChild(userBubble);
         chatBody.scrollTop = chatBody.scrollHeight;
       }
@@ -1038,7 +1052,8 @@ async function renderTripOnPageMap(tripPlan) {
           if (path.length > 1) {
             const riskLevel = route.riskAssessment?.riskLevel || 1;
             const rc = RISK_COLORS[riskLevel] || RISK_COLORS[1];
-            const polyline = L.polyline(path, {
+            const tilePath = path.map(([lat, lng]) => toTileCoords(lat, lng));
+            const polyline = L.polyline(tilePath, {
               color: rc.stroke, weight: 4, opacity: 0.85,
               lineJoin: 'round', lineCap: 'round',
               dashArray: riskLevel === 3 ? '10,6' : null,
@@ -1083,7 +1098,8 @@ async function renderTripOnPageMap(tripPlan) {
                       html: '<div class="supply-marker" style="width:12px;height:12px;border-radius:50%;background:' + color + ';border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);animation:markerPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;"></div>',
                       iconSize: [12, 12], iconAnchor: [6, 6],
                     });
-                    const spMarker = L.marker([sp.location.latitude, sp.location.longitude], { icon: spIcon, interactive: true })
+                    const [spLat, spLng] = toTileCoords(sp.location.latitude, sp.location.longitude);
+                    const spMarker = L.marker([spLat, spLng], { icon: spIcon, interactive: true })
                       .bindPopup('<div class="map-popup"><div class="popup-title">' + sp.name + '</div><div class="popup-meta"><span>' + sp.type + '</span><span>' + (sp.estimatedCost > 0 ? '¥'+sp.estimatedCost : '免费') + '</span></div></div>', { maxWidth: 240 });
                     spMarker.addTo(pageMapInstance);
                     pageMapLayers.push(spMarker);
@@ -1101,7 +1117,8 @@ async function renderTripOnPageMap(tripPlan) {
                   wpPopup += '</div>';
                 }
                 wpPopup += '</div>';
-                const wpMarker = L.marker([wp.location.latitude, wp.location.longitude], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
+                const [wpLat, wpLng] = toTileCoords(wp.location.latitude, wp.location.longitude);
+                const wpMarker = L.marker([wpLat, wpLng], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
                 wpMarker.addTo(pageMapInstance);
                 pageMapLayers.push(wpMarker);
                 allCoords.push([wp.location.latitude, wp.location.longitude]);
@@ -1162,7 +1179,7 @@ async function renderTripOnPageMap(tripPlan) {
 
   // 城市间连线
   if (tripPlan.cities && tripPlan.cities.length > 1) {
-    const cityPath = tripPlan.cities.filter(c => CITY_CENTERS[c.city]).map(c => CITY_CENTERS[c.city]);
+    const cityPath = tripPlan.cities.filter(c => CITY_CENTERS[c.city]).map(c => toTileCoordsArray([CITY_CENTERS[c.city]])[0]);
     if (cityPath.length > 1) {
       const cityLine = L.polyline(cityPath, { color: '#6366f1', weight: 3, opacity: 0.5, dashArray: '12,8' });
       cityLine.addTo(pageMapInstance);
@@ -1175,7 +1192,8 @@ async function renderTripOnPageMap(tripPlan) {
             html: '<div class="city-marker" style="animation-delay:' + (ci * 100) + 'ms">' + c.city + (c.days ? ' · '+c.days+'天' : '') + '</div>',
             iconSize: [100, 28], iconAnchor: [50, 14],
           });
-          const cityMarker = L.marker(center, { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
+          const [cityLat, cityLng] = toTileCoords(center[0], center[1]);
+          const cityMarker = L.marker([cityLat, cityLng], { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
           pageMapLayers.push(cityMarker);
           allCoords.push(center);
         }
@@ -1260,7 +1278,7 @@ async function renderTripAnimated(tripPlan) {
 
   // 先渲染城市间连线（背景层）
   if (tripPlan.cities && tripPlan.cities.length > 1) {
-    const cityPath = tripPlan.cities.filter(c => CITY_CENTERS[c.city]).map(c => CITY_CENTERS[c.city]);
+    const cityPath = tripPlan.cities.filter(c => CITY_CENTERS[c.city]).map(c => toTileCoordsArray([CITY_CENTERS[c.city]])[0]);
     if (cityPath.length > 1) {
       const cityLine = L.polyline(cityPath, { color: '#6366f1', weight: 3, opacity: 0.5, dashArray: '12,8' });
       cityLine.addTo(pageMapInstance);
@@ -1273,7 +1291,8 @@ async function renderTripAnimated(tripPlan) {
             html: '<div class="city-marker" style="animation-delay:' + (ci * 100) + 'ms">' + c.city + (c.days ? ' · '+c.days+'天' : '') + '</div>',
             iconSize: [100, 28], iconAnchor: [50, 14],
           });
-          const cityMarker = L.marker(center, { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
+          const [cityLat, cityLng] = toTileCoords(center[0], center[1]);
+          const cityMarker = L.marker([cityLat, cityLng], { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
           pageMapLayers.push(cityMarker);
           allCoords.push(center);
         }
@@ -1335,7 +1354,8 @@ async function renderTripAnimated(tripPlan) {
           (attr.tips ? '<div class="popup-tips">💡 ' + attr.tips + '</div>' : '') +
           '</div>';
         const attrName = attr.nameZh || attr.name || '景点';
-        const marker = L.marker([loc.latitude, loc.longitude], { icon, interactive: true }).bindPopup(popupHtml, { maxWidth: 280 });
+        const [markerLat2, markerLng2] = toTileCoords(loc.latitude, loc.longitude);
+        const marker = L.marker([markerLat2, markerLng2], { icon, interactive: true }).bindPopup(popupHtml, { maxWidth: 280 });
         marker.addTo(pageMapInstance);
         marker.on('click', () => scrollChatToAttraction(attrName));
         pageMapLayers.push(marker);
@@ -1365,7 +1385,8 @@ async function renderTripAnimated(tripPlan) {
           if (path.length > 1) {
             const riskLevel = route.riskAssessment?.riskLevel || 1;
             const rc = RISK_COLORS[riskLevel] || RISK_COLORS[1];
-            const polyline = L.polyline(path, {
+            const tilePath = path.map(([lat, lng]) => toTileCoords(lat, lng));
+            const polyline = L.polyline(tilePath, {
               color: rc.stroke, weight: 4, opacity: 0.85,
               lineJoin: 'round', lineCap: 'round',
               dashArray: riskLevel === 3 ? '10,6' : null,
@@ -1410,7 +1431,8 @@ async function renderTripAnimated(tripPlan) {
                       html: '<div class="supply-marker" style="width:12px;height:12px;border-radius:50%;background:' + color + ';border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
                       iconSize: [12, 12], iconAnchor: [6, 6],
                     });
-                    const spMarker = L.marker([sp.location.latitude, sp.location.longitude], { icon: spIcon, interactive: true })
+                    const [spLat, spLng] = toTileCoords(sp.location.latitude, sp.location.longitude);
+                    const spMarker = L.marker([spLat, spLng], { icon: spIcon, interactive: true })
                       .bindPopup('<div class="map-popup"><div class="popup-title">' + sp.name + '</div><div class="popup-meta"><span>' + sp.type + '</span><span>' + (sp.estimatedCost > 0 ? '¥'+sp.estimatedCost : '免费') + '</span></div></div>', { maxWidth: 240 });
                     spMarker.addTo(pageMapInstance);
                     pageMapLayers.push(spMarker);
@@ -1428,7 +1450,8 @@ async function renderTripAnimated(tripPlan) {
                   wpPopup += '</div>';
                 }
                 wpPopup += '</div>';
-                const wpMarker = L.marker([wp.location.latitude, wp.location.longitude], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
+                const [wpLat, wpLng] = toTileCoords(wp.location.latitude, wp.location.longitude);
+                const wpMarker = L.marker([wpLat, wpLng], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
                 wpMarker.addTo(pageMapInstance);
                 pageMapLayers.push(wpMarker);
                 allCoords.push([wp.location.latitude, wp.location.longitude]);
@@ -1462,7 +1485,8 @@ async function renderTripAnimated(tripPlan) {
           (r.address ? '<div class="popup-city">📍 ' + r.address + '</div>' : '') +
           (r.signature ? '<div class="popup-tips">🍽️ 招牌：' + r.signature + '</div>' : '') +
           '</div>';
-        const rMarker = L.marker([r.location.latitude, r.location.longitude], { icon: rIcon, interactive: true }).bindPopup(rPopup, { maxWidth: 260 });
+        const [rLat2, rLng2] = toTileCoords(r.location.latitude, r.location.longitude);
+        const rMarker = L.marker([rLat2, rLng2], { icon: rIcon, interactive: true }).bindPopup(rPopup, { maxWidth: 260 });
         rMarker.addTo(pageMapInstance);
         pageMapLayers.push(rMarker);
         allCoords.push([r.location.latitude, r.location.longitude]);
@@ -1490,7 +1514,8 @@ async function renderTripAnimated(tripPlan) {
         (day.hotel.address ? '<div class="popup-city">📍 ' + day.hotel.address + '</div>' : '') +
         (day.hotel.priceRange ? '<div class="popup-tips">💰 ' + day.hotel.priceRange + '</div>' : '') +
         '</div>';
-      const hMarker = L.marker([hotelLoc.latitude, hotelLoc.longitude], { icon: hIcon, interactive: true }).bindPopup(hPopup, { maxWidth: 260 });
+      const [hLat2, hLng2] = toTileCoords(hotelLoc.latitude, hotelLoc.longitude);
+      const hMarker = L.marker([hLat2, hLng2], { icon: hIcon, interactive: true }).bindPopup(hPopup, { maxWidth: 260 });
       hMarker.addTo(pageMapInstance);
       pageMapLayers.push(hMarker);
       allCoords.push([hotelLoc.latitude, hotelLoc.longitude]);
@@ -1552,7 +1577,8 @@ export function addAttractionPreview(attractions, city) {
       html: '<div class="attraction-marker" style="opacity:0.5;animation:markerPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;"></div>',
       iconSize: [32, 32], iconAnchor: [16, 16],
     });
-    const marker = L.marker([loc.latitude, loc.longitude], { icon, interactive: true }).addTo(pageMapInstance);
+    const [searchLat, searchLng] = toTileCoords(loc.latitude, loc.longitude);
+    const marker = L.marker([searchLat, searchLng], { icon, interactive: true }).addTo(pageMapInstance);
     pageMapLayers.push(marker);
     _previewLayers.push(marker);
   }
@@ -1582,7 +1608,8 @@ export function addWeatherOverlay(weatherInfo) {
       html: '<div class="weather-badge">' + (weatherIcons[w.dayWeather] || '\ud83c\udf24\ufe0f') + ' ' + w.dayTemp + '\u00b0</div>',
       iconSize: [80, 28], iconAnchor: [40, 14],
     });
-    const marker = L.marker(center, { icon, interactive: false, zIndexOffset: -100 }).addTo(pageMapInstance);
+    const [weatherLat, weatherLng] = toTileCoords(center[0], center[1]);
+    const marker = L.marker([weatherLat, weatherLng], { icon, interactive: false, zIndexOffset: -100 }).addTo(pageMapInstance);
     pageMapLayers.push(marker);
   }
 }
@@ -1600,7 +1627,8 @@ export function addGhostMarker(name, lat, lng) {
     html: '<div class="ghost-marker"><div class="ghost-pulse"></div></div>',
     iconSize: [24, 24], iconAnchor: [12, 12],
   });
-  const marker = L.marker([lat, lng], { icon, interactive: false, zIndexOffset: 500 }).addTo(pageMapInstance);
+  const [ghostLat, ghostLng] = toTileCoords(lat, lng);
+  const marker = L.marker([ghostLat, ghostLng], { icon, interactive: false, zIndexOffset: 500 }).addTo(pageMapInstance);
   pageMapLayers.push(marker);
   _ghostLayers.push({ marker, name, lat, lng });
 }
@@ -1614,7 +1642,8 @@ function addLabeledGhostMarker(name, lat, lng, city) {
     html: `<div class="ghost-marker-labeled"><div class="ghost-pulse"></div><div class="ghost-label">${name}</div></div>`,
     iconSize: [100, 40], iconAnchor: [50, 20],
   });
-  const marker = L.marker([lat, lng], { icon, interactive: true, zIndexOffset: 500 })
+  const [ghostLat2, ghostLng2] = toTileCoords(lat, lng);
+  const marker = L.marker([ghostLat2, ghostLng2], { icon, interactive: true, zIndexOffset: 500 })
     .bindPopup(`<div class="map-popup"><div class="popup-title">${name}</div><div class="popup-city">📍 ${city || 'AI推荐地点'}</div></div>`, { maxWidth: 200 })
     .addTo(pageMapInstance);
   pageMapLayers.push(marker);
@@ -1910,17 +1939,17 @@ function renderRoutePanel(data) {
   const body = document.getElementById('route-panel-body');
   if (!body) return;
   body.innerHTML = data.map(day => '<div class="route-day-group">' +
-    '<div class="route-day-label" data-day="' + day.dayNum + '">Day ' + day.dayNum + ' · ' + day.city + '</div>' +
-    day.attractions.map(attr => '<div class="route-attr-item" data-lat="' + (attr.lat||'') + '" data-lng="' + (attr.lng||'') + '" data-name="' + (attr.name||'') + '">' +
-      '<span class="attr-dot"></span><span>' + attr.name + '</span>' +
+    '<div class="route-day-label" data-day="' + day.dayNum + '">Day ' + day.dayNum + ' · ' + escapeHtml(day.city) + '</div>' +
+    day.attractions.map(attr => '<div class="route-attr-item" data-lat="' + (attr.lat||'') + '" data-lng="' + (attr.lng||'') + '" data-name="' + escapeHtml(attr.name||'') + '">' +
+      '<span class="attr-dot"></span><span>' + escapeHtml(attr.name) + '</span>' +
       (attr.duration ? '<span class="attr-duration">' + attr.duration + 'min</span>' : '') +
     '</div>').join('') +
     (day.meals && day.meals.length > 0 ? '<div class="route-meals-group">' + day.meals.map(meal => {
       const r = meal.restaurant;
       if (r) {
-        return '<div class="route-meal-item" data-lat="' + (r.location?.latitude||'') + '" data-lng="' + (r.location?.longitude||'') + '" data-name="' + (r.name||'') + '">' +
+        return '<div class="route-meal-item" data-lat="' + (r.location?.latitude||'') + '" data-lng="' + (r.location?.longitude||'') + '" data-name="' + escapeHtml(r.name||'') + '">' +
           '<span class="meal-icon">' + (meal.type === 'breakfast' ? '🍳' : meal.type === 'lunch' ? '🍜' : meal.type === 'dinner' ? '🍽️' : '🧋') + '</span>' +
-          '<span class="meal-name">' + r.name + '</span>' +
+          '<span class="meal-name">' + escapeHtml(r.name) + '</span>' +
           (r.rating ? '<span class="meal-rating">⭐ ' + r.rating + '</span>' : '') +
           (r.averageCost ? '<span class="meal-cost">¥' + r.averageCost + '/人</span>' : '') +
           (r.walkMinutes ? '<span class="meal-walk">🚶 ' + r.walkMinutes + 'min</span>' : '') +
@@ -1928,7 +1957,7 @@ function renderRoutePanel(data) {
       }
       return '<div class="route-meal-item plain">' +
         '<span class="meal-icon">' + (meal.type === 'breakfast' ? '🍳' : meal.type === 'lunch' ? '🍜' : meal.type === 'dinner' ? '🍽️' : '🧋') + '</span>' +
-        '<span class="meal-name">' + meal.name + '</span>' +
+        '<span class="meal-name">' + escapeHtml(meal.name) + '</span>' +
       '</div>';
     }).join('') + '</div>' : '') +
   '</div>').join('');
