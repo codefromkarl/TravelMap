@@ -42,6 +42,7 @@ import {
   currentLang, setCurrentLang, showToast, currentTravelers, currentPreferences,
 } from './context.js?v=4';
 import { feedback } from './feedback.js?v=4';
+import { authOverlay } from './auth.js?v=4';
 import { appState } from './app-state.js?v=4';
 import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js?v=4';
 import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=4';
@@ -176,7 +177,16 @@ export async function initApp() {
         resetToolbarAfterError();
         const errMsg = lastAssistant.errorMessage;
         console.error("[ChatInit] Agent run failure:", errMsg);
-        feedback.error(errMsg, retryLastMessage);
+        // 401/403 认证错误 → 显示登录弹窗，不显示原始错误
+        if (errMsg.includes('401') || errMsg.includes('AUTH_REQUIRED') || errMsg.includes('Login required')) {
+          authOverlay?.classList.add('visible');
+          feedback.done();
+        } else if (errMsg.includes('QUOTA') || errMsg.includes('quota') || errMsg.includes('次数已用完') || errMsg.includes('免费体验')) {
+          authOverlay?.classList.add('visible');
+          feedback.quotaExceeded();
+        } else {
+          feedback.error(errMsg, retryLastMessage);
+        }
         return;
       }
 
@@ -290,8 +300,11 @@ export async function initApp() {
       console.error("[ChatInit] Agent error:", event);
       const raw = event.error?.message || event.payload?.error?.message || "";
       const errMsg = String(raw);
-      if (errMsg.includes("QUOTA") || errMsg.includes("quota") || errMsg.includes("次数已用完") || errMsg.includes("免费体验")) {
+      if (errMsg.includes('401') || errMsg.includes('AUTH_REQUIRED') || errMsg.includes('Login required')) {
+        authOverlay?.classList.add('visible');
+      } else if (errMsg.includes("QUOTA") || errMsg.includes("quota") || errMsg.includes("次数已用完") || errMsg.includes("免费体验")) {
         feedback.quotaExceeded();
+        authOverlay?.classList.add('visible');
       } else if (errMsg) {
         feedback.error(errMsg, retryLastMessage);
       } else {
