@@ -35,6 +35,14 @@ const SENSITIVE_KEYS = new Set([
   "Authorization",
 ]);
 
+/** 敏感字段的快速检测 — 小写 Set 用于快速查找 */
+const SENSITIVE_KEYS_LOWER = new Set(
+  Array.from(SENSITIVE_KEYS).map((k) => k.toLowerCase()),
+);
+
+/** 最大递归深度 — 防止深层嵌套对象的性能问题 */
+const MAX_REDACT_DEPTH = 3;
+
 /** 日志配置 */
 export interface LoggerConfig {
   /** 最低输出级别，低于此级别的日志被忽略 */
@@ -63,21 +71,68 @@ function getLevelFromEnv(): LogLevel {
 }
 
 function shouldRedact(key: string): boolean {
-  const lower = key.toLowerCase();
-  return SENSITIVE_KEYS.has(key) || SENSITIVE_KEYS.has(lower);
+  // 快速路径：精确匹配（避免 toLowerCase）
+  if (SENSITIVE_KEYS.has(key)) return true;
+  // 慢路径：大小写不敏感匹配
+  return SENSITIVE_KEYS_LOWER.has(key.toLowerCase());
 }
 
-/** 递归脱敏对象中的敏感字段 */
-export function redact(obj: unknown): Record<string, unknown> | unknown {
+/**
+ * 递归脱敏对象中的敏感字段
+ *
+ * 优化策略：
+ * 1. 限制递归深度（MAX_REDACT_DEPTH = 3）
+ * 2. 快速路径：如果没有需要脱敏的字段，直接返回原对象
+ * 3. 避免不必要的对象创建
+ */
+export function redact(obj: unknown, depth = 0): Record<string, unknown> | unknown {
   if (obj === null || typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) return obj.map(redact);
 
+  // 超过最大深度，返回占位符避免无限递归
+  if (depth >= MAX_REDACT_DEPTH) {
+    return Array.isArray(obj) ? "[Array]" : "[Object]";
+  }
+
+  if (Array.isArray(obj)) {
+    // 快速路径：检查数组是否包含需要脱敏的对象
+    let needsRedact = false;
+    for (const item of obj) {
+      if (typeof item === "object" && item !== null) {
+        needsRedact = true;
+        break;
+      }
+    }
+    if (!needsRedact) return obj;
+    return obj.map((item) => redact(item, depth + 1));
+  }
+
+  const record = obj as Record<string, unknown>;
+  const keys = Object.keys(record);
+
+  // 快速路径：检查是否包含敏感字段或嵌套对象
+  let hasSensitive = false;
+  let hasNested = false;
+  for (const k of keys) {
+    if (shouldRedact(k)) {
+      hasSensitive = true;
+      break;
+    }
+    if (typeof record[k] === "object" && record[k] !== null) {
+      hasNested = true;
+    }
+  }
+
+  // 如果没有敏感字段且没有嵌套对象，直接返回原对象
+  if (!hasSensitive && !hasNested) return obj;
+
+  // 需要创建新对象进行脱敏
   const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+  for (const k of keys) {
+    const v = record[k];
     if (shouldRedact(k)) {
       result[k] = typeof v === "string" && v.length > 0 ? "***" : v;
     } else if (typeof v === "object" && v !== null) {
-      result[k] = redact(v);
+      result[k] = redact(v, depth + 1);
     } else {
       result[k] = v;
     }

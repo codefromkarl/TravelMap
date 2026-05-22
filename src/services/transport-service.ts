@@ -22,6 +22,7 @@ export function formatTransportPrice(price: number, source: string): string {
  */
 
 import type { TransportOption, TripPlan } from "../types/trip.js";
+import { LRUCache } from "lru-cache";
 import { config } from "./config.js";
 import { dualGeocode } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
@@ -32,12 +33,14 @@ import { isTrvlAvailable, searchFlights } from "./trvl-service.js";
 
 interface CacheEntry {
   result: TransportOption[];
-  timestamp: number;
 }
 
-const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 小时
-const CACHE_MAX_SIZE = 300;
+const cache = new LRUCache<string, CacheEntry>({
+  max: 300,
+  ttl: 2 * 60 * 60 * 1000, // 2 小时
+  allowStale: false,
+  ttlAutopurge: true,
+});
 
 function getCacheKey(
   originCity: string,
@@ -46,25 +49,6 @@ function getCacheKey(
   transportType: string,
 ): string {
   return `${originCity}:${destCity}:${date}:${transportType}`;
-}
-
-function getCached(key: string): TransportOption[] | undefined {
-  const entry = cache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    cache.delete(key);
-    return undefined;
-  }
-  return entry.result;
-}
-
-function setCache(key: string, result: TransportOption[]): void {
-  if (cache.size >= CACHE_MAX_SIZE) {
-    // 删除最旧的条目
-    const firstKey = cache.keys().next().value;
-    if (firstKey !== undefined) cache.delete(firstKey);
-  }
-  cache.set(key, { result, timestamp: Date.now() });
 }
 
 /** 清除缓存（测试用） */
@@ -311,8 +295,8 @@ export async function searchIntercityTransport(
 
   // 查缓存
   const cacheKey = getCacheKey(originCity, destCity, date, transportType);
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached.result;
 
   const options: TransportOption[] = [];
   let anyRealSource = false;
@@ -354,7 +338,7 @@ export async function searchIntercityTransport(
   }
 
   // 写缓存
-  setCache(cacheKey, options);
+  cache.set(cacheKey, { result: options });
 
   return options;
 }

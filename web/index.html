@@ -60,7 +60,7 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="./styles/main.css?v=7" />
+  <link rel="stylesheet" href="./styles/main.css?v=10" />
   <link rel="stylesheet" href="./pi-web-ui.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -290,7 +290,7 @@
       </div>
     </div>
     <!-- 分享预览弹窗 -->
-    <div id="share-modal-overlay">
+    <div id="share-modal-overlay" hidden>
       <div id="share-modal">
         <div id="share-modal-header">
           <h2 data-i18n="shareModalTitle">📸 分享预览</h2>
@@ -305,10 +305,7 @@
             <p style="margin-top:8px;color:var(--color-text-secondary);font-size:13px" data-i18n="shareQRHint">扫码查看完整行程</p>
           </div>
         </div>
-        <div id="share-modal-footer" style="display:none">
-          <button class="share-action-btn" id="btn-download-share-image" data-i18n="shareDownload">📥 下载图片</button>
-          <button class="share-action-btn secondary" id="btn-close-share-modal-2" data-i18n="shareClose">关闭</button>
-        </div>
+        <div id="share-modal-footer"></div>
       </div>
     </div>
 

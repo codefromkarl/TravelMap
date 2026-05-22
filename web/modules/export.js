@@ -1,15 +1,15 @@
-import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js?v=3';
-import { I18N } from './i18n.js';
+import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js?v=4';
+import { I18N } from './i18n.js?v=4';
 import {
   generateShareImage, generateShareLink,
   downloadImage, loadSharedTripFromHash
-} from './share.js';
+} from './share.js?v=4';
 
 // QR 码生成器懒加载
 let _generateQRCode = null;
 async function getQRCodeGenerator() {
   if (!_generateQRCode) {
-    const mod = await import('./share.js');
+    const mod = await import('./share.js?v=4');
     _generateQRCode = mod.generateQRCode;
   }
   return _generateQRCode;
@@ -146,9 +146,21 @@ async function openShareModal(type) {
   const qrContainer = document.getElementById('share-qr-container');
   const imgEl = document.getElementById('share-preview-img');
   const qrEl = document.getElementById('share-qr-img');
-  const downloadBtn = document.getElementById('btn-download-share-image');
 
   if (!overlay) return;
+
+  // 确保 footer 存在（动态创建，避免首屏渲染）
+  let footer = document.getElementById('share-modal-footer');
+  if (!footer) {
+    footer = document.createElement('div');
+    footer.id = 'share-modal-footer';
+    footer.style.display = 'flex';
+    footer.innerHTML = '<button class="share-action-btn" id="btn-download-share-image" data-i18n="shareDownload">📥 下载图片</button><button class="share-action-btn secondary" id="btn-close-share-modal-2" data-i18n="shareClose">关闭</button>';
+    overlay.querySelector('#share-modal').appendChild(footer);
+    // 重新绑定关闭按钮事件
+    document.getElementById('btn-close-share-modal-2')?.addEventListener('click', closeShareModal);
+  }
+  const downloadBtn = document.getElementById('btn-download-share-image');
 
   // Reset
   imgContainer.style.display = 'none';
@@ -185,6 +197,10 @@ async function openShareModal(type) {
         downloadImage(dataUrl, `旅行计划-${tripPlan.city || 'travel'}.png`);
         showToast(dict.shareImageDownloaded || '✅ 图片已下载', 2500, 'success');
       };
+      // 显示 footer
+      const footer = document.getElementById('share-modal-footer');
+      if (footer) footer.style.display = 'flex';
+      overlay.removeAttribute('hidden');
       overlay.classList.add('open');
       showToast(dict.shareImageGenerated || '✅ 分享图片已生成', 2500, 'success');
     }
@@ -236,7 +252,13 @@ async function openShareModal(type) {
 
 function closeShareModal() {
   const overlay = document.getElementById('share-modal-overlay');
-  if (overlay) overlay.classList.remove('open');
+  if (overlay) {
+    overlay.classList.remove('open');
+    overlay.setAttribute('hidden', '');
+    // 移除动态创建的 footer
+    const footer = document.getElementById('share-modal-footer');
+    if (footer) footer.remove();
+  }
 }
 
 // 分享图片

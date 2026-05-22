@@ -42,29 +42,83 @@ function extractText(content: unknown): string {
   return "";
 }
 
-/** 粗略估算字符数对应的 token 数
+/** Token 估算结果缓存 — 避免重复计算 */
+const tokenCache = new Map<string, number>();
+const TOKEN_CACHE_MAX = 500;
+
+/**
+ * 粗略估算字符数对应的 token 数
  *
- * 改进策略：
- * - JSON 结构（括号/引号/冒号）按 6 字符/token 估算（结构开销大）
- * - 中文文本按 2 字符/token
- * - 英文文本按 4 字符/token
+ * 优化策略：
+ * 1. 缓存结果 — 同一文本内容只计算一次
+ * 2. 长文本采样 — 超过 1000 字符时只检查前 1000 字符，然后按比例放大
+ * 3. 单次遍历统计 — 合并 JSON 结构和中文字符统计
  */
 export function estimateTokens(text: string): number {
   if (text.length === 0) return 0;
 
-  // 统计 JSON 结构字符数量
-  const jsonStructChars = (text.match(/[{}[\]":,]/g) ?? []).length;
+  // 检查缓存
+  const cached = tokenCache.get(text);
+  if (cached !== undefined) return cached;
 
-  // 中文字符数量
-  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) ?? []).length;
+  // 长文本采样优化
+  const SAMPLE_SIZE = 1000;
+  const isSampled = text.length > SAMPLE_SIZE;
+  const sampleText = isSampled ? text.slice(0, SAMPLE_SIZE) : text;
+
+  // 单次遍历统计：JSON 结构字符 + 中文字符
+  let jsonStructChars = 0;
+  let chineseChars = 0;
+
+  for (let i = 0; i < sampleText.length; i++) {
+    const char = sampleText[i];
+    const code = char.charCodeAt(0);
+
+    // JSON 结构字符: {}[]":,
+    if (
+      code === 0x7b || // {
+      code === 0x7d || // }
+      code === 0x5b || // [
+      code === 0x5d || // ]
+      code === 0x22 || // "
+      code === 0x3a || // :
+      code === 0x2c // ,
+    ) {
+      jsonStructChars++;
+    }
+    // 中文字符范围: 0x4e00-0x9fff
+    else if (code >= 0x4e00 && code <= 0x9fff) {
+      chineseChars++;
+    }
+  }
 
   // 混合估算：JSON 结构按 /6，中文按 /2，其余按 /4
   const jsonTokens = Math.ceil(jsonStructChars / 6);
   const cnTokens = Math.ceil(chineseChars / 2);
-  const restChars = text.length - jsonStructChars - chineseChars;
+  const restChars = sampleText.length - jsonStructChars - chineseChars;
   const restTokens = Math.ceil(Math.max(restChars, 0) / 4);
 
-  return jsonTokens + cnTokens + restTokens;
+  let result = jsonTokens + cnTokens + restTokens;
+
+  // 如果是采样，按比例放大
+  if (isSampled) {
+    result = Math.round((result * text.length) / SAMPLE_SIZE);
+  }
+
+  // 缓存结果（限制缓存大小）
+  if (tokenCache.size >= TOKEN_CACHE_MAX) {
+    // 删除最早的条目
+    const firstKey = tokenCache.keys().next().value;
+    if (firstKey) tokenCache.delete(firstKey);
+  }
+  tokenCache.set(text, result);
+
+  return result;
+}
+
+/** 清除 token 估算缓存（测试用） */
+export function clearTokenCache(): void {
+  tokenCache.clear();
 }
 
 // ─── 规则摘要 ──────────────────────────────────────────────

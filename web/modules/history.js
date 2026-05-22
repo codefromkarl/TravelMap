@@ -1,5 +1,5 @@
-import { agent, currentTripId, setCurrentTripId, showToast } from './context.js?v=3';
-import { listTrips, loadTripById, deleteTripById } from './db.js';
+import { agent, currentTripId, setCurrentTripId, showToast } from './context.js?v=4';
+import { listTrips, loadTripById, deleteTripById } from './db.js?v=4';
 
 // ─── 格式化日期 ────────────────────────────────────────
 function formatDate(iso) {
@@ -97,7 +97,7 @@ export async function renderHistory() {
           window._lastTripPlan = trip.tripPlan;
           // 校验坐标完整性
           try {
-            const { validateAndWarn } = await import('./tools/validate-trip.js');
+            const { validateAndWarn } = await import('./tools/validate-trip.js?v=4');
             const result = validateAndWarn(trip.tripPlan);
             if (result.hasIssues) {
               showToast('行程数据不完整：' + result.missingCoords.length + ' 个景点缺少坐标', 5000, 'warning');
@@ -112,15 +112,37 @@ export async function renderHistory() {
         }
 
         // 恢复对话历史
-        if (trip.messages && Array.isArray(trip.messages)) {
+        if (trip.messages && Array.isArray(trip.messages) && trip.messages.length > 0) {
           agent.state.messages = trip.messages.map(m => ({
             role: m.role,
-            content: m.content,
+            // assistant 消息 content 必须是数组格式（pi-agent-core 要求）
+            content: m.role === "assistant" && typeof m.content === "string"
+              ? [{ type: "text", text: m.content }]
+              : m.content,
             timestamp: m.timestamp,
           }));
+          // 直接更新 message-list 的 messages 属性（绕过 Lit 绑定问题）
+          setTimeout(() => {
+            const ai = document.querySelector('agent-interface');
+            const ml = ai?.querySelector('message-list');
+            if (ml && ai?.session) {
+              ml.messages = [...ai.session.state.messages];
+              ml.requestUpdate();
+            }
+          }, 100);
         }
 
         setCurrentTripId(trip.id);
+
+        // 恢复 UI 状态
+        document.getElementById('map-chat-welcome')?.style.setProperty('display', 'none');
+        if (trip.tripPlan || trip.markdown) {
+          document.getElementById('export-toolbar')?.classList.add('visible');
+          ['btn-export-md', 'btn-export-pdf', 'btn-share-image', 'btn-share-link-new', 'btn-share-qr', 'btn-map', 'btn-tts', 'btn-poster', 'btn-voice-companion'].forEach(id => {
+            document.getElementById(id)?.classList.remove('disabled-ghost');
+          });
+        }
+
         showToast(`已恢复：${trip.title}`, 2500, 'success');
         document.getElementById("history-panel")?.classList.remove("open");
         document.getElementById("overlay")?.classList.remove("visible");
@@ -144,14 +166,16 @@ export async function renderHistory() {
 window._renderHistory = renderHistory;
 
 // ─── 历史按钮事件 ─────────────────────────────────────
-document.getElementById("btn-history")?.addEventListener("click", () => {
+function toggleHistoryPanel() {
   const { activePanel, openPanel, closePanel } = window._panels || {};
   if (activePanel === "history-panel") {
     closePanel?.("history-panel");
   } else {
     openPanel?.("history-panel");
   }
-});
+}
+document.getElementById("btn-history")?.addEventListener("click", toggleHistoryPanel);
+document.getElementById("btn-history-map")?.addEventListener("click", toggleHistoryPanel);
 
 document.getElementById("btn-close-history")?.addEventListener("click", () => {
   const { closePanel } = window._panels || {};

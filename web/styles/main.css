@@ -5,6 +5,10 @@
     #share-modal-overlay.open {
       display: flex !important;
     }
+    /* 覆盖 hidden 属性 */
+    #share-modal-overlay.open[hidden] {
+      display: flex !important;
+    }
 
     html, body { height: 100%; font-family: var(--font-sans); }
     body { background: var(--color-bg-base); color: var(--color-text-primary); }
@@ -198,82 +202,56 @@
     }
 
     /* ── 行程内容排版优化 ────────────────────────── */
-    assistant-message h1,
-    assistant-message h2,
-    assistant-message h3,
-    markdown-block h1,
-    markdown-block h2,
-    markdown-block h3 {
+    /* containment: 限制样式重算范围到消息组件内部 */
+    assistant-message,
+    user-message {
+      contain: content;
+    }
+
+    /* 用 assistant-message 统一选中（markdown-block 在其内部） */
+    assistant-message h1 { font-size: 1.3em; font-weight: 700; }
+    assistant-message h2 { font-size: 1.15em; font-weight: 600; }
+    assistant-message h3 { font-size: 1.05em; font-weight: 600; }
+    assistant-message :is(h1, h2, h3) {
       line-height: 1.4;
       margin-top: 1.2em;
       margin-bottom: 0.5em;
     }
-    assistant-message h1:first-child,
-    assistant-message h2:first-child,
-    assistant-message h3:first-child,
-    markdown-block h1:first-child,
-    markdown-block h2:first-child,
-    markdown-block h3:first-child {
+    assistant-message :is(h1, h2, h3):first-child {
       margin-top: 0;
     }
-    assistant-message h1,
-    markdown-block h1 {
-      font-size: 1.3em;
-      font-weight: 700;
-    }
-    assistant-message h2,
-    markdown-block h2 {
-      font-size: 1.15em;
-      font-weight: 600;
-    }
-    assistant-message h3,
-    markdown-block h3 {
-      font-size: 1.05em;
-      font-weight: 600;
-    }
-    assistant-message p,
-    markdown-block p {
+    assistant-message p {
       margin-top: 0.5em;
       margin-bottom: 0.5em;
       line-height: 1.7;
     }
-    assistant-message ul,
-    assistant-message ol,
-    markdown-block ul,
-    markdown-block ol {
+    assistant-message :is(ul, ol) {
       padding-left: 1.5em;
       margin-top: 0.4em;
       margin-bottom: 0.4em;
     }
-    assistant-message li,
-    markdown-block li {
+    assistant-message li {
       line-height: 1.7;
       margin-top: 0.25em;
       margin-bottom: 0.25em;
     }
-    assistant-message table,
-    markdown-block table {
+    assistant-message table {
       font-size: 13px;
       margin-top: 0.6em;
       margin-bottom: 0.6em;
       border-collapse: collapse;
       width: 100%;
     }
-    assistant-message th,
-    assistant-message td,
-    markdown-block th,
-    markdown-block td {
+    assistant-message :is(th, td) {
       padding: 6px 10px;
       border: 1px solid var(--color-border-subtle, #e5e7eb);
       text-align: left;
     }
-    assistant-message th,
-    markdown-block th {
+    assistant-message th {
       background: var(--color-bg-elevated, #f3f4f6);
       font-weight: 600;
     }
-    assistant-message blockquote,
-    markdown-block blockquote {
+    assistant-message blockquote {
       margin-top: 0.6em;
       margin-bottom: 0.6em;
       padding-left: 12px;

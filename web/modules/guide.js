@@ -7,7 +7,7 @@
  * - 调用 TTS 播放讲解文本
  */
 
-import { speak, stop as stopTTS, isTTSSupported } from './tts.js';
+import { speak, stop as stopTTS, isTTSSupported } from './tts.js?v=4';
 
 // ─── 常量 ──────────────────────────────────────────────
 

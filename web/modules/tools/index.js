@@ -1,14 +1,14 @@
 // ─── 工具聚合 ──────────────────────────────────────────
 // 所有工具统一从这里导出
 
-import { searchAttractionsTool } from './attractions.js';
-import { searchWeatherTool } from './weather.js';
-import { searchHotelsTool } from './hotels.js';
-import { calculateBudgetTool } from './budget.js';
-import { generateActionLinksTool } from './action-links.js';
-import { companionQATool } from './companion.js';
-import { planMultiCityTool } from './multi-city.js';
-import { enrichSupplyDetailsTool } from './supply-enrich.js';
+import { searchAttractionsTool } from './attractions.js?v=4';
+import { searchWeatherTool } from './weather.js?v=4';
+import { searchHotelsTool } from './hotels.js?v=4';
+import { calculateBudgetTool } from './budget.js?v=4';
+import { generateActionLinksTool } from './action-links.js?v=4';
+import { companionQATool } from './companion.js?v=4';
+import { planMultiCityTool } from './multi-city.js?v=4';
+import { enrichSupplyDetailsTool } from './supply-enrich.js?v=4';
 
 export {
   searchAttractionsTool,

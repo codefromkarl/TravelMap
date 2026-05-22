@@ -2,10 +2,10 @@
  * 应用配置统一入口
  *
  * 优先级：config.local.js（不入库） > 内置默认值
- * 使用方法：import { config, resolveApiKey } from './config.js';
+ * 使用方法：import { config, resolveApiKey } from './config.js?v=4';
  */
 
-import { isProxyMode } from './context.js?v=3';
+import { isProxyMode } from './context.js?v=4';
 
 const defaults = {
   deepseekLocal: {
@@ -15,10 +15,9 @@ const defaults = {
   },
 };
 
-// 同步加载本地配置（config.local.js 是静态 ES Module，浏览器会缓存）
+// 加载本地配置（config.local.js 不入库，仅本地开发用）
 let localConfig = {};
 try {
-  // 使用动态 import 但立即同步处理 — 模块加载是并行的，在 initApp 之前已完成
   const mod = await import('../config.local.js');
   localConfig = mod.default || {};
 } catch {
@@ -37,14 +36,13 @@ export const config = {
 
 /**
  * 获取当前应使用的 API Key
- * 优先级：localStorage 用户配置 > config.local.js > 代理模式
+ * 生产环境统一走后端代理，前端不接触 API Key
  */
 export function resolveApiKey(provider) {
+  // 代理模式下由后端提供 Key
   if (isProxyMode) return 'proxy';
+  // 本地开发：用户可在 localStorage 自行配置
   const stored = localStorage.getItem(`api-key-${provider}`);
   if (stored) return stored;
-  if (provider === 'deepseek' && !localStorage.getItem('travel-agent-provider')) {
-    return config.deepseekLocal.apiKey || undefined;
-  }
   return undefined;
 }

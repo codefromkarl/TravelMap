@@ -1,6 +1,10 @@
-/config.local.js
-  X-Robots-Tag: noindex
-  Cache-Control: no-store
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(self), geolocation=(self), payment=()
+  X-XSS-Protection: 1; mode=block
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https: *.tile.openstreetmap.org *.tile.opentopomap.org server.arcgisonline.com *.is.autonavi.com webapi.amap.com; font-src 'self' data: https://unpkg.com; connect-src 'self' https://travel.codefromkarl.xyz https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.deepseek.com https://openrouter.ai https://restapi.amap.com https://*.amap.com https://*.is.autonavi.com https://nominatim.openstreetmap.org https://unpkg.com https://cdn.sheetjs.com https://server.arcgisonline.com https://*.tile.openstreetmap.org https://*.tile.opentopomap.org; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
 
 /**
   Cache-Control: public, max-age=0, must-revalidate

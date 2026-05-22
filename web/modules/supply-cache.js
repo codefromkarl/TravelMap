@@ -5,4 +5,4 @@ export {
   saveSupplyPointsToCache,
   loadSupplyPointsFromCache,
   clearExpiredSupplyCache,
-} from './db.js';
+} from './db.js?v=4';

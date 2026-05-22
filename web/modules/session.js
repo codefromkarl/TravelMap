@@ -44,7 +44,10 @@ function restoreMessages(messages) {
 
   agent.state.messages = messages.map(m => ({
     role: m.role,
-    content: m.content,
+    // assistant 消息 content 必须是数组格式（pi-agent-core 要求）
+    content: m.role === "assistant" && typeof m.content === "string"
+      ? [{ type: "text", text: m.content }]
+      : m.content,
     timestamp: m.timestamp,
   }));
 

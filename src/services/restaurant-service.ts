@@ -8,6 +8,7 @@
  */
 
 import type { DayPlan, Location } from "../types/trip.js";
+import { LRUCache } from "lru-cache";
 import { config as appConfig } from "./config.js";
 import { gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
@@ -64,34 +65,17 @@ const WALK_SPEED_MPM = 5000 / 60;
 
 interface CacheEntry {
   restaurants: Restaurant[];
-  timestamp: number;
 }
 
-const CACHE_MAX = 500;
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 小时
-const cache = new Map<string, CacheEntry>();
+const cache = new LRUCache<string, CacheEntry>({
+  max: 500,
+  ttl: 4 * 60 * 60 * 1000, // 4 小时
+  allowStale: false,
+  ttlAutopurge: true,
+});
 
 function getCacheKey(location: Location, radius: number, mealType?: string): string {
   return `${location.latitude.toFixed(3)},${location.longitude.toFixed(3)}:${radius}:${mealType ?? "any"}`;
-}
-
-function getCached(key: string): Restaurant[] | undefined {
-  const entry = cache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    cache.delete(key);
-    return undefined;
-  }
-  return entry.restaurants;
-}
-
-function setCache(key: string, restaurants: Restaurant[]): void {
-  // LRU 淘汰
-  if (cache.size >= CACHE_MAX) {
-    const oldest = cache.keys().next().value;
-    if (oldest) cache.delete(oldest);
-  }
-  cache.set(key, { restaurants, timestamp: Date.now() });
 }
 
 /** 清除缓存（测试用） */
@@ -320,9 +304,9 @@ export async function searchNearbyRestaurants(
   const cacheKey = getCacheKey(params.location, radius, mealType);
 
   // 检查缓存
-  const cached = getCached(cacheKey);
+  const cached = cache.get(cacheKey);
   if (cached) {
-    return { restaurants: cached.slice(0, limit), source: cached[0]?.source ?? "mock" };
+    return { restaurants: cached.restaurants.slice(0, limit), source: cached.restaurants[0]?.source ?? "mock" };
   }
 
   const amapKey = appConfig.amapWebKey;
@@ -358,7 +342,7 @@ export async function searchNearbyRestaurants(
     }
 
     // 写入缓存
-    setCache(cacheKey, restaurants);
+    cache.set(cacheKey, { restaurants });
 
     return { restaurants: restaurants.slice(0, limit), source };
   } catch (err) {

@@ -104,22 +104,31 @@ export async function postProcessTripPlan(
 
 /** 为行程中的景点添加图片（需配置图片 API Key） */
 export async function enrichTripImages(tripPlan: TripPlan): Promise<TripPlan> {
-  const enriched = structuredClone(tripPlan);
+  // 优化：浅拷贝 + 按需深拷贝，避免 structuredClone 的性能开销
+  const enriched: TripPlan = { ...tripPlan, days: [...tripPlan.days] };
 
-  for (const day of enriched.days) {
-    for (const attr of day.attractions) {
+  for (let i = 0; i < enriched.days.length; i++) {
+    const day = enriched.days[i];
+    const newAttractions = [...day.attractions];
+
+    for (let j = 0; j < newAttractions.length; j++) {
+      const attr = newAttractions[j];
       if (!attr.images || attr.images.length === 0) {
         try {
-          attr.images = await getAttractionImages(
+          const images = await getAttractionImages(
             attr.nameZh || attr.name,
             day.city || enriched.city,
           );
+          // 只拷贝修改的 attraction
+          newAttractions[j] = { ...attr, images };
         } catch {
           // 图片丰富失败不阻塞行程
-          attr.images = [];
+          newAttractions[j] = { ...attr, images: [] };
         }
       }
     }
+
+    enriched.days[i] = { ...day, attractions: newAttractions };
   }
 
   return enriched;

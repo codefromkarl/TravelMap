@@ -1,6 +1,6 @@
-import { agent, chatPanel } from './context.js?v=3';
-import { getUserLocation, buildDiscoverPrompt } from './location.js';
-import { showToast } from './context.js?v=3';
+import { agent, chatPanel } from './context.js?v=4';
+import { getUserLocation, buildDiscoverPrompt } from './location.js?v=4';
+import { showToast } from './context.js?v=4';
 
 // ─── 欢迎状态 + 示例卡片 ──────────────────────────────
 export function initWelcome() {

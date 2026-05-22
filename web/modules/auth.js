@@ -1,8 +1,8 @@
-import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js?v=3';
-import { I18N } from './i18n.js';
-import { addTraceHeaders, extractTraceId } from './trace.js';
-import { createLogger } from './logger.js';
-import { traceAsync } from './perf-trace.js';
+import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js?v=4';
+import { I18N } from './i18n.js?v=4';
+import { addTraceHeaders, extractTraceId } from './trace.js?v=4';
+import { createLogger } from './logger.js?v=4';
+import { traceAsync } from './perf-trace.js?v=4';
 
 const logger = createLogger('auth');
 
@@ -81,15 +81,12 @@ document.getElementById('btn-logout')?.addEventListener('click', async () => {
 export async function detectProxyMode() {
   const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
   if (isLocal) return;
-  try {
-    const resp = await fetch(PROXY_BASE, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
-    if (resp.status === 405) {
-      setIsProxyMode(true);
-      console.log('[Proxy] Server-side proxy detected, using shared API');
-      installFetchProxy();
-      document.getElementById('connection-mode')?.style.setProperty('display', 'flex');
-    }
-  } catch {}
+
+  // 生产环境强制启用代理模式（API Key 由后端环境变量提供，前端不接触）
+  setIsProxyMode(true);
+  installFetchProxy();
+  document.getElementById('connection-mode')?.style.setProperty('display', 'flex');
+  console.log('[Proxy] Production mode: all LLM requests routed through backend');
 }
 
 // ─── Fetch 拦截器 ──────────────────────────────────────

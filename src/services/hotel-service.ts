@@ -8,6 +8,7 @@
  */
 
 import type { DayPlan, Location, TripPlan } from "../types/trip.js";
+import { LRUCache } from "lru-cache";
 import { config as appConfig } from "./config.js";
 import { dualGeocode, gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
@@ -96,36 +97,20 @@ const MAX_RESULTS = 10;
 
 interface CacheEntry {
   hotels: HotelSearchResult[];
-  timestamp: number;
 }
 
-const CACHE_MAX = 200;
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 小时
-const cache = new Map<string, CacheEntry>();
+const cache = new LRUCache<string, CacheEntry>({
+  max: 200,
+  ttl: 4 * 60 * 60 * 1000, // 4 小时
+  allowStale: false,
+  ttlAutopurge: true,
+});
 
 function getCacheKey(params: HotelSearchParams, radius: number): string {
   const loc = params.location
     ? `${params.location.latitude.toFixed(3)},${params.location.longitude.toFixed(3)}`
     : "geocode";
   return `${params.city}:${loc}:${radius}:${params.style ?? ""}:${params.budget ?? ""}`;
-}
-
-function getCached(key: string): HotelSearchResult[] | undefined {
-  const entry = cache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    cache.delete(key);
-    return undefined;
-  }
-  return entry.hotels;
-}
-
-function setCache(key: string, hotels: HotelSearchResult[]): void {
-  if (cache.size >= CACHE_MAX) {
-    const oldest = cache.keys().next().value;
-    if (oldest) cache.delete(oldest);
-  }
-  cache.set(key, { hotels, timestamp: Date.now() });
 }
 
 /** 清除缓存（测试用） */
@@ -398,11 +383,11 @@ export async function searchHotels(params: HotelSearchParams): Promise<HotelSear
 
   // 计算缓存 key
   const cacheKey = getCacheKey(params, radius);
-  const cached = getCached(cacheKey);
+  const cached = cache.get(cacheKey);
   if (cached) {
     return {
-      hotels: filterByBudget(cached.slice(0, MAX_RESULTS), budget),
-      source: cached[0]?.source ?? "mock",
+      hotels: filterByBudget(cached.hotels.slice(0, MAX_RESULTS), budget),
+      source: cached.hotels[0]?.source ?? "mock",
     };
   }
 
@@ -461,7 +446,7 @@ export async function searchHotels(params: HotelSearchParams): Promise<HotelSear
     const limited = hotels.slice(0, MAX_RESULTS);
 
     // 写入缓存（未过滤的完整列表）
-    setCache(cacheKey, hotels);
+    cache.set(cacheKey, { hotels });
 
     return { hotels: filterByBudget(limited, budget), source };
   } catch (err) {

@@ -27,8 +27,8 @@ PROJECT="travel-agent"
 BRANCH="main"
 DIR="web"
 EXCLUDE_FILES=(
-  "config.local.js"
   "config.local.example.js"
+  "_headers.bak"
 )
 
 if [[ "${1:-}" == "preview" ]]; then

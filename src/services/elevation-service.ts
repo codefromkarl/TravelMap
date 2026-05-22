@@ -10,6 +10,7 @@
  */
 
 import type { Location } from "../types/trip.js";
+import { LRUCache } from "lru-cache";
 import { fetchWithTimeout } from "./http-client.js";
 import { getLogger } from "./logger.js";
 
@@ -23,28 +24,18 @@ const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 天（地形数据基本不变�
 
 interface CacheEntry {
   elevation: number;
-  timestamp: number;
 }
 
-const elevationCache = new Map<string, CacheEntry>();
+const elevationCache = new LRUCache<string, CacheEntry>({
+  max: 5000, // 海拔数据变化小，可以缓存更多
+  ttl: 7 * 24 * 60 * 60 * 1000, // 7 天（地形数据基本不变）
+  allowStale: false,
+  ttlAutopurge: true,
+});
 
 function cacheKey(lat: number, lon: number): string {
   // 保留 4 位小数（约 11m 精度），减少缓存碎片
   return `${lat.toFixed(4)},${lon.toFixed(4)}`;
-}
-
-function getCached(lat: number, lon: number): number | undefined {
-  const key = cacheKey(lat, lon);
-  const entry = elevationCache.get(key);
-  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
-    return entry.elevation;
-  }
-  elevationCache.delete(key);
-  return undefined;
-}
-
-function setCached(lat: number, lon: number, elevation: number): void {
-  elevationCache.set(cacheKey(lat, lon), { elevation, timestamp: Date.now() });
 }
 
 /** 清除缓存（测试用） */
@@ -75,9 +66,9 @@ export async function queryElevations(locations: Location[]): Promise<ElevationR
   // 1. 先从缓存命中
   for (let i = 0; i < locations.length; i++) {
     const loc = locations[i];
-    const cached = getCached(loc.latitude, loc.longitude);
+    const cached = elevationCache.get(cacheKey(loc.latitude, loc.longitude));
     if (cached !== undefined) {
-      results[i] = { location: loc, elevation: cached };
+      results[i] = { location: loc, elevation: cached.elevation };
     } else {
       pendingIndices.push(i);
       pendingLocations.push(loc);
@@ -121,7 +112,7 @@ export async function queryElevations(locations: Location[]): Promise<ElevationR
         for (let j = 0; j < batch.length; j++) {
           const elevation = data.results[j].elevation;
           const loc = batch[j];
-          setCached(loc.latitude, loc.longitude, elevation);
+          elevationCache.set(cacheKey(loc.latitude, loc.longitude), { elevation });
           results[batchIndices[j]] = { location: loc, elevation };
         }
       } else {

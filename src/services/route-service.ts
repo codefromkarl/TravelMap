@@ -23,23 +23,38 @@ import type { UGCReview } from "./multi-source-service.js";
 import { getMockRoutes, getOfficialRoutes } from "./route-official-data.js";
 import { searchXhsNotes } from "./xhs-service.js";
 
-// ─── 缓存 ─────────────────────────────────────────────────
+// ─── 缓存 ──────────────────────────────────────────────────
+
+import { LRUCache } from "lru-cache";
 
 interface CacheEntry {
   result: RouteSearchResult;
   timestamp: number;
 }
 
+function cacheKey(params: RouteSearchParams): string {
+  return `${params.city}:${params.attractionName}:${params.preferences?.join(",") ?? ""}`;
+}
+
 const CACHE_TTL = 30 * 60 * 1000; // 30 分钟
-const routeCache = new Map<string, CacheEntry>();
+const routeCache = new LRUCache<string, CacheEntry>({
+  max: 500,
+  ttl: CACHE_TTL,
+  allowStale: false,
+  ttlAutopurge: true,
+});
 
 /** 清除路线缓存（测试用） */
 export function clearRouteCache(): void {
   routeCache.clear();
 }
 
-function cacheKey(params: RouteSearchParams): string {
-  return `${params.city}:${params.attractionName}:${params.preferences?.join(",") ?? ""}`;
+/** 获取缓存统计（监控用） */
+export function getRouteCacheStats(): { size: number; hitRate: number } {
+  return {
+    size: routeCache.size,
+    hitRate: 0, // LRU Cache v11 不内置 hitRate，需要自行统计
+  };
 }
 
 // ─── L2: 小红书路线提取 ───────────────────────────────────
