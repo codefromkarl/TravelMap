@@ -16,6 +16,8 @@ vi.mock('@earendil-works/pi-ai', () => ({
 vi.mock('../context.js', () => ({
   currentTravelers: null,
   CITY_CENTERS: { '西安': [34.3416, 108.9398], '北京': [39.9042, 116.4074], '上海': [31.2304, 121.4737] },
+  getAmapGeoKey: () => 'test-geo-key',
+  getAmapKey: () => 'test-amap-key',
 }));
 
 // Mock window/document for action-links tool
@@ -99,9 +101,22 @@ describe('search_hotels tool', () => {
   });
 
   it('execute returns hotel recommendations', async () => {
+    // Mock fetch for AMap API
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({
+        status: '1',
+        pois: [
+          { name: '杭州大酒店', address: '西湖区', type: '酒店', biz_ext: { cost: '300' } },
+        ],
+      }),
+    });
+
     const result = await tools.searchHotelsTool.execute('id', { city: '杭州' });
     expect(result.content[0].text).toContain('杭州');
     expect(result.content[0].text).toContain('酒店');
+
+    globalThis.fetch = originalFetch;
   });
 });
 

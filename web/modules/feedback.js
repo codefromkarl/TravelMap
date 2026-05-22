@@ -223,12 +223,12 @@ export const feedback = {
    */
   quotaExceeded() {
     const lang = _getLang();
-    const msg = lang === 'zh' ? '免费体验次数已用完，请登录后继续使用'
+    const msg = lang === 'zh' ? '免费体验次数已用完，登录后可获得更多次数'
       : lang === 'ja' ? '無料体験回数が終了しました'
       : 'Free trial exhausted, please log in';
     _showToast(msg, 6000, 'warning', {
       label: lang === 'zh' ? '去登录' : 'Log in',
-      onClick: () => document.getElementById('auth-overlay')?.style.setProperty('display', 'flex'),
+      onClick: () => document.getElementById('auth-overlay')?.classList.add('visible'),
     });
   },
 

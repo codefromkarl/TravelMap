@@ -1,8 +1,8 @@
-import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js?v=4';
-import { I18N } from './i18n.js?v=4';
-import { addTraceHeaders, extractTraceId } from './trace.js?v=4';
-import { createLogger } from './logger.js?v=4';
-import { traceAsync } from './perf-trace.js?v=4';
+import { currentUser, setCurrentUser, setQuotaRemaining, isProxyMode, setIsProxyMode, showToast, LLM_HOSTS, currentLang } from './context.js?v=5';
+import { I18N } from './i18n.js?v=5';
+import { addTraceHeaders, extractTraceId } from './trace.js?v=5';
+import { createLogger } from './logger.js?v=5';
+import { traceAsync } from './perf-trace.js?v=5';
 
 const logger = createLogger('auth');
 

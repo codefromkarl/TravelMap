@@ -52,10 +52,10 @@
   <script type="importmap">
     {
       "imports": {
-        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=4",
-        "@earendil-works/pi-ai": "./pi-bundle.js?v=4",
-        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=4",
-        "lit": "./pi-bundle.js?v=4",
+        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=5",
+        "@earendil-works/pi-ai": "./pi-bundle.js?v=5",
+        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=5",
+        "lit": "./pi-bundle.js?v=5",
         "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
       }
     }
@@ -599,8 +599,8 @@
 
   <!-- Trace Waterfall Panel -->
   <script type="module">
-    import { showPanel } from './modules/waterfall.js?v=4';
-    import { getCurrentTraceId } from './modules/trace.js?v=4';
+    import { showPanel } from './modules/waterfall.js?v=5';
+    import { getCurrentTraceId } from './modules/trace.js?v=5';
     document.getElementById('trace-id-display')?.addEventListener('click', () => {
       const traceId = getCurrentTraceId();
       if (traceId) {
@@ -671,21 +671,21 @@
     }
 
     // ─── 自初始化模块（执行 side-effect） ────────────────
-    import './modules/storage.js?v=4';
-    import './modules/panels.js?v=4';
-    import './modules/auth.js?v=4';
-    import './modules/travelers.js?v=4';
-    import './modules/export.js?v=4';
-    import './modules/history.js?v=4';
-    import './modules/map.js?v=4';
-    import './modules/weather-chart.js?v=4';
-    import './modules/model-config.js?v=4';
-    import { initPageMap } from './modules/map.js?v=4';
-    import { showToast } from './modules/context.js?v=4';
+    import './modules/storage.js?v=5';
+    import './modules/panels.js?v=5';
+    import './modules/auth.js?v=5';
+    import './modules/travelers.js?v=5';
+    import './modules/export.js?v=5';
+    import './modules/history.js?v=5';
+    import './modules/map.js?v=5';
+    import './modules/weather-chart.js?v=5';
+    import './modules/model-config.js?v=5';
+    import { initPageMap } from './modules/map.js?v=5';
+    import { showToast } from './modules/context.js?v=5';
 
     // ─── 启动应用 ────────────────────────────────────────
-    import { initApp } from './modules/chat-init.js?v=4';
-    import { detectProxyMode, checkAuth } from './modules/auth.js?v=4';
+    import { initApp } from './modules/chat-init.js?v=5';
+    import { detectProxyMode, checkAuth } from './modules/auth.js?v=5';
 
     // 代理模式检测 + 认证
     detectProxyMode();

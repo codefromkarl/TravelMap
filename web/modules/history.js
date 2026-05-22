@@ -1,5 +1,5 @@
-import { agent, currentTripId, setCurrentTripId, showToast } from './context.js?v=4';
-import { listTrips, loadTripById, deleteTripById } from './db.js?v=4';
+import { agent, currentTripId, setCurrentTripId, showToast } from './context.js?v=5';
+import { listTrips, loadTripById, deleteTripById } from './db.js?v=5';
 
 // ─── 格式化日期 ────────────────────────────────────────
 function formatDate(iso) {
@@ -97,7 +97,7 @@ export async function renderHistory() {
           window._lastTripPlan = trip.tripPlan;
           // 校验坐标完整性
           try {
-            const { validateAndWarn } = await import('./tools/validate-trip.js?v=4');
+            const { validateAndWarn } = await import('./tools/validate-trip.js?v=5');
             const result = validateAndWarn(trip.tripPlan);
             if (result.hasIssues) {
               showToast('行程数据不完整：' + result.missingCoords.length + ' 个景点缺少坐标', 5000, 'warning');
@@ -180,4 +180,5 @@ document.getElementById("btn-history-map")?.addEventListener("click", toggleHist
 document.getElementById("btn-close-history")?.addEventListener("click", () => {
   const { closePanel } = window._panels || {};
   closePanel?.("history-panel");
-});
+});// deploy test 2026年 05月 22日 星期五 10:51:56 CST
+// FORCE REDEPLOY 1779428250

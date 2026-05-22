@@ -12,8 +12,8 @@
  * - 打断/继续控制
  */
 
-import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=4';
-import { speak, stop as stopTTS, getState as getTTSState, isTTSSupported } from './tts.js?v=4';
+import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=5';
+import { speak, stop as stopTTS, getState as getTTSState, isTTSSupported } from './tts.js?v=5';
 
 // ─── 状态 ──────────────────────────────────────────────
 

@@ -9,8 +9,8 @@
  * 限制: 每次最多 100 个坐标点
  */
 
-import type { Location } from "../types/trip.js";
 import { LRUCache } from "lru-cache";
+import type { Location } from "../types/trip.js";
 import { fetchWithTimeout } from "./http-client.js";
 import { getLogger } from "./logger.js";
 

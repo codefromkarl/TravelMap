@@ -175,7 +175,7 @@ describe("consumeQuota", () => {
     expect(stored.usage.apiCalls).toBe(1);
   });
 
-  it("FREE_TIER.maxApiCalls 应为 20", () => {
-    expect(FREE_TIER.maxApiCalls).toBe(20);
+  it("FREE_TIER.maxApiCalls 应为 200", () => {
+    expect(FREE_TIER.maxApiCalls).toBe(200);
   });
 });

@@ -36,27 +36,27 @@ globalThis.fetch = function fixedCharsetFetch(input, init) {
 
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModel } from "@earendil-works/pi-ai";
-import { config, resolveApiKey } from './config.js?v=4';
+import { config, resolveApiKey } from './config.js?v=5';
 import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
   currentLang, setCurrentLang, showToast, currentTravelers, currentPreferences,
-} from './context.js?v=4';
-import { feedback } from './feedback.js?v=4';
-import { authOverlay } from './auth.js?v=4';
-import { appState } from './app-state.js?v=4';
-import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js?v=4';
-import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=4';
-import { ALL_TOOLS } from './tools/index.js?v=4';
-import { buildSystemPrompt } from './prompt.js?v=4';
-import { initWelcome } from './welcome.js?v=4';
-import { initPageMap } from './map.js?v=4';
-import { initPlaceholder, applyI18n } from './i18n.js?v=4';
-import { tryRestoreSession } from './session.js?v=4';
-import { initTravelersPanel } from './travelers.js?v=4';
-import { loadSharedTrip, renderSharedTrips } from './export.js?v=4';
-import { loadSharedTripFromHash } from './share.js?v=4';
-import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from './db.js?v=4';
-import { addTraceHeaders, extractTraceId } from './trace.js?v=4';
+} from './context.js?v=5';
+import { feedback } from './feedback.js?v=5';
+import { authOverlay } from './auth.js?v=5';
+import { appState } from './app-state.js?v=5';
+import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js?v=5';
+import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=5';
+import { ALL_TOOLS } from './tools/index.js?v=5';
+import { buildSystemPrompt } from './prompt.js?v=5';
+import { initWelcome } from './welcome.js?v=5';
+import { initPageMap } from './map.js?v=5';
+import { initPlaceholder, applyI18n } from './i18n.js?v=5';
+import { tryRestoreSession } from './session.js?v=5';
+import { initTravelersPanel } from './travelers.js?v=5';
+import { loadSharedTrip, renderSharedTrips } from './export.js?v=5';
+import { loadSharedTripFromHash } from './share.js?v=5';
+import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from './db.js?v=5';
+import { addTraceHeaders, extractTraceId } from './trace.js?v=5';
 
 export async function initApp() {
   // ─── 坐标迁移：修复历史记录中的坐标系问题 ───────────
@@ -124,7 +124,7 @@ export async function initApp() {
   setAgent(_agent);
 
   // 暴露 panels 供其他模块通过 window 调用
-  const panelModule = await import('./panels.js?v=4');
+  const panelModule = await import('./panels.js?v=5');
   window._panels = { openPanel: panelModule.openPanel, closePanel: panelModule.closePanel, closeAllPanels: panelModule.closeAllPanels };
 
   // ─── Agent 事件监听 ──────────────────────────────────
@@ -218,7 +218,7 @@ export async function initApp() {
             window._lastTripPlan = details.tripPlan;
             // 校验坐标完整性
             try {
-              const { validateAndWarn } = await import('./tools/validate-trip.js?v=4');
+              const { validateAndWarn } = await import('./tools/validate-trip.js?v=5');
               validateAndWarn(details.tripPlan);
             } catch (_) { /* 校验模块加载失败不阻塞 */ }
             document.getElementById("btn-map")?.classList.remove("disabled-ghost");
@@ -723,7 +723,7 @@ export async function initApp() {
 
       try {
         // 动态导入 share 模块
-        const { generateTripPoster, downloadImage } = await import('./share.js?v=4');
+        const { generateTripPoster, downloadImage } = await import('./share.js?v=5');
         const dataUrl = await generateTripPoster(tripPlan);
         if (dataUrl) {
           downloadImage(dataUrl, `旅图_${tripPlan.city || '攻略'}_${tripPlan.days?.length || 0}日游.png`);
@@ -742,7 +742,7 @@ export async function initApp() {
   const btnCompanion = document.getElementById('btn-voice-companion');
   if (btnCompanion) {
     // 动态导入语音伴游模块
-    import('./voice-companion.js?v=4').then(({ startVoiceCompanion, stopVoiceCompanion, getCompanionState, setTripPlanForCompanion }) => {
+    import('./voice-companion.js?v=5').then(({ startVoiceCompanion, stopVoiceCompanion, getCompanionState, setTripPlanForCompanion }) => {
       btnCompanion.style.display = 'flex';
 
       btnCompanion.addEventListener('click', () => {

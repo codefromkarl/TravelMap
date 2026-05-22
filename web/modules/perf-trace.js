@@ -8,15 +8,15 @@
  *   - 与 trace.js 集成，自动关联 traceId
  *
  * 用法（前端）：
- *   import { startSpan, endSpan, getWaterfallData } from './perf-trace.js?v=4';
+ *   import { startSpan, endSpan, getWaterfallData } from './perf-trace.js?v=5';
  *   const span = startSpan('api-request', { parentSpanId: null });
  *   // ... 异步操作 ...
  *   endSpan(span.spanId);
  *   const waterfall = getWaterfallData();
  */
 
-import { getCurrentTraceId } from './trace.js?v=4';
-import { createLogger } from './logger.js?v=4';
+import { getCurrentTraceId } from './trace.js?v=5';
+import { createLogger } from './logger.js?v=5';
 
 const perfLogger = createLogger('perf-trace');
 

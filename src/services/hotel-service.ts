@@ -7,8 +7,8 @@
  *   L3 mock 降级         — 无 API Key 时返回通用建议
  */
 
-import type { DayPlan, Location, TripPlan } from "../types/trip.js";
 import { LRUCache } from "lru-cache";
+import type { DayPlan, Location, TripPlan } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
 import { dualGeocode, gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";

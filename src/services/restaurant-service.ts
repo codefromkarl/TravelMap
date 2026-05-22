@@ -7,8 +7,8 @@
  *   L3 mock 降级         — 无 API Key 时保持现有行为
  */
 
-import type { DayPlan, Location } from "../types/trip.js";
 import { LRUCache } from "lru-cache";
+import type { DayPlan, Location } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
 import { gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";
@@ -306,7 +306,10 @@ export async function searchNearbyRestaurants(
   // 检查缓存
   const cached = cache.get(cacheKey);
   if (cached) {
-    return { restaurants: cached.restaurants.slice(0, limit), source: cached.restaurants[0]?.source ?? "mock" };
+    return {
+      restaurants: cached.restaurants.slice(0, limit),
+      source: cached.restaurants[0]?.source ?? "mock",
+    };
   }
 
   const amapKey = appConfig.amapWebKey;

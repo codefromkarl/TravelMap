@@ -8,10 +8,10 @@
  *   session.startFresh() → 清空状态，开始新对话
  */
 
-import { agent, currentTripId, setCurrentTripId } from './context.js?v=4';
-import { feedback } from './feedback.js?v=4';
-import { listTrips } from './db.js?v=4';
-import { appState } from './app-state.js?v=4';
+import { agent, currentTripId, setCurrentTripId } from './context.js?v=5';
+import { feedback } from './feedback.js?v=5';
+import { listTrips } from './db.js?v=5';
+import { appState } from './app-state.js?v=5';
 
 // ─── 坐标完整性检查 ────────────────────────────────────
 function countMissingLocations(tripPlan) {
@@ -122,7 +122,7 @@ export const session = {
 
         // 校验坐标完整性
         try {
-          const { validateAndWarn } = await import('./tools/validate-trip.js?v=4');
+          const { validateAndWarn } = await import('./tools/validate-trip.js?v=5');
           const result = validateAndWarn(latest.tripPlan);
           if (result.hasIssues) {
             feedback.warning('行程数据不完整：' + result.missingCoords.length + ' 个景点缺少坐标，建议重新生成', 5000);

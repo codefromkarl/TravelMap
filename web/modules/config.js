@@ -2,10 +2,10 @@
  * 应用配置统一入口
  *
  * 优先级：config.local.js（不入库） > 内置默认值
- * 使用方法：import { config, resolveApiKey } from './config.js?v=4';
+ * 使用方法：import { config, resolveApiKey } from './config.js?v=5';
  */
 
-import { isProxyMode } from './context.js?v=4';
+import { isProxyMode } from './context.js?v=5';
 
 const defaults = {
   deepseekLocal: {
@@ -44,5 +44,8 @@ export function resolveApiKey(provider) {
   // 本地开发：用户可在 localStorage 自行配置
   const stored = localStorage.getItem(`api-key-${provider}`);
   if (stored) return stored;
+  // 生产环境兜底：非 localhost 强制走代理
+  const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
+  if (!isLocal) return 'proxy';
   return undefined;
 }

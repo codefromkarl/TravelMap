@@ -7,10 +7,10 @@
  *   - 支持导出 trace 数据
  */
 
-import { getWaterfallData, getTraceSummary, getRecentTraceIds } from './perf-trace.js?v=4';
-import { getLogEntries } from './logger.js?v=4';
-import { getCurrentTraceId } from './trace.js?v=4';
-import { createLogger } from './logger.js?v=4';
+import { getWaterfallData, getTraceSummary, getRecentTraceIds } from './perf-trace.js?v=5';
+import { getLogEntries } from './logger.js?v=5';
+import { getCurrentTraceId } from './trace.js?v=5';
+import { createLogger } from './logger.js?v=5';
 
 const wfLogger = createLogger('waterfall');
 
@@ -352,7 +352,7 @@ function exportPanelData() {
   if (!traceId) return;
 
   // 动态导入避免循环依赖
-  import('./perf-trace.js?v=4').then(({ exportTraceData }) => {
+  import('./perf-trace.js?v=5').then(({ exportTraceData }) => {
     const data = exportTraceData(traceId);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

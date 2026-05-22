@@ -21,8 +21,8 @@ export function formatTransportPrice(price: number, source: string): string {
  *   - enrichTransferDays — 自动为 TripPlan 移动日填充交通方案
  */
 
-import type { TransportOption, TripPlan } from "../types/trip.js";
 import { LRUCache } from "lru-cache";
+import type { TransportOption, TripPlan } from "../types/trip.js";
 import { config } from "./config.js";
 import { dualGeocode } from "./dual-map-service.js";
 import { fetchWithRetry } from "./http-client.js";

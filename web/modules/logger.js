@@ -10,7 +10,7 @@
  *   - 日志级别控制
  */
 
-import { getCurrentTraceId, getSessionId } from './trace.js?v=4';
+import { getCurrentTraceId, getSessionId } from './trace.js?v=5';
 
 // ─── 类型定义 ─────────────────────────────────────────────
 

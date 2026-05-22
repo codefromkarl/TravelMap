@@ -36,9 +36,7 @@ const SENSITIVE_KEYS = new Set([
 ]);
 
 /** 敏感字段的快速检测 — 小写 Set 用于快速查找 */
-const SENSITIVE_KEYS_LOWER = new Set(
-  Array.from(SENSITIVE_KEYS).map((k) => k.toLowerCase()),
-);
+const SENSITIVE_KEYS_LOWER = new Set(Array.from(SENSITIVE_KEYS).map((k) => k.toLowerCase()));
 
 /** 最大递归深度 — 防止深层嵌套对象的性能问题 */
 const MAX_REDACT_DEPTH = 3;
