@@ -245,6 +245,38 @@ export const feedback = {
   toast(msg, duration, type, action) {
     _showToast(msg, duration, type, action);
   },
+
+  /**
+   * Agent 错误统一处理 — 集中化入口
+   * 替代 chat-init.js 中分散的 401/QUOTA/通用错误处理逻辑
+   *
+   * @param {string} errMsg - 错误消息
+   * @param {object} handlers - 回调集合
+   * @param {Function} [handlers.onAuthRequired] - 认证失败时调用
+   * @param {Function} [handlers.onRetry] - 可重试错误的重试回调
+   * @returns {'auth'|'quota'|'retryable'|'other'} 错误分类
+   */
+  handleAgentError(errMsg, handlers = {}) {
+    const msg = String(errMsg || '');
+
+    // 认证错误 (401 / AUTH_REQUIRED / Login required)
+    if (msg.includes('401') || msg.includes('AUTH_REQUIRED') || msg.includes('Login required')) {
+      document.getElementById('auth-overlay')?.classList.add('visible');
+      this.done();
+      return 'auth';
+    }
+
+    // 配额错误 (QUOTA / quota / 次数已用完)
+    if (msg.includes('QUOTA') || msg.includes('quota') || msg.includes('次数已用完') || msg.includes('免费体验')) {
+      this.quotaExceeded();
+      document.getElementById('auth-overlay')?.classList.add('visible');
+      return 'quota';
+    }
+
+    // 通用错误（自动分类 + 可选重试）
+    this.error(msg, handlers.onRetry || null);
+    return _isRetryable(msg) ? 'retryable' : 'other';
+  },
 };
 
 /**

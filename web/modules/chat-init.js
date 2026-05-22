@@ -36,27 +36,26 @@ globalThis.fetch = function fixedCharsetFetch(input, init) {
 
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModel } from "@earendil-works/pi-ai";
-import { config, resolveApiKey } from './config.js?v=5';
+import { config, resolveApiKey } from './config.js?v=6';
 import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
   currentLang, setCurrentLang, showToast, currentTravelers, currentPreferences,
-} from './context.js?v=5';
-import { feedback } from './feedback.js?v=5';
-import { authOverlay } from './auth.js?v=5';
-import { appState } from './app-state.js?v=5';
-import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js?v=5';
-import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=5';
-import { ALL_TOOLS } from './tools/index.js?v=5';
-import { buildSystemPrompt } from './prompt.js?v=5';
-import { initWelcome } from './welcome.js?v=5';
-import { initPageMap } from './map.js?v=5';
-import { initPlaceholder, applyI18n } from './i18n.js?v=5';
-import { tryRestoreSession } from './session.js?v=5';
-import { initTravelersPanel } from './travelers.js?v=5';
-import { loadSharedTrip, renderSharedTrips } from './export.js?v=5';
-import { loadSharedTripFromHash } from './share.js?v=5';
-import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from './db.js?v=5';
-import { addTraceHeaders, extractTraceId } from './trace.js?v=5';
+} from './context.js?v=6';
+import { feedback } from './feedback.js?v=6';
+import { appState } from './app-state.js?v=6';
+import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js?v=6';
+import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=6';
+import { ALL_TOOLS } from './tools/index.js?v=6';
+import { buildSystemPrompt } from './prompt.js?v=6';
+import { initWelcome } from './welcome.js?v=6';
+import { initPageMap } from './map.js?v=6';
+import { initPlaceholder, applyI18n } from './i18n.js?v=6';
+import { tryRestoreSession } from './session.js?v=6';
+import { initTravelersPanel } from './travelers.js?v=6';
+import { loadSharedTrip, renderSharedTrips } from './export.js?v=6';
+import { loadSharedTripFromHash } from './share.js?v=6';
+import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from './db.js?v=6';
+import { addTraceHeaders, extractTraceId } from './trace.js?v=6';
 
 export async function initApp() {
   // ─── 坐标迁移：修复历史记录中的坐标系问题 ───────────
@@ -124,7 +123,7 @@ export async function initApp() {
   setAgent(_agent);
 
   // 暴露 panels 供其他模块通过 window 调用
-  const panelModule = await import('./panels.js?v=5');
+  const panelModule = await import('./panels.js?v=6');
   window._panels = { openPanel: panelModule.openPanel, closePanel: panelModule.closePanel, closeAllPanels: panelModule.closeAllPanels };
 
   // ─── Agent 事件监听 ──────────────────────────────────
@@ -177,16 +176,7 @@ export async function initApp() {
         resetToolbarAfterError();
         const errMsg = lastAssistant.errorMessage;
         console.error("[ChatInit] Agent run failure:", errMsg);
-        // 401/403 认证错误 → 显示登录弹窗，不显示原始错误
-        if (errMsg.includes('401') || errMsg.includes('AUTH_REQUIRED') || errMsg.includes('Login required')) {
-          authOverlay?.classList.add('visible');
-          feedback.done();
-        } else if (errMsg.includes('QUOTA') || errMsg.includes('quota') || errMsg.includes('次数已用完') || errMsg.includes('免费体验')) {
-          authOverlay?.classList.add('visible');
-          feedback.quotaExceeded();
-        } else {
-          feedback.error(errMsg, retryLastMessage);
-        }
+        feedback.handleAgentError(errMsg, { onRetry: retryLastMessage });
         return;
       }
 
@@ -218,7 +208,7 @@ export async function initApp() {
             window._lastTripPlan = details.tripPlan;
             // 校验坐标完整性
             try {
-              const { validateAndWarn } = await import('./tools/validate-trip.js?v=5');
+              const { validateAndWarn } = await import('./tools/validate-trip.js?v=6');
               validateAndWarn(details.tripPlan);
             } catch (_) { /* 校验模块加载失败不阻塞 */ }
             document.getElementById("btn-map")?.classList.remove("disabled-ghost");
@@ -300,13 +290,8 @@ export async function initApp() {
       console.error("[ChatInit] Agent error:", event);
       const raw = event.error?.message || event.payload?.error?.message || "";
       const errMsg = String(raw);
-      if (errMsg.includes('401') || errMsg.includes('AUTH_REQUIRED') || errMsg.includes('Login required')) {
-        authOverlay?.classList.add('visible');
-      } else if (errMsg.includes("QUOTA") || errMsg.includes("quota") || errMsg.includes("次数已用完") || errMsg.includes("免费体验")) {
-        feedback.quotaExceeded();
-        authOverlay?.classList.add('visible');
-      } else if (errMsg) {
-        feedback.error(errMsg, retryLastMessage);
+      if (errMsg) {
+        feedback.handleAgentError(errMsg, { onRetry: retryLastMessage });
       } else {
         feedback.error('计划生成失败，请重试');
       }
@@ -566,8 +551,8 @@ export async function initApp() {
   }
 
   // ─── 会话恢复 ─────────────────────────────────────────
-  // 自动恢复已禁用：刷新页面始终显示欢迎页
-  // tryRestoreSession();
+  // 页面加载后尝试恢复上次行程（带确认提示）
+  setTimeout(() => tryRestoreSession(), 500);
 
   // ─── 语音播报按钮 ───────────────────────────────────────
   const btnTts = document.getElementById('btn-tts');
@@ -723,7 +708,7 @@ export async function initApp() {
 
       try {
         // 动态导入 share 模块
-        const { generateTripPoster, downloadImage } = await import('./share.js?v=5');
+        const { generateTripPoster, downloadImage } = await import('./share.js?v=6');
         const dataUrl = await generateTripPoster(tripPlan);
         if (dataUrl) {
           downloadImage(dataUrl, `旅图_${tripPlan.city || '攻略'}_${tripPlan.days?.length || 0}日游.png`);
@@ -742,7 +727,7 @@ export async function initApp() {
   const btnCompanion = document.getElementById('btn-voice-companion');
   if (btnCompanion) {
     // 动态导入语音伴游模块
-    import('./voice-companion.js?v=5').then(({ startVoiceCompanion, stopVoiceCompanion, getCompanionState, setTripPlanForCompanion }) => {
+    import('./voice-companion.js?v=6').then(({ startVoiceCompanion, stopVoiceCompanion, getCompanionState, setTripPlanForCompanion }) => {
       btnCompanion.style.display = 'flex';
 
       btnCompanion.addEventListener('click', () => {

@@ -1,9 +1,9 @@
-import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey } from './context.js?v=5';
-import { I18N } from './i18n.js?v=5';
-import { buildSystemPrompt } from './prompt.js?v=5';
+import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey } from './context.js?v=6';
+import { I18N } from './i18n.js?v=6';
+import { buildSystemPrompt } from './prompt.js?v=6';
 import { getModel } from "@earendil-works/pi-ai";
 import { getAppStorage } from "@earendil-works/pi-web-ui";
-import { config } from './config.js?v=5';
+import { config } from './config.js?v=6';
 
 // ─── 模型配置弹窗 ──────────────────────────────────
 document.getElementById('btn-open-model')?.addEventListener('click', () => {

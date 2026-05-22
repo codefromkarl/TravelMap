@@ -122,7 +122,7 @@ export const RISK_COLORS = {
 
 // ─── 工具函数 ────────────────────────────────────────────
 // showToast 已迁移到 feedback.js，这里 re-export 保持向后兼容
-export { showToast } from './feedback.js?v=5';
+export { showToast } from './feedback.js?v=6';
 
 export function isDomesticCityForMap(city) {
   return DOMESTIC_CITIES.some(c => city.includes(c) || c.includes(city));

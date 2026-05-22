@@ -8,10 +8,10 @@
  *   session.startFresh() → 清空状态，开始新对话
  */
 
-import { agent, currentTripId, setCurrentTripId } from './context.js?v=5';
-import { feedback } from './feedback.js?v=5';
-import { listTrips } from './db.js?v=5';
-import { appState } from './app-state.js?v=5';
+import { agent, currentTripId, setCurrentTripId, currentLang } from './context.js?v=6';
+import { feedback, showToast } from './feedback.js?v=6';
+import { listTrips } from './db.js?v=6';
+import { appState } from './app-state.js?v=6';
 
 // ─── 坐标完整性检查 ────────────────────────────────────
 function countMissingLocations(tripPlan) {
@@ -95,11 +95,108 @@ function renderMap(tripPlan) {
   }
 }
 
+// ─── 时间格式化 ──────────────────────────────────────
+function _formatTimeAgo(ms, lang) {
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return lang === 'zh' ? '刚刚' : lang === 'ja' ? 'たった今' : 'just now';
+  if (min < 60) return lang === 'zh' ? `${min}分钟前` : lang === 'ja' ? `${min}分前` : `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return lang === 'zh' ? `${hr}小时前` : lang === 'ja' ? `${hr}時間前` : `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return lang === 'zh' ? `${day}天前` : lang === 'ja' ? `${day}日前` : `${day}d ago`;
+}
+
+// ─── 恢复确认提示 ──────────────────────────────────────
+function _showRestorePrompt(msg, trip, lang, resolve) {
+  // 创建提示条
+  const bar = document.createElement('div');
+  bar.id = 'session-restore-prompt';
+  bar.style.cssText = `
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    background: var(--color-bg-elevated, #1e1e2e); color: var(--color-text-primary);
+    padding: 12px 20px; border-radius: 10px; font-size: 14px; z-index: 1100;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.25); display: flex; align-items: center; gap: 12px;
+    max-width: 90vw; animation: feedbackFadeIn 0.2s ease-out;
+  `;
+  const label = document.createElement('span');
+  label.textContent = msg;
+  label.style.flex = '1';
+
+  const btnRestore = document.createElement('button');
+  btnRestore.textContent = lang === 'zh' ? '恢复' : lang === 'ja' ? '復元' : 'Restore';
+  btnRestore.style.cssText = 'padding:4px 14px;border-radius:6px;border:none;background:var(--color-accent-primary,#4f8ef7);color:#fff;font-size:13px;cursor:pointer;white-space:nowrap';
+
+  const btnDismiss = document.createElement('button');
+  btnDismiss.textContent = lang === 'zh' ? '不用了' : lang === 'ja' ? 'スキップ' : 'Skip';
+  btnDismiss.style.cssText = 'padding:4px 10px;border-radius:6px;border:1px solid var(--color-border-default,#cbd5e1);background:transparent;color:var(--color-text-secondary,#475569);font-size:13px;cursor:pointer;white-space:nowrap';
+
+  bar.append(label, btnRestore, btnDismiss);
+  document.body.appendChild(bar);
+
+  // 自动消失 10 秒
+  const autoTimeout = setTimeout(() => { cleanup(); resolve(false); }, 10000);
+
+  function cleanup() {
+    clearTimeout(autoTimeout);
+    bar.remove();
+  }
+
+  btnRestore.addEventListener('click', async () => {
+    cleanup();
+    await _doRestore(trip, lang);
+    resolve(true);
+  });
+
+  btnDismiss.addEventListener('click', () => {
+    cleanup();
+    resolve(false);
+  });
+}
+
+// ─── 执行恢复 ──────────────────────────────────────────
+async function _doRestore(trip, lang) {
+  // 恢复 tripPlan + 坐标迁移
+  if (trip.tripPlan) {
+    window._lastTripPlan = trip.tripPlan;
+    await migrateCoordinates(trip.tripPlan);
+
+    // 校验坐标完整性
+    try {
+      const { validateAndWarn } = await import('./tools/validate-trip.js?v=6');
+      const result = validateAndWarn(trip.tripPlan);
+      if (result.hasIssues) {
+        feedback.warning(
+          (lang === 'zh' ? '行程数据不完整：' : 'Trip data incomplete: ') +
+          result.missingCoords.length +
+          (lang === 'zh' ? ' 个景点缺少坐标，建议重新生成' : ' attractions missing coordinates'),
+          5000
+        );
+      }
+    } catch (_) { /* 校验模块加载失败不阻塞恢复 */ }
+  }
+
+  // 恢复对话历史
+  restoreMessages(trip.messages);
+
+  // 恢复当前行程 ID
+  setCurrentTripId(trip.id);
+
+  // 渲染地图
+  renderMap(trip.tripPlan);
+
+  // 恢复 UI 状态
+  restoreUIState(trip.tripPlan, trip.markdown);
+
+  appState.transition('history');
+  const title = trip.title || (lang === 'zh' ? '未命名行程' : 'Untitled');
+  feedback.success((lang === 'zh' ? '已恢复：' : 'Restored: ') + title, 2500);
+}
+
 // ─── Public API ────────────────────────────────────────
 
 export const session = {
   /**
-   * 恢复最近的会话（24 小时内）
+   * 恢复最近的会话（24 小时内），带确认提示
    * @returns {Promise<boolean>} 是否成功恢复
    */
   async restore() {
@@ -115,36 +212,20 @@ export const session = {
       // 只恢复 24 小时内的行程
       if (timeDiff >= 24 * 60 * 60 * 1000) return false;
 
-      // 恢复 tripPlan + 坐标迁移
-      if (latest.tripPlan) {
-        window._lastTripPlan = latest.tripPlan;
-        await migrateCoordinates(latest.tripPlan);
+      // ── 确认提示：让用户选择是否恢复 ──
+      const lang = currentLang || 'zh';
+      const title = latest.title || (lang === 'zh' ? '未命名行程' : 'Untitled Trip');
+      const timeAgo = _formatTimeAgo(timeDiff, lang);
+      const confirmMsg = {
+        zh: `发现上次行程「${title}」(${timeAgo})，是否恢复？`,
+        en: `Found previous trip "${title}" (${timeAgo}). Restore?`,
+        ja: `前回の旅行「${title}」(${timeAgo})が見つかりました。復元しますか？`,
+      }[lang] || `Found previous trip "${title}". Restore?`;
 
-        // 校验坐标完整性
-        try {
-          const { validateAndWarn } = await import('./tools/validate-trip.js?v=5');
-          const result = validateAndWarn(latest.tripPlan);
-          if (result.hasIssues) {
-            feedback.warning('行程数据不完整：' + result.missingCoords.length + ' 个景点缺少坐标，建议重新生成', 5000);
-          }
-        } catch (_) { /* 校验模块加载失败不阻塞恢复 */ }
-      }
-
-      // 恢复对话历史
-      restoreMessages(latest.messages);
-
-      // 恢复当前行程 ID
-      setCurrentTripId(latest.id);
-
-      // 渲染地图
-      renderMap(latest.tripPlan);
-
-      // 恢复 UI 状态
-      restoreUIState(latest.tripPlan, latest.markdown);
-
-      appState.transition('history');
-      feedback.success(`已恢复：${latest.title}`, 2500);
-      return true;
+      // 使用 toast + 按钮方式，不阻塞页面
+      return new Promise((resolve) => {
+        _showRestorePrompt(confirmMsg, latest, lang, resolve);
+      });
     } catch (err) {
       console.error("[Session] 恢复失败:", err);
       return false;

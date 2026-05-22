@@ -1,10 +1,10 @@
-import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js?v=5';
-import { I18N } from './i18n.js?v=5';
-import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js?v=5';
-import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js?v=5';
-import { getCachedCoord, setCachedCoord } from './coord-cache.js?v=5';
-import { markerRegistry } from './markers.js?v=5';
-import { routePlanner } from './route-planner.js?v=5';
+import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js?v=6';
+import { I18N } from './i18n.js?v=6';
+import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js?v=6';
+import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js?v=6';
+import { getCachedCoord, setCachedCoord } from './coord-cache.js?v=6';
+import { markerRegistry } from './markers.js?v=6';
+import { routePlanner } from './route-planner.js?v=6';
 
 // ─── XSS 防护：HTML 转义 ──────────────────────────────
 function escapeHtml(str) {
@@ -161,6 +161,7 @@ async function fetchDrivingRoute(fromLat, fromLng, toLat, toLng) {
 
 /**
  * 为同一天的相邻景点之间绘制路线连接
+ * 优化：API 调用并行化，渲染顺序保持（动画效果）
  * @param {Array} attractions - 景点数组（需有 location）
  * @param {string} mode - 'walking' | 'driving'
  * @param {number} dayIdx - 天数索引（用于动画延迟）
@@ -176,16 +177,28 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
   );
   if (validAttrs.length < 2) return 0;
 
-  let routeCount = 0;
   const fetchFn = mode === 'driving' ? fetchDrivingRoute : fetchWalkingRoute;
 
+  // ── 阶段 1：并行获取所有路线 ──
+  const segments = [];
   for (let i = 0; i < validAttrs.length - 1; i++) {
     const from = validAttrs[i];
     const to = validAttrs[i + 1];
-    const fromLoc = from.location;
-    const toLoc = to.location;
+    segments.push({ from, to, idx: i });
+  }
 
-    const points = await fetchFn(fromLoc.latitude, fromLoc.longitude, toLoc.latitude, toLoc.longitude);
+  // 所有 API 调用并行发起
+  const routeResults = await Promise.all(
+    segments.map(({ from, to }) =>
+      fetchFn(from.location.latitude, from.location.longitude, to.location.latitude, to.location.longitude)
+    )
+  );
+
+  // ── 阶段 2：顺序渲染（保持动画时序） ──
+  let routeCount = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const { from, to } = segments[i];
+    const points = routeResults[i];
     if (!points || points.length < 2) continue;
 
     // 坐标转换：WGS-84 → GCJ-02（高德瓦片时）
@@ -215,6 +228,8 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
     });
 
     // 路线弹窗：显示距离和时间
+    const fromLoc = from.location;
+    const toLoc = to.location;
     const midIdx = Math.floor(points.length / 2);
     const midPoint = points[midIdx];
     if (midPoint) {

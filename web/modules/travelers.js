@@ -1,6 +1,6 @@
-import { currentTravelers, setCurrentTravelers, TRAVELERS_KEY, currentPreferences, setPreferences, PREFERENCES_KEY, showToast } from './context.js?v=5';
-import { buildSystemPrompt } from './prompt.js?v=5';
-import { agent, setAgent, currentLang } from './context.js?v=5';
+import { currentTravelers, setCurrentTravelers, TRAVELERS_KEY, currentPreferences, setPreferences, PREFERENCES_KEY, showToast } from './context.js?v=6';
+import { buildSystemPrompt } from './prompt.js?v=6';
+import { agent, setAgent, currentLang } from './context.js?v=6';
 
 // ─── 出行人群面板 ─────────────────────────────────────
 export function loadTravelersFromStorage() {

@@ -1,4 +1,4 @@
-import { activePanel, setActivePanel } from './context.js?v=5';
+import { activePanel, setActivePanel } from './context.js?v=6';
 
 // ─── 移动端视图切换（对话/地图） ─────────────────────
 const pageMap = document.getElementById('page-map');

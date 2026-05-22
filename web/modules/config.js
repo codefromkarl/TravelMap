@@ -2,10 +2,10 @@
  * 应用配置统一入口
  *
  * 优先级：config.local.js（不入库） > 内置默认值
- * 使用方法：import { config, resolveApiKey } from './config.js?v=5';
+ * 使用方法：import { config, resolveApiKey } from './config.js?v=6';
  */
 
-import { isProxyMode } from './context.js?v=5';
+import { isProxyMode } from './context.js?v=6';
 
 const defaults = {
   deepseekLocal: {

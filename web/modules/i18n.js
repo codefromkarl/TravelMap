@@ -1,4 +1,4 @@
-import { currentLang } from './context.js?v=5';
+import { currentLang } from './context.js?v=6';
 
 // ─── 多语言翻译资源 ──────────────────────────────────
 export const I18N = {
