@@ -243,69 +243,98 @@ function wgs84ToGcj02(lat, lng) {
 /**
  * 迁移历史记录中的坐标：WGS-84 → GCJ-02
  * 用于修复旧数据的坐标系问题
+ * 只迁移未迁移的记录（通过 _coordMigrated 标记判断）
  */
 export async function migrateCoordinatesToGcj02() {
   try {
     const db = await openDB();
-    const tx = db.transaction(STORE_NAME, "readwrite");
+    const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
     let migrated = 0;
+    let skipped = 0;
+
+    // 先检查是否有需要迁移的记录
+    const allRecords = await new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+    // 筛选需要迁移的记录
+    const needsMigration = allRecords.filter(trip => {
+      // 已迁移过的记录跳过
+      if (trip._coordMigrated) {
+        skipped++;
+        return false;
+      }
+      // 检查是否有坐标数据
+      if (!Array.isArray(trip.days)) return false;
+      return trip.days.some(day => 
+        (day.attractions && day.attractions.some(a => a.location && a.location.latitude)) ||
+        (day.hotel && day.hotel.location && day.hotel.location.latitude) ||
+        (day.meals && day.meals.some(m => m.restaurant && m.restaurant.location && m.restaurant.location.latitude))
+      );
+    });
+
+    if (needsMigration.length === 0) {
+      console.log(`[DB] 无需迁移 (已跳过 ${skipped} 条已迁移记录)`);
+      return 0;
+    }
+
+    // 执行迁移
+    const tx2 = db.transaction(STORE_NAME, "readwrite");
+    const store2 = tx2.objectStore(STORE_NAME);
 
     return new Promise((resolve, reject) => {
-      const req = store.openCursor();
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          const trip = cursor.value;
-          let needsUpdate = false;
+      for (const trip of needsMigration) {
+        let updated = false;
 
-          // 迁移行程中的坐标
-          if (trip.days) {
-            for (const day of trip.days) {
-              // 迁移景点坐标
-              if (day.attractions) {
-                for (const attr of day.attractions) {
-                  if (attr.location && attr.location.latitude && attr.location.longitude) {
-                    const gcj = wgs84ToGcj02(attr.location.latitude, attr.location.longitude);
-                    attr.location.latitude = gcj.lat;
-                    attr.location.longitude = gcj.lng;
-                    needsUpdate = true;
-                  }
+        if (Array.isArray(trip.days)) {
+          for (const day of trip.days) {
+            // 迁移景点坐标
+            if (day.attractions) {
+              for (const attr of day.attractions) {
+                if (attr.location && attr.location.latitude && attr.location.longitude) {
+                  const gcj = wgs84ToGcj02(attr.location.latitude, attr.location.longitude);
+                  attr.location.latitude = gcj.lat;
+                  attr.location.longitude = gcj.lng;
+                  updated = true;
                 }
               }
-              // 迁移酒店坐标
-              if (day.hotel && day.hotel.location) {
-                const gcj = wgs84ToGcj02(day.hotel.location.latitude, day.hotel.location.longitude);
-                day.hotel.location.latitude = gcj.lat;
-                day.hotel.location.longitude = gcj.lng;
-                needsUpdate = true;
-              }
-              // 迁移餐厅坐标
-              if (day.meals) {
-                for (const meal of day.meals) {
-                  if (meal.restaurant && meal.restaurant.location) {
-                    const gcj = wgs84ToGcj02(meal.restaurant.location.latitude, meal.restaurant.location.longitude);
-                    meal.restaurant.location.latitude = gcj.lat;
-                    meal.restaurant.location.longitude = gcj.lng;
-                    needsUpdate = true;
-                  }
+            }
+            // 迁移酒店坐标
+            if (day.hotel && day.hotel.location) {
+              const gcj = wgs84ToGcj02(day.hotel.location.latitude, day.hotel.location.longitude);
+              day.hotel.location.latitude = gcj.lat;
+              day.hotel.location.longitude = gcj.lng;
+              updated = true;
+            }
+            // 迁移餐厅坐标
+            if (day.meals) {
+              for (const meal of day.meals) {
+                if (meal.restaurant && meal.restaurant.location) {
+                  const gcj = wgs84ToGcj02(meal.restaurant.location.latitude, meal.restaurant.location.longitude);
+                  meal.restaurant.location.latitude = gcj.lat;
+                  meal.restaurant.location.longitude = gcj.lng;
+                  updated = true;
                 }
               }
             }
           }
-
-          if (needsUpdate) {
-            trip._coordMigrated = true; // 标记已迁移
-            cursor.update(trip);
-            migrated++;
-          }
-          cursor.continue();
-        } else {
-          console.log(`[DB] 坐标迁移完成: ${migrated} 条记录`);
-          resolve(migrated);
         }
+
+        if (updated) {
+          trip._coordMigrated = true; // 标记已迁移
+          store2.put(trip);
+          migrated++;
+        }
+      }
+
+      tx2.oncomplete = () => {
+        console.log(`[DB] 坐标迁移完成: ${migrated} 条记录 (跳过 ${skipped} 条已迁移记录)`);
+        resolve(migrated);
       };
-      req.onerror = () => reject(req.error);
+      tx2.onerror = () => reject(tx2.error);
     });
   } catch (err) {
     console.warn("[DB] 坐标迁移失败:", err);
