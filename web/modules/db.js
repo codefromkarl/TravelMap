@@ -1,4 +1,4 @@
-import { DB_NAME, DB_VERSION, STORE_NAME, SUPPLY_STORE_NAME } from './context.js?v=3';
+import { DB_NAME, DB_VERSION, STORE_NAME, SUPPLY_STORE_NAME } from './context.js?v=4';
 
 // ─── IndexedDB 数据库 ──────────────────────────────────
 export function openDB() {
@@ -194,6 +194,121 @@ export async function clearExpiredSupplyCache(maxAgeDays = 30) {
     return deleted;
   } catch (err) {
     console.warn("[SupplyCache] 清理过期缓存失败:", err);
+    return 0;
+  }
+}
+
+// ─── 坐标迁移：WGS-84 → GCJ-02 ──────────────────────────
+// 历史记录中的坐标是之前存储的 WGS-84 格式
+// 需要转换为 GCJ-02 以匹配高德瓦片坐标系
+
+const _PI = 3.14159265358979324;
+const _A = 6378245.0;
+const _EE = 0.00669342162296594323;
+
+function _outOfChina(lat, lng) {
+  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+}
+
+function _transformLat(x, y) {
+  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * _PI) + 20.0 * Math.sin(2.0 * x * _PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(y * _PI) + 40.0 * Math.sin(y / 3.0 * _PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(y / 12.0 * _PI) + 320 * Math.sin(y * _PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function _transformLng(x, y) {
+  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * _PI) + 20.0 * Math.sin(2.0 * x * _PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(x * _PI) + 40.0 * Math.sin(x / 3.0 * _PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(x / 12.0 * _PI) + 300.0 * Math.sin(x / 30.0 * _PI)) * 2.0 / 3.0;
+  return ret;
+}
+
+/** WGS-84 → GCJ-02（将旧数据坐标转换为新格式） */
+function wgs84ToGcj02(lat, lng) {
+  if (_outOfChina(lat, lng)) return { lat, lng };
+  let dLat = _transformLat(lng - 105.0, lat - 35.0);
+  let dLng = _transformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * _PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - _EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((_A * (1 - _EE)) / (magic * sqrtMagic) * _PI);
+  dLng = (dLng * 180.0) / (_A / sqrtMagic * Math.cos(radLat) * _PI);
+  return { lat: lat + dLat, lng: lng + dLng };
+}
+
+/**
+ * 迁移历史记录中的坐标：WGS-84 → GCJ-02
+ * 用于修复旧数据的坐标系问题
+ */
+export async function migrateCoordinatesToGcj02() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    let migrated = 0;
+
+    return new Promise((resolve, reject) => {
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const trip = cursor.value;
+          let needsUpdate = false;
+
+          // 迁移行程中的坐标
+          if (trip.days) {
+            for (const day of trip.days) {
+              // 迁移景点坐标
+              if (day.attractions) {
+                for (const attr of day.attractions) {
+                  if (attr.location && attr.location.latitude && attr.location.longitude) {
+                    const gcj = wgs84ToGcj02(attr.location.latitude, attr.location.longitude);
+                    attr.location.latitude = gcj.lat;
+                    attr.location.longitude = gcj.lng;
+                    needsUpdate = true;
+                  }
+                }
+              }
+              // 迁移酒店坐标
+              if (day.hotel && day.hotel.location) {
+                const gcj = wgs84ToGcj02(day.hotel.location.latitude, day.hotel.location.longitude);
+                day.hotel.location.latitude = gcj.lat;
+                day.hotel.location.longitude = gcj.lng;
+                needsUpdate = true;
+              }
+              // 迁移餐厅坐标
+              if (day.meals) {
+                for (const meal of day.meals) {
+                  if (meal.restaurant && meal.restaurant.location) {
+                    const gcj = wgs84ToGcj02(meal.restaurant.location.latitude, meal.restaurant.location.longitude);
+                    meal.restaurant.location.latitude = gcj.lat;
+                    meal.restaurant.location.longitude = gcj.lng;
+                    needsUpdate = true;
+                  }
+                }
+              }
+            }
+          }
+
+          if (needsUpdate) {
+            trip._coordMigrated = true; // 标记已迁移
+            cursor.update(trip);
+            migrated++;
+          }
+          cursor.continue();
+        } else {
+          console.log(`[DB] 坐标迁移完成: ${migrated} 条记录`);
+          resolve(migrated);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn("[DB] 坐标迁移失败:", err);
     return 0;
   }
 }

@@ -36,28 +36,38 @@ globalThis.fetch = function fixedCharsetFetch(input, init) {
 
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModel } from "@earendil-works/pi-ai";
-import { config, resolveApiKey } from './config.js';
+import { config, resolveApiKey } from './config.js?v=4';
 import {
   isProxyMode, setAgent, setChatPanel, currentTripId, setCurrentTripId, setLastTripContent,
   currentLang, setCurrentLang, showToast, currentTravelers, currentPreferences,
-} from './context.js?v=3';
-import { feedback } from './feedback.js';
-import { appState } from './app-state.js';
-import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js';
-import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js';
-import { ALL_TOOLS } from './tools/index.js';
-import { buildSystemPrompt } from './prompt.js';
-import { initWelcome } from './welcome.js';
-import { initPageMap } from './map.js';
-import { initPlaceholder, applyI18n } from './i18n.js';
-import { tryRestoreSession } from './session.js';
-import { initTravelersPanel } from './travelers.js';
-import { loadSharedTrip, renderSharedTrips } from './export.js';
-import { loadSharedTripFromHash } from './share.js';
-import { saveTripPlan, listTrips } from './db.js';
-import { addTraceHeaders, extractTraceId } from './trace.js';
+} from './context.js?v=4';
+import { feedback } from './feedback.js?v=4';
+import { appState } from './app-state.js?v=4';
+import { speak, pause, resume, stop, getState, isTTSSupported, generateSpeechText } from './tts.js?v=4';
+import { initRecognition, startListening, stopListening, getSTTState, isSTTSupported } from './stt.js?v=4';
+import { ALL_TOOLS } from './tools/index.js?v=4';
+import { buildSystemPrompt } from './prompt.js?v=4';
+import { initWelcome } from './welcome.js?v=4';
+import { initPageMap } from './map.js?v=4';
+import { initPlaceholder, applyI18n } from './i18n.js?v=4';
+import { tryRestoreSession } from './session.js?v=4';
+import { initTravelersPanel } from './travelers.js?v=4';
+import { loadSharedTrip, renderSharedTrips } from './export.js?v=4';
+import { loadSharedTripFromHash } from './share.js?v=4';
+import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from './db.js?v=4';
+import { addTraceHeaders, extractTraceId } from './trace.js?v=4';
 
 export async function initApp() {
+  // ─── 坐标迁移：修复历史记录中的坐标系问题 ───────────
+  try {
+    const migrated = await migrateCoordinatesToGcj02();
+    if (migrated > 0) {
+      console.log(`[App] 已迁移 ${migrated} 条历史记录的坐标`);
+    }
+  } catch (err) {
+    console.warn('[App] 坐标迁移失败:', err);
+  }
+
   // ─── 读取 provider/model 配置 ─────────────────────────
   // 默认使用本地 ds2api 的 DeepSeek（免费，无需用户配置 API Key）
   const ds = config.deepseekLocal;
@@ -104,7 +114,7 @@ export async function initApp() {
   setAgent(_agent);
 
   // 暴露 panels 供其他模块通过 window 调用
-  const panelModule = await import('./panels.js');
+  const panelModule = await import('./panels.js?v=4');
   window._panels = { openPanel: panelModule.openPanel, closePanel: panelModule.closePanel, closeAllPanels: panelModule.closeAllPanels };
 
   // ─── Agent 事件监听 ──────────────────────────────────
@@ -189,7 +199,7 @@ export async function initApp() {
             window._lastTripPlan = details.tripPlan;
             // 校验坐标完整性
             try {
-              const { validateAndWarn } = await import('./tools/validate-trip.js');
+              const { validateAndWarn } = await import('./tools/validate-trip.js?v=4');
               validateAndWarn(details.tripPlan);
             } catch (_) { /* 校验模块加载失败不阻塞 */ }
             document.getElementById("btn-map")?.classList.remove("disabled-ghost");
@@ -287,12 +297,16 @@ export async function initApp() {
     const tripPlan = window._lastTripPlan;
     const msgs = _agent.state.messages;
 
-    // 找 assistant 的 markdown 文本
+    // 找 assistant 的 markdown 文本（兼容 string 和 array 两种格式）
     let markdown = null;
     for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i].role === "assistant" && typeof msgs[i].content === "string" && msgs[i].content.length > 50) {
-        markdown = msgs[i].content;
-        break;
+      if (msgs[i].role === "assistant") {
+        const text = typeof msgs[i].content === "string" ? msgs[i].content
+          : Array.isArray(msgs[i].content) ? msgs[i].content.filter(c => c.type === "text").map(c => c.text).join("") : "";
+        if (text.length > 50) {
+          markdown = text;
+          break;
+        }
       }
     }
 
@@ -530,7 +544,8 @@ export async function initApp() {
   }
 
   // ─── 会话恢复 ─────────────────────────────────────────
-  tryRestoreSession();
+  // 自动恢复已禁用：刷新页面始终显示欢迎页
+  // tryRestoreSession();
 
   // ─── 语音播报按钮 ───────────────────────────────────────
   const btnTts = document.getElementById('btn-tts');
@@ -573,6 +588,30 @@ export async function initApp() {
   // ─── 语音输入按钮 ───────────────────────────────────────
   const btnVoice = document.getElementById('btn-voice-input');
   if (btnVoice && isSTTSupported()) {
+    // 将语音按钮移到输入框内部（message-editor 容器中）
+    requestAnimationFrame(() => {
+      const messageEditor = document.querySelector('#chat message-editor')
+        || document.querySelector('message-editor');
+      if (messageEditor) {
+        // 找到 message-editor 的内部容器（包含 textarea 的 div）
+        const editorContainer = messageEditor.shadowRoot?.querySelector('.relative')
+          || messageEditor.shadowRoot?.querySelector('div')
+          || messageEditor;
+        // 尝试找到 textarea 的父容器
+        const textarea = messageEditor.querySelector('textarea')
+          || messageEditor.shadowRoot?.querySelector('textarea');
+        const inputArea = textarea?.parentElement || editorContainer;
+        if (inputArea) {
+          inputArea.style.position = 'relative';
+          inputArea.appendChild(btnVoice);
+          btnVoice.classList.add('in-input-area');
+          // 给 pi-chat-panel 添加标记，用于调整 textarea 左侧间距
+          const chatPanel = document.getElementById('chat');
+          if (chatPanel) chatPanel.classList.add('has-voice-btn');
+        }
+      }
+    });
+
     // 显示语音输入按钮
     btnVoice.style.display = 'flex';
 
@@ -662,7 +701,7 @@ export async function initApp() {
 
       try {
         // 动态导入 share 模块
-        const { generateTripPoster, downloadImage } = await import('./share.js');
+        const { generateTripPoster, downloadImage } = await import('./share.js?v=4');
         const dataUrl = await generateTripPoster(tripPlan);
         if (dataUrl) {
           downloadImage(dataUrl, `旅图_${tripPlan.city || '攻略'}_${tripPlan.days?.length || 0}日游.png`);
@@ -681,7 +720,7 @@ export async function initApp() {
   const btnCompanion = document.getElementById('btn-voice-companion');
   if (btnCompanion) {
     // 动态导入语音伴游模块
-    import('./voice-companion.js').then(({ startVoiceCompanion, stopVoiceCompanion, getCompanionState, setTripPlanForCompanion }) => {
+    import('./voice-companion.js?v=4').then(({ startVoiceCompanion, stopVoiceCompanion, getCompanionState, setTripPlanForCompanion }) => {
       btnCompanion.style.display = 'flex';
 
       btnCompanion.addEventListener('click', () => {
