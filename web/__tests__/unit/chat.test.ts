@@ -104,7 +104,7 @@ describe("API Key 配置检查", () => {
     const resp = await onRequest(ctx);
     expect(resp.status).toBe(503);
     const body = await resp.json();
-    expect(body.error).toBe("Service not configured");
+    expect(body.error).toContain("服务端 API 暂不可用");
     expect(body.missing).toContain("LLM_API_KEY");
   });
 
@@ -335,7 +335,7 @@ describe("上游错误处理", () => {
     const resp = await onRequest(ctx);
     expect(resp.status).toBe(502);
     const data = await resp.json();
-    expect(data.error).toBe("Upstream service unavailable");
+    expect(data.error).toContain("服务端 API 暂不可用");
   });
 });
 

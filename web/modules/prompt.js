@@ -1,4 +1,4 @@
-import { currentTravelers, currentPreferences } from './context.js?v=10';
+import { currentTravelers, currentPreferences } from './context.js';
 
 // ─── System Prompt ────────────────────────────────────────
 const SYSTEM_PROMPT = `你是「TravelMap」,一位专业且贴心的私人旅行管家。

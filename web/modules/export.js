@@ -1,15 +1,15 @@
-import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js?v=10';
-import { I18N } from './i18n.js?v=10';
+import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from './context.js';
+import { I18N } from './i18n.js';
 import {
   generateShareImage, generateShareLink,
   downloadImage, loadSharedTripFromHash
-} from './share.js?v=10';
+} from './share.js';
 
 // QR 码生成器懒加载
 let _generateQRCode = null;
 async function getQRCodeGenerator() {
   if (!_generateQRCode) {
-    const mod = await import('./share.js?v=10');
+    const mod = await import('./share.js');
     _generateQRCode = mod.generateQRCode;
   }
   return _generateQRCode;

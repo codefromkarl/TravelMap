@@ -24756,6 +24756,10 @@ var init_models2 = __esm({
       }
       modelRegistry.set(provider, providerModels);
     }
+    // 暴露到 window 以便其他组件访问
+    if (typeof window !== 'undefined') {
+      window.__pi_modelRegistry = modelRegistry;
+    }
     EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"];
   }
 });
@@ -201428,7 +201432,20 @@ var ModelSelector = ModelSelector_1 = class ModelSelector2 extends DialogBase {
   getFilteredModels() {
     const allModels = [];
     const knownProviders = getProviders();
+    
+    // 获取可用的 provider 列表（免费 + 测试成功）
+    let availableProviders = ['deepseek-local']; // 免费 provider
+    try {
+      const stored = localStorage.getItem('travel-agent-tested-providers');
+      if (stored) {
+        const tested = JSON.parse(stored);
+        availableProviders = [...new Set([...availableProviders, ...tested])];
+      }
+    } catch {}
+    
     for (const provider of knownProviders) {
+      // 只包含可用的 provider
+      if (!availableProviders.includes(provider)) continue;
       const models = getModels(provider);
       for (const model of models) {
         allModels.push({ provider, id: model.id, model });
@@ -262342,9 +262359,22 @@ var AgentInterface = class AgentInterface2 extends i4 {
       if (this.onModelSelect) {
         this.onModelSelect();
       } else {
-        ModelSelector.open(state2.model, (model) => {
-          session.state.model = model;
-        });
+        // 使用新的折叠式下拉面板
+        const button = this.querySelector('[class*="h-8 text-xs"]') || this.shadowRoot?.querySelector('[class*="h-8 text-xs"]');
+        if (button) {
+          import('./modules/model-dropdown.js?v=10').then(({ showModelDropdown }) => {
+            showModelDropdown(button, state2.model, (model) => {
+              session.state.model = model;
+              // 更新显示
+              this.requestUpdate();
+            });
+          });
+        } else {
+          // 回退到原来的弹框
+          ModelSelector.open(state2.model, (model) => {
+            session.state.model = model;
+          });
+        }
       }
     }}
 							.onThinkingChange=${this.enableThinkingSelector ? (level) => {

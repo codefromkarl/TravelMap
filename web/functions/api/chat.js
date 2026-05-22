@@ -85,7 +85,11 @@ export async function onRequest(context) {
   const allowedModel = env.LLM_MODEL || "";
 
   if (!apiKey) {
-    return jsonResponse(503, { error: "Service not configured", missing: ["LLM_API_KEY"] });
+    return jsonResponse(503, {
+      error: "服务端 API 暂不可用，如需使用请在设置中配置自己的 API Key",
+      error_en: "Server API unavailable. Configure your own API Key in settings if needed.",
+      missing: ["LLM_API_KEY"]
+    });
   }
 
   let body;
@@ -140,6 +144,10 @@ export async function onRequest(context) {
     });
   } catch (err) {
     console.error("[Proxy] Upstream error:", err);
-    return jsonResponse(502, { error: "Upstream service unavailable" });
+    return jsonResponse(502, {
+      error: "服务端 API 暂不可用，如需使用请在设置中配置自己的 API Key",
+      error_en: "Server API unavailable. Configure your own API Key in settings if needed.",
+      detail: err instanceof Error ? err.message : String(err)
+    });
   }
 }

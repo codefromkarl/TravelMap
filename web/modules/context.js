@@ -135,7 +135,7 @@ export const PROVIDER_MODELS = {
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o3-mini'],
   anthropic: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022'],
   google: ['gemini-2.5-pro', 'gemini-2.5-flash'],
-  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro'],
   openrouter: ['openai/gpt-4o', 'anthropic/claude-sonnet-4-20250514', 'google/gemini-2.5-pro'],
   sensenova: ['deepseek-v4-flash'],
   custom: [],
@@ -150,7 +150,7 @@ export const RISK_COLORS = {
 
 // ─── 工具函数 ────────────────────────────────────────────
 // showToast 已迁移到 feedback.js，这里 re-export 保持向后兼容
-export { showToast } from './feedback.js?v=10';
+export { showToast } from './feedback.js';
 
 export function isDomesticCityForMap(city) {
   return DOMESTIC_CITIES.some(c => city.includes(c) || c.includes(city));

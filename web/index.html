@@ -52,15 +52,16 @@
   <script type="importmap">
     {
       "imports": {
-        "@earendil-works/pi-agent-core": "./pi-bundle.js?v=10",
-        "@earendil-works/pi-ai": "./pi-bundle.js?v=10",
-        "@earendil-works/pi-web-ui": "./pi-bundle.js?v=10",
-        "lit": "./pi-bundle.js?v=10",
+        "@earendil-works/pi-agent-core": "./pi-bundle.js",
+        "@earendil-works/pi-ai": "./pi-bundle.js",
+        "@earendil-works/pi-web-ui": "./pi-bundle.js",
+        "lit": "./pi-bundle.js",
         "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
       }
     }
   </script>
-  <link rel="stylesheet" href="./styles/main.css?v=10" />
+  <link rel="stylesheet" href="./styles/main.css" />
+  <link rel="stylesheet" href="./styles/model-dropdown.css" />
   <link rel="stylesheet" href="./pi-web-ui.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -327,6 +328,7 @@
               </select>
               <button id="btn-add-provider" style="padding:4px 8px;border-radius:4px;border:1px solid var(--color-border-default);background:var(--color-bg-elevated);color:var(--color-text-secondary);cursor:pointer;white-space:nowrap" title="添加服务商">➕ 添加</button>
               <button id="btn-remove-provider" style="padding:4px 8px;border-radius:4px;border:1px solid var(--color-border-default);background:var(--color-bg-elevated);color:var(--color-text-secondary);cursor:pointer;white-space:nowrap" title="删除当前服务商">🗑️ 删除</button>
+              <button id="btn-reset-providers" style="padding:4px 8px;border-radius:4px;border:1px solid var(--color-border-default);background:var(--color-bg-elevated);color:var(--color-text-secondary);cursor:pointer;white-space:nowrap" title="重置为只显示免费服务商">🔄 重置</button>
             </div>
           </div>
           <div class="setting-row">
@@ -624,8 +626,8 @@
 
   <!-- Trace Waterfall Panel -->
   <script type="module">
-    import { showPanel } from './modules/waterfall.js?v=10';
-    import { getCurrentTraceId } from './modules/trace.js?v=10';
+    import { showPanel } from './modules/waterfall.js';
+    import { getCurrentTraceId } from './modules/trace.js';
     document.getElementById('trace-id-display')?.addEventListener('click', () => {
       const traceId = getCurrentTraceId();
       if (traceId) {
@@ -696,21 +698,21 @@
     }
 
     // ─── 自初始化模块（执行 side-effect） ────────────────
-    import './modules/storage.js?v=10';
-    import './modules/panels.js?v=10';
-    import './modules/auth.js?v=10';
-    import './modules/travelers.js?v=10';
-    import './modules/export.js?v=10';
-    import './modules/history.js?v=10';
-    import './modules/map.js?v=10';
-    import './modules/weather-chart.js?v=10';
-    import './modules/model-config.js?v=10';
-    import { initPageMap } from './modules/map.js?v=10';
-    import { showToast } from './modules/context.js?v=10';
+    import './modules/storage.js';
+    import './modules/panels.js';
+    import './modules/auth.js';
+    import './modules/travelers.js';
+    import './modules/export.js';
+    import './modules/history.js';
+    import './modules/map.js';
+    import './modules/weather-chart.js';
+    import './modules/model-config.js';
+    import { initPageMap } from './modules/map.js';
+    import { showToast } from './modules/context.js';
 
     // ─── 启动应用 ────────────────────────────────────────
-    import { initApp } from './modules/chat-init.js?v=10';
-    import { detectProxyMode, checkAuth } from './modules/auth.js?v=10';
+    import { initApp } from './modules/chat-init.js';
+    import { detectProxyMode, checkAuth } from './modules/auth.js';
 
     // 代理模式检测 + 认证
     detectProxyMode();

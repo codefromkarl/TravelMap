@@ -1,9 +1,9 @@
-import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey, getTestedProviders, addTestedProvider, removeTestedProvider } from './context.js?v=10';
-import { I18N } from './i18n.js?v=10';
-import { buildSystemPrompt } from './prompt.js?v=10';
+import { agent, currentLang, showToast, PROVIDER_MODELS, getAmapKey, getTestedProviders, addTestedProvider, removeTestedProvider, TESTED_PROVIDERS_KEY } from './context.js';
+import { I18N } from './i18n.js';
+import { buildSystemPrompt } from './prompt.js';
 import { getModel } from "@earendil-works/pi-ai";
 import { getAppStorage } from "@earendil-works/pi-web-ui";
-import { config } from './config.js?v=10';
+import { config } from './config.js';
 
 // ─── 模型配置弹窗 ──────────────────────────────────
 document.getElementById('btn-open-model')?.addEventListener('click', () => {
@@ -256,7 +256,7 @@ document.getElementById('btn-save-model')?.addEventListener('click', async () =>
       const useReasoning = config.deepseekLocal.reasoning !== false;
       agent.state.model = {
         id: modelId || config.deepseekLocal.defaultModel, name: 'DeepSeek V4 Flash', api: 'openai-completions',
-        provider: 'openai',  // 使用 openai provider 以避免 deepseek 的 API Key 检查
+        provider: 'openai',  // 使用 openai provider，因为是 OpenAI 兼容 API
         baseUrl: config.deepseekLocal.baseUrl,
         reasoning: useReasoning, input: ['text'],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -274,7 +274,23 @@ document.getElementById('btn-save-model')?.addEventListener('click', async () =>
       }
     } else {
       const newModel = getModel(provider, modelId);
-      agent.state.model = newModel;
+      if (newModel) {
+        agent.state.model = newModel;
+      } else {
+        // getModel 返回 undefined 时，fallback 到第一个可用模型
+        const fallbackModels = PROVIDER_MODELS[provider];
+        if (fallbackModels && fallbackModels.length > 0) {
+          const fallback = getModel(provider, fallbackModels[0]);
+          if (fallback) {
+            agent.state.model = fallback;
+            showToast(`模型 ${modelId} 不存在，已切换到 ${fallbackModels[0]}`, 3000, 'warning');
+          } else {
+            showToast(`服务商 ${provider} 的模型配置有误，请检查设置`, 3000, 'error');
+          }
+        } else {
+          showToast(`服务商 ${provider} 暂无可用模型`, 3000, 'error');
+        }
+      }
     }
     agent.state.systemPrompt = buildSystemPrompt(currentLang);
     agent.state.thinkingLevel = thinkingLevel;
@@ -419,6 +435,26 @@ document.getElementById('btn-remove-provider')?.addEventListener('click', () => 
   }
   
   showToast(`已删除 ${provider} 服务商`, 2500, 'success');
+});
+
+// 重置服务商列表
+document.getElementById('btn-reset-providers')?.addEventListener('click', () => {
+  // 清除所有测试成功的 provider
+  localStorage.removeItem(TESTED_PROVIDERS_KEY);
+  // 清除所有 API Key
+  const providers = ['openai', 'anthropic', 'google', 'deepseek', 'openrouter'];
+  providers.forEach(p => localStorage.removeItem(`api-key-${p}`));
+  
+  updateProviderOptions();
+  
+  // 切换到默认服务商
+  const provSelect = document.getElementById('cfg-provider');
+  if (provSelect) {
+    provSelect.value = 'deepseek-local';
+    updateModelOptions('deepseek-local');
+  }
+  
+  showToast('已重置为只显示免费服务商', 2500, 'success');
 });
 
 // 测试 API Key 按钮

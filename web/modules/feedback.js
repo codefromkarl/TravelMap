@@ -52,8 +52,21 @@ function _showToast(msg, duration = 2500, type = 'default', action = null) {
 // ─── 错误分类 ─────────────────────────────────────────
 function _classifyError(errMsg) {
   const m = errMsg.toLowerCase();
+
+  // 动态导入失败（如 amazon-bedrock.js）
+  if (m.includes('failed to fetch dynamically imported module') || m.includes('dynamically imported module')) {
+    return {
+      icon: '🔧',
+      zh: '服务端 API 暂不可用，如需使用请在设置中配置自己的 API Key',
+      en: 'Server API unavailable. Configure your own API Key in settings if needed.',
+      ja: 'サーバーAPIが利用できません。必要に応じて設定でAPI Keyを構成してください。',
+      retryable: false,
+    };
+  }
+
+  // 网络错误
   if (m.includes('fetch') || m.includes('network') || m.includes('failed to fetch')
-    || m.includes('networkerror') || m.includes('err_connection')) {
+    || m.includes('networkerror') || m.includes('err_connection') || m.includes('cors')) {
     return {
       icon: '🌐',
       zh: '网络连接失败，请检查网络后重试',
@@ -62,15 +75,30 @@ function _classifyError(errMsg) {
       retryable: true,
     };
   }
+
+  // API Key 无效
   if (m.includes('401') || m.includes('unauthorized') || m.includes('incorrect api key') || m.includes('invalid_api_key')) {
     return {
       icon: '🔑',
-      zh: 'API Key 无效，请在设置中检查',
-      en: 'Invalid API Key, please check settings',
-      ja: 'API Key が無効です',
+      zh: '服务端 API Key 不可用，请在设置中配置自己的 API Key',
+      en: 'Server API Key unavailable. Please configure your own API Key in settings.',
+      ja: 'サーバーAPI Keyが利用できません。設定で自分のAPI Keyを構成してください。',
       retryable: false,
     };
   }
+
+  // 服务端未配置
+  if (m.includes('503') || m.includes('service not configured') || m.includes('not configured')) {
+    return {
+      icon: '🔧',
+      zh: '服务端 API 暂不可用，如需使用请在设置中配置自己的 API Key',
+      en: 'Server API unavailable. Configure your own API Key in settings if needed.',
+      ja: 'サーバーAPIが利用できません。必要に応じて設定でAPI Keyを構成してください。',
+      retryable: false,
+    };
+  }
+
+  // 限流
   if (m.includes('429') || m.includes('rate') || m.includes('rate limit') || m.includes('too many requests')) {
     return {
       icon: '⏳',
@@ -80,6 +108,8 @@ function _classifyError(errMsg) {
       retryable: false,
     };
   }
+
+  // 超时
   if (m.includes('timeout') || m.includes('timed out')) {
     return {
       icon: '⏱️',
@@ -89,20 +119,34 @@ function _classifyError(errMsg) {
       retryable: true,
     };
   }
-  if (m.includes('500') || m.includes('502') || m.includes('503') || m.includes('server error')) {
+
+  // 服务器错误
+  if (m.includes('500') || m.includes('502') || m.includes('upstream') || m.includes('server error')) {
     return {
       icon: '🔧',
-      zh: '服务器错误，请稍后重试',
-      en: 'Server error, please try again later',
-      ja: 'サーバーエラーです',
+      zh: '服务端 API 暂不可用，如需使用请在设置中配置自己的 API Key',
+      en: 'Server API unavailable. Configure your own API Key in settings if needed.',
+      ja: 'サーバーエラーです。しばらくしてからもう一度お試しください。',
       retryable: true,
     };
   }
+
+  // 模型不存在
+  if (m.includes('no api provider') || m.includes('model') && m.includes('not found')) {
+    return {
+      icon: '⚙️',
+      zh: '模型配置有误，请在设置中重新选择模型',
+      en: 'Model configuration error. Please re-select model in settings.',
+      ja: 'モデル設定エラー。設定でモデルを再選択してください。',
+      retryable: false,
+    };
+  }
+
   return {
     icon: '❌',
-    zh: `规划失败：${errMsg.slice(0, 60)}`,
-    en: `Error: ${errMsg.slice(0, 60)}`,
-    ja: `エラー: ${errMsg.slice(0, 60)}`,
+    zh: `规划失败：${errMsg.slice(0, 80)}`,
+    en: `Error: ${errMsg.slice(0, 80)}`,
+    ja: `エラー: ${errMsg.slice(0, 80)}`,
     retryable: false,
   };
 }
@@ -112,7 +156,7 @@ function _isRetryable(errMsg) {
   return m.includes('fetch') || m.includes('network') || m.includes('failed to fetch')
     || m.includes('networkerror') || m.includes('err_connection') || m.includes('timeout')
     || m.includes('timed out') || m.includes('500') || m.includes('502')
-    || m.includes('503') || m.includes('server error');
+    || m.includes('503') || m.includes('server error') || m.includes('upstream');
 }
 
 // ─── Planning Indicator ───────────────────────────────

@@ -60,6 +60,10 @@ else
 fi
 rm -rf "$WORKER_BUILD_DIR"
 
+# ─── 内容哈希：为 JS/CSS 文件生成 hash 文件名 ──────────────
+echo "🔒 生成内容哈希文件名..."
+node scripts/hash-assets.js "$DEPLOY_DIR" 2>&1 || echo "   ⚠️ 哈希生成失败，使用原始文件名"
+
 # 寻找 wrangler：优先本地 node_modules，其次全局，最后回退 npx
 WRANGLER=""
 if [[ -x "./node_modules/.bin/wrangler" ]]; then
@@ -86,10 +90,25 @@ echo "✅ 部署完成!"
 echo "   Production: https://travel-agent-ebl.pages.dev"
 echo "   Custom:     https://travel.codefromkarl.xyz (需要完成域名绑定)"
 
+# ─── 部署后缓存清理 ───────────────────────────────────────
+echo ""
+echo "🧹 清理 Cloudflare CDN 缓存..."
+ZONE_ID="c404bfd5abf91163482f9a15dc1716f2"
+purge_resp=$(curl -s -X POST \
+  "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
+  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"purge_everything":true}')
+if echo "$purge_resp" | grep -q '"success":true'; then
+  echo "   ✅ CDN 缓存已清理"
+else
+  echo "   ⚠️ 缓存清理失败（可能缺少权限），用户需 Ctrl+Shift+R 强制刷新"
+fi
+
 # ─── 部署后健康检查 ───────────────────────────────────────
 
 echo ""
-echo "🔍 等待 CDN 缓存更新 (5s)..."
+echo "🔍 等待 CDN 更新 (5s)..."
 sleep 5
 
 if [[ -f "scripts/health-check.sh" ]]; then
