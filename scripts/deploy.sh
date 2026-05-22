@@ -49,6 +49,17 @@ for f in "${EXCLUDE_FILES[@]}"; do
   fi
 done
 
+# ─── 构建 _worker.js（Direct Upload 项目必须显式构建 Functions）───
+echo "🔧 构建 Pages Functions → _worker.js..."
+WORKER_BUILD_DIR=$(mktemp -d)
+if wrangler pages functions build "$DIR/functions" --outdir="$WORKER_BUILD_DIR" 2>&1; then
+  cp "$WORKER_BUILD_DIR/index.js" "$DEPLOY_DIR/_worker.js"
+  echo "   ✅ _worker.js 已生成"
+else
+  echo "   ⚠️ Functions 构建失败，跳过 _worker.js"
+fi
+rm -rf "$WORKER_BUILD_DIR"
+
 # 寻找 wrangler：优先本地 node_modules，其次全局，最后回退 npx
 WRANGLER=""
 if [[ -x "./node_modules/.bin/wrangler" ]]; then
