@@ -72,7 +72,7 @@ const _ROUTE_CACHE_MAX = 100;
 
 /**
  * 调用高德路线规划 API 获取两点间的步行路线
- * @returns {Promise<Array<[number, number]>>} WGS-84 坐标点数组
+ * @returns {Promise<Array<[number, number]>>} GCJ-02 坐标点数组
  */
 async function fetchWalkingRoute(fromLat, fromLng, toLat, toLng) {
   const cacheKey = `${fromLat.toFixed(4)},${fromLng.toFixed(4)}-${toLat.toFixed(4)},${toLng.toFixed(4)}`;
@@ -81,12 +81,9 @@ async function fetchWalkingRoute(fromLat, fromLng, toLat, toLng) {
   const geoKey = getAmapGeoKey();
   if (!geoKey) return null;
 
-  // 转换为 GCJ-02 坐标给高德 API
-  const fromGcj = wgs84ToGcj02(fromLat, fromLng);
-  const toGcj = wgs84ToGcj02(toLat, toLng);
-
+  // 输入坐标已经是 GCJ-02 格式，直接传给高德 API
   try {
-    const url = `https://restapi.amap.com/v3/direction/walking?origin=${fromGcj.lng.toFixed(6)},${fromGcj.lat.toFixed(6)}&destination=${toGcj.lng.toFixed(6)},${toGcj.lat.toFixed(6)}&key=${geoKey}`;
+    const url = `https://restapi.amap.com/v3/direction/walking?origin=${fromLng.toFixed(6)},${fromLat.toFixed(6)}&destination=${toLng.toFixed(6)},${toLat.toFixed(6)}&key=${geoKey}`;
     const resp = await fetchWithTimeout(url, {}, 5000);
     const data = await resp.json();
 
@@ -97,8 +94,8 @@ async function fetchWalkingRoute(fromLat, fromLng, toLat, toLng) {
         if (step.polyline) {
           const coords = step.polyline.split(';').map(c => {
             const [lng, lat] = c.split(',').map(Number);
-            // GCJ-02 → WGS-84
-            return gcj02ToWgs84(lat, lng);
+            // 直接返回 GCJ-02 坐标
+            return [lat, lng];
           });
           points.push(...coords);
         }
@@ -120,7 +117,7 @@ async function fetchWalkingRoute(fromLat, fromLng, toLat, toLng) {
 
 /**
  * 调用高德驾车路线规划 API 获取两点间的驾车路线
- * @returns {Promise<Array<[number, number]>>} WGS-84 坐标点数组
+ * @returns {Promise<Array<[number, number]>>} GCJ-02 坐标点数组
  */
 async function fetchDrivingRoute(fromLat, fromLng, toLat, toLng) {
   const cacheKey = `drive:${fromLat.toFixed(4)},${fromLng.toFixed(4)}-${toLat.toFixed(4)},${toLng.toFixed(4)}`;
@@ -129,11 +126,9 @@ async function fetchDrivingRoute(fromLat, fromLng, toLat, toLng) {
   const geoKey = getAmapGeoKey();
   if (!geoKey) return null;
 
-  const fromGcj = wgs84ToGcj02(fromLat, fromLng);
-  const toGcj = wgs84ToGcj02(toLat, toLng);
-
+  // 输入坐标已经是 GCJ-02 格式，直接传给高德 API
   try {
-    const url = `https://restapi.amap.com/v3/direction/driving?origin=${fromGcj.lng.toFixed(6)},${fromGcj.lat.toFixed(6)}&destination=${toGcj.lng.toFixed(6)},${toGcj.lat.toFixed(6)}&strategy=0&key=${geoKey}`;
+    const url = `https://restapi.amap.com/v3/direction/driving?origin=${fromLng.toFixed(6)},${fromLat.toFixed(6)}&destination=${toLng.toFixed(6)},${toLat.toFixed(6)}&strategy=0&key=${geoKey}`;
     const resp = await fetchWithTimeout(url, {}, 5000);
     const data = await resp.json();
 
@@ -144,7 +139,8 @@ async function fetchDrivingRoute(fromLat, fromLng, toLat, toLng) {
         if (step.polyline) {
           const coords = step.polyline.split(';').map(c => {
             const [lng, lat] = c.split(',').map(Number);
-            return gcj02ToWgs84(lat, lng);
+            // 直接返回 GCJ-02 坐标
+            return [lat, lng];
           });
           points.push(...coords);
         }
@@ -301,9 +297,8 @@ async function _geocodeOne(name, city) {
     const data = await resp.json();
     if (data.status === '1' && data.geocodes?.length > 0) {
       const [lng, lat] = data.geocodes[0].location.split(',').map(Number);
-      // 高德返回 GCJ-02，转为 WGS-84 供 Leaflet 使用
-      const converted = gcj02ToWgs84(lat, lng);
-      const result = { latitude: converted.lat, longitude: converted.lng };
+      // 直接返回 GCJ-02 坐标，无需转换
+      const result = { latitude: lat, longitude: lng };
 
       // 2. 写入持久化缓存
       await setCachedCoord(city, name, result);
@@ -936,9 +931,9 @@ function setupMapInteractions() {
                   const loc = poi.location.split(',');
                   const gcjLng = parseFloat(loc[0]);
                   const gcjLat = parseFloat(loc[1]);
-                  const wgs = gcj02ToWgs84(gcjLat, gcjLng);
-                  pageMapInstance.setView([wgs.lat, wgs.lng], 15);
-                  const searchMarker = L.marker([wgs.lat, wgs.lng]).addTo(pageMapInstance)
+                  // 直接使用 GCJ-02 坐标
+                  pageMapInstance.setView([gcjLat, gcjLng], 15);
+                  const searchMarker = L.marker([gcjLat, gcjLng]).addTo(pageMapInstance)
                     .bindPopup(`<b>${poi.name}</b><br>${poi.address || poi.cityname || ''}`)
                     .openPopup();
                   pageMapLayers.push(searchMarker);
@@ -1681,9 +1676,8 @@ async function geocodeAndMark(name, city) {
 
     if (data.status === '1' && data.geocodes?.length > 0) {
       const [lng, lat] = data.geocodes[0].location.split(',').map(Number);
-      // GCJ-02 → WGS-84
-      const wgs = gcj02ToWgs84(lat, lng);
-      addLabeledGhostMarker(name, wgs.lat, wgs.lng, city);
+      // 直接使用 GCJ-02 坐标
+      addLabeledGhostMarker(name, lat, lng, city);
     }
   } catch (e) {
     // 静默失败，不打扰用户

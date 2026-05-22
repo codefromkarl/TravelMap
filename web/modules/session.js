@@ -8,10 +8,10 @@
  *   session.startFresh() → 清空状态，开始新对话
  */
 
-import { agent, currentTripId, setCurrentTripId } from './context.js?v=3';
-import { feedback } from './feedback.js';
-import { listTrips } from './db.js';
-import { appState } from './app-state.js';
+import { agent, currentTripId, setCurrentTripId } from './context.js?v=4';
+import { feedback } from './feedback.js?v=4';
+import { listTrips } from './db.js?v=4';
+import { appState } from './app-state.js?v=4';
 
 // ─── 坐标完整性检查 ────────────────────────────────────
 function countMissingLocations(tripPlan) {
@@ -28,29 +28,14 @@ function countMissingLocations(tripPlan) {
   return missing;
 }
 
-// ─── 坐标系迁移：GCJ-02 → WGS-84 ──────────────────────
+// ─── 坐标系检查 ──────────────────────────────────────
+// 现在统一使用 GCJ-02 坐标系，无需转换
 async function migrateCoordinates(tripPlan) {
-  if (!tripPlan || (tripPlan.coordVersion && tripPlan.coordVersion >= 2)) return 0;
+  if (!tripPlan || (tripPlan.coordVersion && tripPlan.coordVersion >= 3)) return 0;
 
-  const { gcj02ToWgs84 } = await import('./map.js');
-  let converted = 0;
-  for (const day of tripPlan.days || []) {
-    for (const attr of day.attractions || []) {
-      const loc = attr.location;
-      if (loc && loc.latitude && loc.longitude && (loc.latitude !== 0 || loc.longitude !== 0)) {
-        const wgs = gcj02ToWgs84(loc.latitude, loc.longitude);
-        loc.latitude = wgs.lat;
-        loc.longitude = wgs.lng;
-        converted++;
-      }
-    }
-  }
-  if (converted > 0) {
-    tripPlan.coordVersion = 2;
-    console.log(`[Session] 坐标系迁移：${converted} 个景点 GCJ-02 → WGS-84`);
-    window._autoSaveTrip?.();
-  }
-  return converted;
+  // 标记为已迁移（GCJ-02 坐标系）
+  tripPlan.coordVersion = 3;
+  return 0;
 }
 
 // ─── 恢复对话历史 ──────────────────────────────────────
@@ -63,11 +48,15 @@ function restoreMessages(messages) {
     timestamp: m.timestamp,
   }));
 
-  // 直接赋值不触发 ChatPanel 的事件，需手动触发 re-render
-  requestAnimationFrame(() => {
+  // 直接更新 message-list 的 messages 属性（绕过 Lit 绑定问题）
+  setTimeout(() => {
     const ai = document.querySelector('agent-interface');
-    if (ai) ai.requestUpdate();
-  });
+    const ml = ai?.querySelector('message-list');
+    if (ml && ai?.session) {
+      ml.messages = [...ai.session.state.messages];
+      ml.requestUpdate();
+    }
+  }, 100);
 }
 
 // ─── 恢复 UI 状态 ──────────────────────────────────────
@@ -130,7 +119,7 @@ export const session = {
 
         // 校验坐标完整性
         try {
-          const { validateAndWarn } = await import('./tools/validate-trip.js');
+          const { validateAndWarn } = await import('./tools/validate-trip.js?v=4');
           const result = validateAndWarn(latest.tripPlan);
           if (result.hasIssues) {
             feedback.warning('行程数据不完整：' + result.missingCoords.length + ' 个景点缺少坐标，建议重新生成', 5000);
