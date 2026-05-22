@@ -1,10 +1,10 @@
-import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js?v=6';
-import { I18N } from './i18n.js?v=6';
-import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js?v=6';
-import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js?v=6';
-import { getCachedCoord, setCachedCoord } from './coord-cache.js?v=6';
-import { markerRegistry } from './markers.js?v=6';
-import { routePlanner } from './route-planner.js?v=6';
+import { showToast, getAmapKey, getAmapGeoKey, SUPPLY_COLORS, CITY_CENTERS, RISK_COLORS, isDomesticCityForMap, chatPanel, currentLang } from './context.js?v=7';
+import { I18N } from './i18n.js?v=7';
+import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from './db.js?v=7';
+import { registerMarker, scrollToAttraction, clearMarkerRegistry } from './anchor-link.js?v=7';
+import { getCachedCoord, setCachedCoord } from './coord-cache.js?v=7';
+import { markerRegistry } from './markers.js?v=7';
+import { routePlanner } from './route-planner.js?v=7';
 
 // ─── XSS 防护：HTML 转义 ──────────────────────────────
 function escapeHtml(str) {

@@ -223,13 +223,10 @@ export const feedback = {
    */
   quotaExceeded() {
     const lang = _getLang();
-    const msg = lang === 'zh' ? '免费体验次数已用完，登录后可获得更多次数'
+    const msg = lang === 'zh' ? '免费体验次数已用完'
       : lang === 'ja' ? '無料体験回数が終了しました'
-      : 'Free trial exhausted, please log in';
-    _showToast(msg, 6000, 'warning', {
-      label: lang === 'zh' ? '去登录' : 'Log in',
-      onClick: () => document.getElementById('auth-overlay')?.classList.add('visible'),
-    });
+      : 'Free trial exhausted';
+    _showToast(msg, 6000, 'warning');
   },
 
   /**
@@ -258,20 +255,6 @@ export const feedback = {
    */
   handleAgentError(errMsg, handlers = {}) {
     const msg = String(errMsg || '');
-
-    // 认证错误 (401 / AUTH_REQUIRED / Login required)
-    if (msg.includes('401') || msg.includes('AUTH_REQUIRED') || msg.includes('Login required')) {
-      document.getElementById('auth-overlay')?.classList.add('visible');
-      this.done();
-      return 'auth';
-    }
-
-    // 配额错误 (QUOTA / quota / 次数已用完)
-    if (msg.includes('QUOTA') || msg.includes('quota') || msg.includes('次数已用完') || msg.includes('免费体验')) {
-      this.quotaExceeded();
-      document.getElementById('auth-overlay')?.classList.add('visible');
-      return 'quota';
-    }
 
     // 通用错误（自动分类 + 可选重试）
     this.error(msg, handlers.onRetry || null);

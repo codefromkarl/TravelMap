@@ -1,5 +1,5 @@
-import { agent, currentTripId, setCurrentTripId, showToast } from './context.js?v=6';
-import { listTrips, loadTripById, deleteTripById } from './db.js?v=6';
+import { agent, currentTripId, setCurrentTripId, showToast } from './context.js?v=7';
+import { listTrips, loadTripById, deleteTripById } from './db.js?v=7';
 
 // ─── 格式化日期 ────────────────────────────────────────
 function formatDate(iso) {
@@ -97,7 +97,7 @@ export async function renderHistory() {
           window._lastTripPlan = trip.tripPlan;
           // 校验坐标完整性
           try {
-            const { validateAndWarn } = await import('./tools/validate-trip.js?v=6');
+            const { validateAndWarn } = await import('./tools/validate-trip.js?v=7');
             const result = validateAndWarn(trip.tripPlan);
             if (result.hasIssues) {
               showToast('行程数据不完整：' + result.missingCoords.length + ' 个景点缺少坐标', 5000, 'warning');
