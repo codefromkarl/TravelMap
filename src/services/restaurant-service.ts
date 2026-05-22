@@ -142,8 +142,8 @@ function amapPoiToRestaurant(poi: AmapPoi): Restaurant {
   if (poi.location) {
     const [lng, lat] = poi.location.split(",").map(Number);
     if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-      // 高德返回 GCJ-02，需转为 WGS-84
-      location = gcj02ToWgs84(lat, lng);
+      // 直接返回 GCJ-02 坐标，前端根据瓦片类型决定是否转换
+      location = { latitude: lat, longitude: lng };
     }
   }
 

@@ -178,8 +178,8 @@ async function geocodeAmap(
   }
 
   const [lng, lat] = data.geocodes[0].location.split(",").map(Number);
-  // 高德返回 GCJ-02，需转为 WGS-84 供 Leaflet 使用
-  return gcj02ToWgs84(lat, lng);
+  // 直接返回 GCJ-02 坐标，前端根据瓦片类型决定是否转换
+  return { latitude: lat, longitude: lng };
 }
 
 // ─── Google Maps ──────────────────────────────────────────

@@ -220,7 +220,8 @@ function amapPoiToHotel(poi: AmapPoi): HotelSearchResult {
   if (poi.location) {
     const [lng, lat] = poi.location.split(",").map(Number);
     if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-      location = gcj02ToWgs84(lat, lng);
+      // 直接返回 GCJ-02 坐标，前端根据瓦片类型决定是否转换
+      location = { latitude: lat, longitude: lng };
     }
   }
 

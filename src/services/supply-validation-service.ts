@@ -160,8 +160,7 @@ async function searchAmapPoi(
 
   const poi = data.pois[0];
   const [lng, lat] = poi.location.split(",").map(Number);
-  // 高德返回 GCJ-02，需转为 WGS-84
-  const wgs84 = gcj02ToWgs84(lat, lng);
+  // 直接返回 GCJ-02 坐标，前端根据瓦片类型决定是否转换
   const rawCost = poi.biz_ext?.cost ? Number.parseFloat(poi.biz_ext.cost) : undefined;
   const cost =
     typeof rawCost === "number" && Number.isFinite(rawCost) && rawCost > 0
@@ -172,7 +171,7 @@ async function searchAmapPoi(
     typeof rawRating === "number" && Number.isFinite(rawRating) ? rawRating : undefined;
 
   return {
-    location: wgs84,
+    location: { latitude: lat, longitude: lng },
     address: poi.address,
     poiId: poi.id,
     cost,

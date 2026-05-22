@@ -617,14 +617,16 @@ function isUsingAmapTiles() {
 /**
  * 将 WGS-84 坐标转换为当前瓦片所需的坐标系
  * - 高德瓦片：WGS-84 → GCJ-02
- * - OSM 瓦片：保持 WGS-84
+ * - OSM 瓦片：转换为 WGS-84
  */
 function toTileCoords(lat, lng) {
   if (isUsingAmapTiles()) {
-    const gcj = wgs84ToGcj02(lat, lng);
-    return [gcj.lat, gcj.lng];
+    // 高德瓦片：直接使用 GCJ-02 坐标（后端已存储 GCJ-02）
+    return [lat, lng];
   }
-  return [lat, lng];
+  // OSM 瓦片：GCJ-02 → WGS-84
+  const wgs = gcj02ToWgs84(lat, lng);
+  return [wgs.lat, wgs.lng];
 }
 
 /**
