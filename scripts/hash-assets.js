@@ -2,19 +2,12 @@
  * 部署时自动为 JS/CSS 文件生成内容哈希文件名
  * 解决浏览器缓存导致的旧代码问题
  *
- * 流程：
- *   1. 扫描 index.html 中引用的 .js/.css 文件
- *   2. 计算文件内容 SHA256 哈希（取前8位）
- *   3. 复制文件为 原名.哈希.js/css
- *   4. 替换 index.html 中的引用路径
- *
  * 用法：node scripts/hash-assets.js <deploy-dir>
  */
 
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'fs';
-import { join, basename, extname } from 'path';
+import { join, extname } from 'path';
 import { createHash } from 'crypto';
-import { globSync } from 'glob';
 
 const deployDir = process.argv[2];
 if (!deployDir) {
@@ -30,43 +23,57 @@ if (!existsSync(indexPath)) {
 
 let html = readFileSync(indexPath, 'utf-8');
 
-// 匹配 src="...js" 和 href="...css"（带或不带查询参数）
-const assetRegex = /(src|href)=["'](\/modules\/[^"']+\.(?:js|css))(?:\?v=[^"']*)?["']/g;
+// 匹配所有引用 modules/ 下 .js/.css 的路径（src=, href=, from=, import）
+// 支持: src="./modules/x.js", href="/modules/x.css", import './modules/x.js'
+const patterns = [
+  // src="./modules/..." 或 href="./modules/..."
+  /((?:src|href)=["'])\.\/?(modules\/[^"']+\.(?:js|css))(?:\?v=[^"']*)?(["'])/g,
+  // import '...' 或 from '...'
+  /((?:import|from)\s+["'])\.\/?(modules\/[^"']+\.(?:js|css))(?:\?v=[^"']*)?(["'])/g,
+];
 
-const replacements = [];
-let match;
+let count = 0;
 
-while ((match = assetRegex.exec(html)) !== null) {
-  const [fullMatch, attr, assetPath] = match;
-  const filePath = join(deployDir, assetPath);
+for (const regex of patterns) {
+  // Reset regex lastIndex
+  regex.lastIndex = 0;
+  let match;
+  const matches = [];
 
-  if (!existsSync(filePath)) {
-    console.warn(`  ⚠️  Skip (not found): ${assetPath}`);
-    continue;
+  while ((match = regex.exec(html)) !== null) {
+    matches.push({
+      full: match[0],
+      prefix: match[1],
+      assetPath: match[2],
+      suffix: match[3],
+    });
   }
 
-  // 计算内容哈希
-  const content = readFileSync(filePath);
-  const hash = createHash('sha256').update(content).digest('hex').slice(0, 8);
+  for (const m of matches) {
+    const filePath = join(deployDir, m.assetPath);
 
-  // 生成哈希文件名
-  const ext = extname(assetPath);
-  const base = assetPath.replace(ext, '');
-  const hashedPath = `${base}.${hash}${ext}`;
+    if (!existsSync(filePath)) {
+      console.warn(`  ⚠️  Skip (not found): ${m.assetPath}`);
+      continue;
+    }
 
-  // 复制为哈希文件名
-  const hashedFilePath = join(deployDir, hashedPath);
-  copyFileSync(filePath, hashedFilePath);
+    const content = readFileSync(filePath);
+    const hash = createHash('sha256').update(content).digest('hex').slice(0, 8);
+    const ext = extname(m.assetPath);
+    const base = m.assetPath.replace(ext, '');
+    const hashedPath = `${base}.${hash}${ext}`;
 
-  // 替换 HTML 中的引用（去掉 ?v= 参数）
-  const newRef = `${attr}="${hashedPath}"`;
-  html = html.replace(fullMatch, newRef);
+    const hashedFilePath = join(deployDir, hashedPath);
+    copyFileSync(filePath, hashedFilePath);
 
-  replacements.push({ from: assetPath, to: hashedPath });
-  console.log(`  ✅ ${assetPath} → ${hashedPath}`);
+    // 替换 HTML 中的引用
+    const newRef = `${m.prefix}${hashedPath}${m.suffix}`;
+    html = html.replaceAll(m.full, newRef);
+
+    count++;
+    console.log(`  ✅ ${m.assetPath} → ${hashedPath}`);
+  }
 }
 
-// 写回 index.html
 writeFileSync(indexPath, html, 'utf-8');
-
-console.log(`\n📦 ${replacements.length} assets hashed in ${deployDir}`);
+console.log(`\n📦 ${count} assets hashed in ${deployDir}`);

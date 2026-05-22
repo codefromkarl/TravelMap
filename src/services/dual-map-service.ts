@@ -122,6 +122,23 @@ export function gcj02ToWgs84(lat: number, lng: number): Location {
   return { latitude: convertedLat, longitude: convertedLng };
 }
 
+/** WGS-84 → GCJ-02（国际标准坐标转高德坐标）
+ *  用于将 Nominatim/Google 等返回的 WGS-84 坐标转换为 GCJ-02
+ *  确保存储的坐标统一使用 GCJ-02 格式
+ */
+export function wgs84ToGcj02(lat: number, lng: number): Location {
+  if (outOfChina(lat, lng)) return { latitude: lat, longitude: lng };
+  const dLat = transformLat(lng - 105.0, lat - 35.0);
+  const dLng = transformLng(lng - 105.0, lat - 35.0);
+  const radLat = (lat / 180.0) * PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  const convertedLat = lat + (dLat * 180.0) / (((A * (1 - EE)) / (magic * sqrtMagic)) * PI);
+  const convertedLng = lng + (dLng * 180.0) / ((A / sqrtMagic) * Math.cos(radLat) * PI);
+  return { latitude: convertedLat, longitude: convertedLng };
+}
+
 // ─── 全局引擎状态 ─────────────────────────────────────────
 
 /** 引擎失败标记 — 进程级单例 */
@@ -205,10 +222,10 @@ async function geocodeGoogle(
     throw new Error(`Google no result: ${address}`);
   }
 
-  return {
-    latitude: data.results[0].geometry.location.lat,
-    longitude: data.results[0].geometry.location.lng,
-  };
+  // Google Maps 返回 WGS-84 坐标，需要转换为 GCJ-02 以统一存储格式
+  const wgs84Lat = data.results[0].geometry.location.lat;
+  const wgs84Lng = data.results[0].geometry.location.lng;
+  return wgs84ToGcj02(wgs84Lat, wgs84Lng);
 }
 
 // ─── Nominatim (免费兜底) ────────────────────────────────
@@ -225,7 +242,10 @@ async function geocodeNominatim(address: string, city: string, timeout: number):
   const data = (await res.json()) as { lat: string; lon: string }[];
   if (!data.length) throw new Error(`Nominatim no result: ${address}`);
 
-  return { latitude: Number.parseFloat(data[0].lat), longitude: Number.parseFloat(data[0].lon) };
+  // Nominatim 返回 WGS-84 坐标，需要转换为 GCJ-02 以统一存储格式
+  const wgs84Lat = Number.parseFloat(data[0].lat);
+  const wgs84Lng = Number.parseFloat(data[0].lon);
+  return wgs84ToGcj02(wgs84Lat, wgs84Lng);
 }
 
 // ─── 默认坐标 ─────────────────────────────────────────────
