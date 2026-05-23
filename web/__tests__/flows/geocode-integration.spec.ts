@@ -172,7 +172,7 @@ test.describe("地理编码集成测试", () => {
     await page.evaluate(() => {
       const originalFetch = window.fetch;
       window.fetch = function(...args) {
-        if (typeof args[0] === 'string' && args[0].includes('amap.com')) {
+        if (typeof args[0] === 'string' && args[0].includes('/v3/geocode/geo')) {
           window._geocodeFetchCalls = (window._geocodeFetchCalls || 0) + 1;
         }
         return originalFetch.apply(this, args);
@@ -307,7 +307,7 @@ test.describe("地理编码集成测试", () => {
       window._geocodeFetchCalls = 0;
       const originalFetch = window.fetch;
       window.fetch = function(...args) {
-        if (typeof args[0] === 'string' && args[0].includes('amap.com')) {
+        if (typeof args[0] === 'string' && args[0].includes('/v3/geocode/geo')) {
           window._geocodeFetchCalls++;
         }
         return originalFetch.apply(this, args);

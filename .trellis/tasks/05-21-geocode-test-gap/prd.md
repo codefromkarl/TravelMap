@@ -110,10 +110,10 @@
 **产出**: 测试覆盖率报告 + 评估指标
 
 **指标**:
-- [ ] 前端 `map.js` 函数覆盖率
-- [ ] 前端 `validate-trip.js` 行覆盖率
-- [ ] 地理编码相关代码分支覆盖率
-- [ ] E2E 测试通过率
+- [x] 前端 `map.js` 函数覆盖率
+- [x] 前端 `validate-trip.js` 行覆盖率
+- [x] 地理编码相关代码分支覆盖率
+- [x] E2E 测试通过率
 
 ---
 
@@ -123,7 +123,7 @@
 - [x] `web/modules/__tests__/validate-trip.test.js` 通过 (18/18)
 - [x] `web/__tests__/flows/itinerary-map-linkage.spec.ts` 全部通过 (22/22)
 - [x] `web/__tests__/flows/geocode-integration.spec.ts` 全部通过 (12/12)
-- [ ] 测试覆盖率报告生成
+- [x] 测试覆盖率报告生成
 - [x] 测试质量评估文档更新
 
 ---

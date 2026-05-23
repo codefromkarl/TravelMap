@@ -31,6 +31,12 @@ const COHERENCE_JUDGE_PROMPT = `你是一个旅行规划质量评审专家。请
 **Agent 输出**：
 {output}
 
+**评分校准规则**：
+- 只依据用户需求和 Agent 输出中的可见证据评分，不要臆测未出现的信息。
+- 6 分为最低可接受；8 分代表可直接执行且基本无明显缺口；10 分只给证据充分、细节完整的输出。
+- 如果输出缺少地理邻近性、时间跨度、交通衔接等证据，对应检查项不得高于 6 分。
+- 问题和建议必须引用具体缺口，避免泛泛而谈。
+
 请返回严格 JSON 格式：
 {
   "coherence_score": <0-10>,
@@ -57,6 +63,12 @@ const RELEVANCE_JUDGE_PROMPT = `你是一个旅行规划质量评审专家。请
 
 **Agent 输出**：
 {output}
+
+**评分校准规则**：
+- 只依据用户需求和 Agent 输出中的可见证据评分，不要臆测未出现的信息。
+- 6 分为最低可接受；8 分代表明确回应用户需求；10 分只给主题、预算、人群和天数均证据充分的输出。
+- 用户明确提出的偏好未被回应时，对应检查项不得高于 5 分。
+- 问题和建议必须引用具体未满足的需求点。
 
 请返回严格 JSON 格式：
 {
@@ -89,7 +101,7 @@ export async function evaluateSemantic(
   checks.push(...relevanceResult.checks);
 
   // 计算总分
-  const totalScore = checks.reduce((sum, c) => sum + c.score, 0) / (checks.length * 10);
+  const totalScore = checks.reduce((sum, c) => sum + c.score, 0) / checks.length;
   const allPassed = checks.every((c) => c.passed);
 
   return {

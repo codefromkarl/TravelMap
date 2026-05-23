@@ -23,13 +23,13 @@ if (!existsSync(indexPath)) {
 
 let html = readFileSync(indexPath, 'utf-8');
 
-// 匹配所有引用 modules/ 下 .js/.css 的路径（src=, href=, from=, import）
-// 支持: src="./modules/x.js", href="/modules/x.css", import './modules/x.js'
+// 匹配所有引用 modules/ 和 styles/ 下 .js/.css 的路径（src=, href=, from=, import）
+// 支持: src="./modules/x.js", href="./styles/x.css", import './modules/x.js'
 const patterns = [
-  // src="./modules/..." 或 href="./modules/..."
-  /((?:src|href)=["'])\.\/?(modules\/[^"']+\.(?:js|css))(?:\?v=[^"']*)?(["'])/g,
-  // import '...' 或 from '...'
-  /((?:import|from)\s+["'])\.\/?(modules\/[^"']+\.(?:js|css))(?:\?v=[^"']*)?(["'])/g,
+  // src/href 引用 modules/ 或 styles/
+  /((?:src|href)=["']\.\/)((?:modules|styles)\/[^"']+\.(?:js|css))(?:\?v=[^"']*)?(["'])/g,
+  // import/from 引用 modules/
+  /((?:import|from)\s+["']\.\/)(modules\/[^"']+\.(?:js|css))(?:\?v=[^"']*)?(["'])/g,
 ];
 
 let count = 0;

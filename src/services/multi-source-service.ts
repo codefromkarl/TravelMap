@@ -84,7 +84,6 @@ export function inferVisitDuration(a: EnrichedAttraction): number {
 
 interface CacheEntry {
   result: FusionResult;
-  timestamp: number;
 }
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 小时（城市级景点数据变化极慢）
@@ -459,7 +458,7 @@ export async function searchAttractionsMultiSource(
   };
 
   // 写入缓存
-  searchCache.set(key, { result, timestamp: Date.now() });
+  searchCache.set(key, { result });
 
   return result;
 }

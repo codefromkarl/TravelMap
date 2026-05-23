@@ -56,7 +56,7 @@ modules/
 
 ## 验收标准
 
-- [ ] 文件按领域分入子目录
-- [ ] 所有 import 路径更新
-- [ ] 构建通过（`npm run build`）
-- [ ] 前端测试通过
+- [x] 文件按领域分入子目录
+- [x] 所有 import 路径更新
+- [x] 构建通过（`npm run build`）
+- [x] 前端关键路径测试通过（地理编码单元测试 + desktop/mobile E2E）

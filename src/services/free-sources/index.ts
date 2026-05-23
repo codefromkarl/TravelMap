@@ -44,7 +44,6 @@ import { LRUCache } from "lru-cache";
 
 interface CacheEntry {
   result: FreeSourceResult;
-  timestamp: number;
 }
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 分钟
@@ -159,7 +158,7 @@ export async function searchFreeSources(
 
   // 写入缓存
   if (useCache) {
-    searchCache.set(key, { result, timestamp: Date.now() });
+    searchCache.set(key, { result });
   }
 
   return result;

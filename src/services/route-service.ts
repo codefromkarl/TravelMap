@@ -29,7 +29,6 @@ import { LRUCache } from "lru-cache";
 
 interface CacheEntry {
   result: RouteSearchResult;
-  timestamp: number;
 }
 
 function cacheKey(params: RouteSearchParams): string {
@@ -357,7 +356,7 @@ export async function searchAttractionRoutes(
   // 检查缓存
   const key = cacheKey(params);
   const cached = routeCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  if (cached) {
     return { ...cached.result };
   }
 
@@ -431,7 +430,7 @@ export async function searchAttractionRoutes(
   };
 
   // 写入缓存
-  routeCache.set(key, { result, timestamp: Date.now() });
+  routeCache.set(key, { result });
 
   return result;
 }

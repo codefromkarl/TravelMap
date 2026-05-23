@@ -23,6 +23,7 @@ export {
   type ScoreStats,
   type TrendData,
 } from "./baseline-manager.js";
+export { evaluateExperience } from "./dimensions/experience.js";
 export { evaluatePractical } from "./dimensions/practical.js";
 export { evaluateSafety } from "./dimensions/safety.js";
 export { evaluateSemantic } from "./dimensions/semantic.js";

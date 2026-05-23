@@ -280,7 +280,7 @@
           </span>
           <span data-i18n="loginGoogle">使用 Google 登录</span>
         </a>
-        <div class="auth-terms" data-i18n="authTerms">登录即表示同意我们的<a href="/terms.html" target="_blank">服务条款</a>和<a href="/privacy.html" target="_blank">隐私政策</a>。我们仅获取您的公开头像和昵称。</div>
+        <div class="auth-terms" data-i18n="authTerms">登录即表示同意我们的<a href="/terms.html" target="_blank" rel="noopener noreferrer">服务条款</a>和<a href="/privacy.html" target="_blank" rel="noopener noreferrer">隐私政策</a>。我们仅获取您的公开头像和昵称。</div>
       </div>
     </div>
     <!-- 分享预览弹窗 -->
@@ -498,10 +498,21 @@
             <div style="font-size:13px;color:var(--color-text-muted)" data-i18n="mapChatWelcomeDesc">在下方输入需求，右侧地图将实时展示路线</div>
             <div class="quick-prompts">
               <div class="quick-prompt quick-prompt--discover" data-action="discover" data-i18n="discoverButton">🗺️ 不知道去哪？智能推荐</div>
+              <div class="quick-prompt quick-prompt--preset" data-action="preset">⚡ 一键体验示例行程</div>
               <div class="quick-prompt" data-prompt="规划一个3天杭州亲子游，带两个老人和一个5岁小朋友">🌊 杭州3天亲子游</div>
               <div class="quick-prompt" data-prompt="北京5日文化之旅，预算5000元，住哪里比较方便">🏛️ 北京5日文化之旅</div>
               <div class="quick-prompt" data-prompt="成都周边3天自驾游，想去大熊猫基地和都江堰">🐼 成都3天自驾游</div>
               <div class="quick-prompt" data-prompt="上海出发去黄山2日游，坐高铁，帮我安排详细路线和住宿">⛰️ 黄山2日游</div>
+            </div>
+            <!-- 预设行程选择弹窗 -->
+            <div id="preset-trip-modal" class="preset-modal" style="display:none">
+              <div class="preset-modal-content">
+                <div class="preset-modal-header">
+                  <span>⚡ 选择示例行程</span>
+                  <button class="preset-modal-close" onclick="document.getElementById('preset-trip-modal').style.display='none'">✕</button>
+                </div>
+                <div id="preset-trip-list" class="preset-trip-list"></div>
+              </div>
             </div>
           </div>
           <!-- 主对话面板（绑定 Agent） -->
@@ -536,6 +547,8 @@
           <button class="map-tool-btn" id="btn-map-routes" title="路线面板"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
           <button class="map-tool-btn" id="btn-map-layers" title="图层切换"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></button>
           <button class="map-tool-btn" id="btn-map-locate" title="定位"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></button>
+          <!-- 移动端视图切换按钮 -->
+          <button class="map-tool-btn mobile-only" id="btn-mobile-toggle" title="切换视图"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></button>
         </div>
 
         <!-- 图层切换 -->
@@ -619,7 +632,7 @@
     <a href="https://codefromkarl.com" target="_blank" rel="noopener noreferrer" style="color:var(--color-text-muted);text-decoration:none;transition:color 0.15s">codefromkarl</a>
     <a href="https://github.com/codefromkarl" target="_blank" rel="noopener noreferrer" style="color:var(--color-text-muted);text-decoration:none;transition:color 0.15s">GitHub 主页</a>
     <span style="color:var(--color-border-default)">·</span>
-    <a href="/help.html" target="_blank" style="color:var(--color-text-muted);text-decoration:none;transition:color 0.15s">帮助</a>
+    <a href="/help.html" target="_blank" rel="noopener noreferrer" style="color:var(--color-text-muted);text-decoration:none;transition:color 0.15s">帮助</a>
     <button id="btn-feedback" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:12px;padding:0;transition:color 0.15s" onmouseover="this.style.color='var(--color-accent-primary)'" onmouseout="this.style.color='var(--color-text-muted)'">反馈</button>
     <span id="trace-id-display" style="font-size:10px;color:var(--color-text-muted);opacity:0.6;cursor:pointer" title="点击打开调用链追踪">trace:--</span>
   </footer>
@@ -698,21 +711,21 @@
     }
 
     // ─── 自初始化模块（执行 side-effect） ────────────────
-    import './modules/storage.js';
-    import './modules/panels.js';
-    import './modules/auth.js';
-    import './modules/travelers.js';
-    import './modules/export.js';
-    import './modules/history.js';
-    import './modules/map.js';
+    import './modules/infra/storage.js';
+    import './modules/ui/panels.js';
+    import './modules/auth/auth.js';
+    import './modules/trip/travelers.js';
+    import './modules/trip/export.js';
+    import './modules/trip/history.js';
+    import './modules/ui/map.js';
     import './modules/weather-chart.js';
-    import './modules/model-config.js';
-    import { initPageMap } from './modules/map.js';
-    import { showToast } from './modules/context.js';
+    import './modules/infra/model-config.js';
+    import { initPageMap } from './modules/ui/map.js';
+    import { showToast } from './modules/infra/context.js';
 
     // ─── 启动应用 ────────────────────────────────────────
-    import { initApp } from './modules/chat-init.js';
-    import { detectProxyMode, checkAuth } from './modules/auth.js';
+    import { initApp } from './modules/trip/chat-init.js';
+    import { detectProxyMode, checkAuth } from './modules/auth/auth.js';
 
     // 代理模式检测 + 认证
     detectProxyMode();

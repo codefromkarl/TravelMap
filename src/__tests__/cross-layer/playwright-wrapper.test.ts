@@ -7,9 +7,10 @@
  * 注意: Playwright 测试本身仍在独立进程中运行，
  * 但通过此 wrapper 可以在 vitest run 中一并触发。
  */
-import { describe, it, expect } from "vitest";
+
 import { execSync } from "node:child_process";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
 
@@ -25,7 +26,7 @@ describe("Playwright E2E 测试套件", () => {
         encoding: "utf-8",
         timeout: 60_000,
         env: { ...process.env, CI: "true" },
-      }
+      },
     );
     expect(result).toContain("passed");
   });
@@ -38,7 +39,7 @@ describe("Playwright E2E 测试套件", () => {
         encoding: "utf-8",
         timeout: 120_000,
         env: { ...process.env, CI: "true" },
-      }
+      },
     );
     // 允许部分失败 (预存问题)
     expect(result).toBeDefined();
@@ -52,7 +53,7 @@ describe("Playwright E2E 测试套件", () => {
         encoding: "utf-8",
         timeout: 60_000,
         env: { ...process.env, CI: "true" },
-      }
+      },
     );
     expect(result).toBeDefined();
   });
@@ -65,7 +66,7 @@ describe("Playwright E2E 测试套件", () => {
         encoding: "utf-8",
         timeout: 60_000,
         env: { ...process.env, CI: "true" },
-      }
+      },
     );
     expect(result).toContain("passed");
   });

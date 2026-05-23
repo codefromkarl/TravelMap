@@ -3,14 +3,7 @@
  * 从右下角弹出，类似 OpenAI 的样式
  */
 
-import { getTestedProviders } from './context.js';
-
-// 可用的 provider 列表
-function getAvailableProviders() {
-  const freeProviders = ['deepseek-local'];
-  const testedProviders = getTestedProviders();
-  return [...new Set([...freeProviders, ...testedProviders])];
-}
+import { getAvailableProviders, PROVIDER_REGISTRY } from './context.js';
 
 // 创建下拉面板
 export function createModelDropdown(currentModel, onSelect) {
@@ -18,7 +11,7 @@ export function createModelDropdown(currentModel, onSelect) {
   dropdown.id = 'model-dropdown-panel';
   dropdown.className = 'model-dropdown';
   
-  // 获取可用模型
+  // 获取可用 provider 列表
   const availableProviders = getAvailableProviders();
   
   // 模型数据（从 pi-bundle 中获取）
@@ -26,27 +19,31 @@ export function createModelDropdown(currentModel, onSelect) {
   try {
     // 获取所有注册的模型
     const modelRegistry = window.__pi_modelRegistry || new Map();
-    for (const [provider, models] of modelRegistry) {
-      // deepseek-local 对应 deepseek provider
-      const mappedProvider = provider === 'deepseek' ? 'deepseek-local' : provider;
-      if (availableProviders.includes(mappedProvider)) {
-        for (const [id, model] of models) {
-          allModels.push({ provider: mappedProvider, id, model: { ...model, provider: mappedProvider } });
+    for (const [piProvider, models] of modelRegistry) {
+      // 查找映射到这个 piProvider 的可用 provider
+      for (const provider of availableProviders) {
+        const registry = PROVIDER_REGISTRY[provider];
+        if (registry && registry.piProvider === piProvider) {
+          for (const [id, model] of models) {
+            allModels.push({ provider, id, model: { ...model, provider } });
+          }
+          break;
         }
       }
     }
     
     // 如果 deepseek-local 可用但没有模型，手动添加默认模型
     if (availableProviders.includes('deepseek-local') && !allModels.some(m => m.provider === 'deepseek-local')) {
+      const registry = PROVIDER_REGISTRY['deepseek-local'];
       allModels.push({
         provider: 'deepseek-local',
-        id: 'deepseek-v4-flash',
+        id: registry.defaultModel,
         model: {
-          id: 'deepseek-v4-flash',
+          id: registry.defaultModel,
           name: 'DeepSeek V4 Flash',
           api: 'openai-completions',
-          provider: 'deepseek-local',
-          baseUrl: 'http://localhost:6011/v1',
+          provider: 'openai',
+          baseUrl: registry.baseUrl,
           reasoning: true,
           input: ['text'],
           cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },

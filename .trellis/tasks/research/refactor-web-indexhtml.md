@@ -219,3 +219,31 @@ npm install -D vite
 4. **Phase 4 按需** — 当前不是瓶颈
 
 核心论点：这个文件已从"大但可管理"进入"大且开始阻碍开发效率"的阶段。继续在单文件中堆叠功能只会让未来的重构成本更高。
+
+---
+
+## 7. 执行状态更新（2026-05-22）
+
+当前重构已落地并通过验证：
+
+| 阶段 | 状态 | 证据 |
+|---|---|---|
+| Phase 1: CSS 提取 | ✅ 已完成 | `web/index.html` 引入 `./styles/main.css`，CSS 独立缓存 |
+| Phase 2: JS 模块拆分 | ✅ 已完成 | `web/index.html` 缩减到 733 行，业务逻辑在 `web/modules/` |
+| Phase 3: 可测试性补全 | ✅ 已完成主要模块 | 前端模块单元测试已覆盖 `map`、`validate-trip`、`config`、`model-config`、`panels` 等关键模块 |
+| Phase 4: Vite | ⏸ 暂不需要 | 当前仍保持无构建静态部署，`npm run build` 仅做 TS 编译 |
+
+### 最新验证
+
+```bash
+npm run build                                                                 # ✅ 通过
+npx vitest run --project frontend-unit <关键模块测试>                         # ✅ 62/62 通过
+npx playwright test --config playwright.config.ts <地理编码相关 E2E> --project=desktop  # ✅ 17/17 通过
+npx playwright test --config playwright.config.ts <地理编码相关 E2E> --project=mobile   # ✅ 17/17 通过
+```
+
+### 浏览器验证
+
+- 本地服务：`python3 -m http.server 8899 --directory web`
+- 页面：`http://127.0.0.1:8899/index.html`
+- 结果：页面可打开，主界面元素可见，控制台无模块加载错误（仅 DB 迁移日志）。

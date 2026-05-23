@@ -7,18 +7,15 @@
  *   3. 响应包含 accepted/rejected 计数
  *   4. CORS headers 正确设置
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  onRequestPost,
-  onRequestOptions,
-} from "../../../web/functions/api/logs.js";
-import type { LogReportRequest } from "../../../shared/log-protocol.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { onRequestOptions, onRequestPost } from "../../services/log-report.js";
+import type { LogReportRequest } from "../../shared/log-protocol.js";
 
 // ─── Mock Request Helper ─────────────────────────────────
 
 function createLogRequest(
   entries: LogReportRequest["entries"],
-  options: { traceId?: string; method?: string } = {}
+  options: { traceId?: string; method?: string } = {},
 ): Request {
   const headers = new Headers({
     "Content-Type": "application/json",
@@ -155,7 +152,7 @@ describe("POST /api/logs", () => {
           // 不设置 traceId，应从 header 获取
         },
       ],
-      { traceId: "trace_from_header" }
+      { traceId: "trace_from_header" },
     );
 
     const response = await onRequestPost({ request, env: {} });

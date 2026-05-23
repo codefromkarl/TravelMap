@@ -6,7 +6,7 @@
  *
  * 注意: 这些测试较慢，单独运行: npm run test:cross-layer
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 describe("跨层集成测试骨架", () => {
   it("应能运行跨层测试", () => {

@@ -248,20 +248,20 @@ async function geocodeNominatim(address: string, city: string, timeout: number):
   return wgs84ToGcj02(wgs84Lat, wgs84Lng);
 }
 
-// ─── 默认坐标 ─────────────────────────────────────────────
+// ─── 默认坐标（GCJ-02 坐标系，与存储格式一致） ─────────────
 
 function defaultLocation(city: string): Location {
   const defaults: Record<string, Location> = {
-    北京: { latitude: 39.9042, longitude: 116.4074 },
-    上海: { latitude: 31.2304, longitude: 121.4737 },
-    广州: { latitude: 23.1291, longitude: 113.2644 },
-    深圳: { latitude: 22.5431, longitude: 114.0579 },
-    成都: { latitude: 30.5728, longitude: 104.0668 },
-    杭州: { latitude: 30.2741, longitude: 120.1551 },
-    西安: { latitude: 34.3416, longitude: 108.9398 },
-    重庆: { latitude: 29.563, longitude: 106.5516 },
+    北京: { latitude: 39.9087, longitude: 116.4214 },
+    上海: { latitude: 31.2345, longitude: 121.4879 },
+    广州: { latitude: 23.1317, longitude: 113.2786 },
+    深圳: { latitude: 22.5467, longitude: 114.0733 },
+    成都: { latitude: 30.5763, longitude: 104.0804 },
+    杭州: { latitude: 30.2783, longitude: 120.1693 },
+    西安: { latitude: 34.3453, longitude: 108.9537 },
+    重庆: { latitude: 29.5666, longitude: 106.5653 },
   };
-  return defaults[city] ?? { latitude: 31.23, longitude: 121.47 };
+  return defaults[city] ?? { latitude: 31.2345, longitude: 121.4879 };
 }
 
 // ─── 主入口: 双引擎地理编码 ───────────────────────────────

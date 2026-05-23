@@ -608,6 +608,98 @@
     .map-btn:hover { background: var(--color-bg-elevated); }
     .map-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     @media (max-width: 640px) {
+      /* ── 手机端全局调整 ── */
+      :root {
+        --text-sm: 14px;
+        --text-xs: 12px;
+      }
+
+      /* 对话面板全屏 */
+      #map-chat-panel {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      /* 欢迎页紧凑 */
+      #map-chat-welcome {
+        padding: 16px 12px;
+      }
+      #map-chat-welcome .quick-prompts {
+        gap: 8px;
+      }
+      #map-chat-welcome .quick-prompt {
+        padding: 10px 14px;
+        font-size: 13px;
+      }
+
+      /* 地图工具栏 */
+      #page-map-toolbar {
+        padding: 8px;
+        gap: 6px;
+      }
+      .map-search-box {
+        max-width: 200px;
+      }
+      .map-search-box input {
+        font-size: 14px; /* 防止 iOS 缩放 */
+      }
+
+      /* 导出工具栏 */
+      #export-toolbar {
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 12px;
+      }
+      #export-toolbar button {
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+
+      /* 历史面板全屏 */
+      #history-panel {
+        width: 100%;
+        right: -100%;
+      }
+      #history-panel.open {
+        right: 0;
+      }
+
+      /* 出行人群面板全屏 */
+      #travelers-panel {
+        width: 100%;
+        right: -100%;
+      }
+
+      /* 地图路线面板 */
+      #page-map-routes {
+        width: calc(100vw - 16px);
+        max-height: 50vh;
+      }
+
+      /* 图层切换 */
+      #map-layer-switcher {
+        right: 8px;
+        top: auto;
+        bottom: 60px;
+      }
+
+      /* 消息编辑器 */
+      message-editor textarea {
+        font-size: 16px; /* 防止 iOS 缩放 */
+      }
+
+      /* 预设弹窗 */
+      .preset-modal-content {
+        width: 95%;
+        max-height: 70vh;
+      }
+
+      /* 新手引导 */
+      .onboarding-card {
+        padding: 24px 20px;
+        margin: 0 12px;
+      }
     }
 
     /* ─── 平板适配（768px） ─────────────────────────── */
@@ -625,6 +717,17 @@
       #page-map.mobile-map-focused #map-chat-panel { display: none; }
       .map-search-box { max-width: 240px; }
       #page-map-routes { width: calc(100vw - 24px); }
+
+      /* 地图工具栏适配 */
+      #page-map-toolbar {
+        flex-wrap: wrap;
+      }
+
+      /* 导出工具栏适配 */
+      #export-toolbar {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
     }
 
     /* ─── 地图页面（左右分栏：对话+地图） ──────────── */
@@ -727,6 +830,112 @@
     }
     #map-chat-welcome .quick-prompt--discover:hover {
       opacity: 0.9;
+    }
+    #map-chat-welcome .quick-prompt--preset {
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
+      border-color: transparent;
+      font-weight: 600;
+    }
+    #map-chat-welcome .quick-prompt--preset:hover {
+      opacity: 0.9;
+    }
+
+    /* ── 预设行程选择弹窗 ── */
+    .preset-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: presetModalIn 0.2s ease-out;
+    }
+    @keyframes presetModalIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .preset-modal-content {
+      background: var(--color-bg-elevated, #1e1e2e);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 420px;
+      max-height: 80vh;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .preset-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      font-size: 16px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--color-border-subtle, #333);
+    }
+    .preset-modal-close {
+      background: none;
+      border: none;
+      color: var(--color-text-muted, #999);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .preset-modal-close:hover {
+      background: var(--color-bg-hover, rgba(255,255,255,0.1));
+    }
+    .preset-trip-list {
+      padding: 12px;
+      overflow-y: auto;
+      max-height: 60vh;
+    }
+    .preset-trip-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 4px;
+    }
+    .preset-trip-item:hover {
+      background: var(--color-bg-hover, rgba(255,255,255,0.08));
+    }
+    .preset-trip-icon {
+      font-size: 28px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--color-bg-subtle, rgba(255,255,255,0.05));
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .preset-trip-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .preset-trip-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary, #e2e8f0);
+    }
+    .preset-trip-desc {
+      font-size: 12px;
+      color: var(--color-text-muted, #94a3b8);
+      margin-top: 2px;
+    }
+    .preset-trip-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--color-accent-subtle, rgba(79,142,247,0.15));
+      color: var(--color-accent, #4f8ef7);
+      white-space: nowrap;
     }
 
     /* ── 快捷提示用户消息气泡 ── */
@@ -834,6 +1043,12 @@
     }
     .map-tool-btn:hover { background: #f0f0f0; }
     .map-tool-btn.active { background: var(--color-accent-primary); color: white; }
+
+    /* 移动端专用按钮 - 默认隐藏，768px 以下显示 */
+    .mobile-only { display: none; }
+    @media (max-width: 768px) {
+      .mobile-only { display: flex; }
+    }
 
     /* 地图图层切换控件 */
     .map-layer-switcher {

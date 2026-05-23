@@ -11,6 +11,7 @@ import { LRUCache } from "lru-cache";
 import type { DayPlan, Location, TripPlan } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
 import { dualGeocode, gcj02ToWgs84, isDomesticCity } from "./dual-map-service.js";
+import { haversineMeters, WALK_SPEED_MPM } from "./geo-utils.js";
 import { fetchWithRetry } from "./http-client.js";
 import { getLogger } from "./logger.js";
 
@@ -63,9 +64,6 @@ export interface HotelSearchResponse {
 }
 
 // ─── 常量 ──────────────────────────────────────────────────
-
-/** 步行速度 5km/h → 米/分钟 */
-const WALK_SPEED_MPM = 5000 / 60;
 
 /** 默认搜索半径映射 */
 const RADIUS_MAP: Record<string, number> = {
@@ -163,18 +161,6 @@ function filterByBudget(hotels: HotelSearchResult[], budget?: string): HotelSear
 function formatPriceRange(price: number): string {
   if (price <= 0) return "暂无报价";
   return `¥${price}`;
-}
-
-/** Haversine 公式计算两点间距离（米） */
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6_371_000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 // ─── L1: 高德周边搜索 ──────────────────────────────────────

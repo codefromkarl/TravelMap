@@ -3,7 +3,7 @@
   "name": "arch-frontend-domain-grouping",
   "title": "架构: 前端 modules 按领域分组",
   "description": "将 web/modules/ 的 18 个平坦 JS 文件按 domain 分组（auth/trip/ui/infra），提升可读性",
-  "status": "deferred",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "yuanzhi",
   "assignee": "yuanzhi",
   "createdAt": "2026-05-19",
-  "completedAt": null,
+  "completedAt": "2026-05-22",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -21,7 +21,7 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "延后执行：40+ import 路径需更新，纯 JS 无类型保护，回归风险高",
+  "notes": "已执行：采用领域目录 + 旧路径兼容 re-export，降低纯 JS import 大迁移风险。验证通过：npm run build、关键前端单测、desktop/mobile 地理编码 E2E、浏览器本地页面加载。",
   "meta": {
     "source": "architecture-review",
     "candidate": 5

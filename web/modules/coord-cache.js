@@ -18,6 +18,44 @@ const CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
 // 内存缓存（避免重复 IndexedDB 查询）
 const memoryCache = new Map();
 
+// ─── 坐标转换：WGS-84 → GCJ-02 ──────────────────────────
+const _PI = 3.14159265358979324;
+const _A = 6378245.0;
+const _EE = 0.00669342162296594323;
+
+function _outOfChina(lat, lng) {
+  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+}
+
+function _transformLat(x, y) {
+  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * _PI) + 20.0 * Math.sin(2.0 * x * _PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(y * _PI) + 40.0 * Math.sin(y / 3.0 * _PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(y / 12.0 * _PI) + 320 * Math.sin(y * _PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function _transformLng(x, y) {
+  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * _PI) + 20.0 * Math.sin(2.0 * x * _PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(x * _PI) + 40.0 * Math.sin(x / 3.0 * _PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(x / 12.0 * _PI) + 300.0 * Math.sin(x / 30.0 * _PI)) * 2.0 / 3.0;
+  return ret;
+}
+
+function _wgs84ToGcj02(lat, lng) {
+  if (_outOfChina(lat, lng)) return { lat, lng };
+  let dLat = _transformLat(lng - 105.0, lat - 35.0);
+  let dLng = _transformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * _PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - _EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((_A * (1 - _EE)) / (magic * sqrtMagic) * _PI);
+  dLng = (dLng * 180.0) / (_A / sqrtMagic * Math.cos(radLat) * _PI);
+  return { lat: lat + dLat, lng: lng + dLng };
+}
+
 /**
  * 打开坐标缓存 store
  * 注意：需要与 db.js 共享同一个数据库实例
@@ -77,12 +115,23 @@ export async function getCachedCoord(city, name) {
     });
 
     if (result && Date.now() - result.updatedAt < CACHE_TTL) {
+      let location = result.location;
+
+      // 旧缓存无 coordSystem 标记，说明是 WGS-84 旧数据，需要转换为 GCJ-02
+      if (!result.coordSystem && location && location.latitude && location.longitude) {
+        const gcj = _wgs84ToGcj02(location.latitude, location.longitude);
+        location = { latitude: gcj.lat, longitude: gcj.lng };
+        // 异步回写转换后的坐标（不阻塞读取）
+        setCachedCoord(city, name, location).catch(() => {});
+        console.log(`[CoordCache] 旧缓存坐标已转换: ${name}`);
+      }
+
       // 写入内存缓存
       memoryCache.set(key, {
-        location: result.location,
+        location,
         timestamp: result.updatedAt,
       });
-      return result.location;
+      return location;
     }
 
     // 过期数据，删除
@@ -113,7 +162,7 @@ export async function setCachedCoord(city, name, location) {
     timestamp: now,
   });
 
-  // 2. 写入 IndexedDB
+  // 2. 写入 IndexedDB（标记坐标系版本）
   try {
     const store = await getCoordStore('readwrite');
     await new Promise((resolve, reject) => {
@@ -122,6 +171,7 @@ export async function setCachedCoord(city, name, location) {
         city,
         name,
         location,
+        coordSystem: 'GCJ-02',  // 标记坐标系，供读取时判断
         updatedAt: now,
       });
       req.onsuccess = () => resolve();

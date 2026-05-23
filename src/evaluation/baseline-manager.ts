@@ -155,6 +155,7 @@ export class BaselineManager {
         semantic: 0.6,
         practical: 0.5,
         safety: 0.9,
+        experience: 0.6,
       },
     };
 

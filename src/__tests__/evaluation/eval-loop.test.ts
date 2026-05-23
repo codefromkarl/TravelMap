@@ -6,6 +6,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { AttributionAnalyzer } from "../../evaluation/attribution-analyzer.js";
+import { evaluateExperience } from "../../evaluation/dimensions/experience.js";
 import { evaluatePractical } from "../../evaluation/dimensions/practical.js";
 import { evaluateSafety } from "../../evaluation/dimensions/safety.js";
 import { evaluateStructure } from "../../evaluation/dimensions/structure.js";
@@ -132,6 +133,38 @@ describe("评估维度测试", () => {
     });
   });
 
+  describe("体验维度", () => {
+    it("包含操作指引、文化提示和个性化响应时应通过", async () => {
+      const output = `
+## 杭州亲子文化两日游
+
+### Day 1
+- 上午 9:00 参观浙江省博物馆，建议提前预约门票，亲子互动展区适合孩子。
+- 午餐选择本地杭帮菜，注意排队并错峰用餐。
+- 下午步行到西湖，了解当地历史文化，注意防晒。
+- 交通：地铁 + 步行。
+      `;
+
+      const result = await evaluateExperience("带孩子杭州文化游", output, {
+        request: { city: "杭州", days: 2, companions: "孩子", keywords: ["文化"] },
+      });
+
+      expect(result.passed).toBe(true);
+      expect(result.score).toBeGreaterThan(0.7);
+    });
+
+    it("缺少体验信息时应给出改进建议", async () => {
+      const output = "杭州两日游：第一天去西湖，第二天去灵隐寺。";
+
+      const result = await evaluateExperience("带孩子杭州文化游", output, {
+        request: { city: "杭州", days: 2, companions: "孩子", keywords: ["文化"] },
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.suggestions?.length).toBeGreaterThan(0);
+    });
+  });
+
   describe("安全维度", () => {
     it("普通行程应通过安全检查", async () => {
       const output = `
@@ -200,6 +233,13 @@ describe("评估运行器", () => {
 
     expect(result.report).toBeDefined();
     expect(result.report.id).toBeDefined();
+    expect(result.report.dimensions.map((d) => d.dimensionId)).toEqual([
+      "structure",
+      "semantic",
+      "practical",
+      "safety",
+      "experience",
+    ]);
     expect(result.report.overallScore).toBeGreaterThan(0);
     expect(result.report.dimensions.length).toBeGreaterThan(0);
   });

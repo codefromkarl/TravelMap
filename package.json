@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
+    "trellis:idle-explorer": "tsx src/bin/trellis-idle-explorer.ts",
     "start": "node dist/index.js",
     "check": "biome check --write . && tsc --noEmit",
     "lint": "biome check .",
@@ -24,6 +25,8 @@
     "test:ai-e2e:report": "AI_E2E=true vitest run --project ai-e2e && node scripts/generate-agent-report.mjs",
     "eval:report": "node scripts/generate-agent-report.mjs",
     "eval:sessions": "node scripts/serve-eval-sessions.mjs",
+    "eval:dashboard": "node scripts/generate-eval-dashboard.mjs",
+    "eval:ab": "node scripts/eval-ab-test.mjs",
     "eval:loop": "bash scripts/eval-loop.sh",
     "eval:loop:ci": "bash scripts/eval-loop.sh --ci",
     "eval:loop:baseline": "bash scripts/eval-loop.sh --baseline",

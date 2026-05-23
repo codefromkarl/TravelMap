@@ -7,16 +7,16 @@
  *   3. 前端从响应提取 traceId
  *   4. 前端日志上报携带 traceId
  */
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { getLogger, resetLogger } from "../../services/logger.js";
 import {
-  generateTraceId,
-  generateSpanId,
-  runWithTrace,
-  getTrace,
   createChildSpan,
+  generateSpanId,
+  generateTraceId,
+  getTrace,
+  runWithTrace,
   type TraceContext,
 } from "../../services/trace-context.js";
-import { getLogger, resetLogger } from "../../services/logger.js";
 import type { LogEntry, LogReportRequest } from "../../shared/log-protocol.js";
 
 describe("traceId 格式验证", () => {
@@ -41,13 +41,10 @@ describe("runWithTrace 上下文传播", () => {
     const traceId = generateTraceId();
     const spanId = generateSpanId();
 
-    const result = await runWithTrace(
-      { traceId, spanId, operation: "test" },
-      async () => {
-        const ctx = getTrace();
-        return ctx?.traceId;
-      }
-    );
+    const result = await runWithTrace({ traceId, spanId, operation: "test" }, async () => {
+      const ctx = getTrace();
+      return ctx?.traceId;
+    });
 
     expect(result).toBe(traceId);
   });
@@ -59,7 +56,7 @@ describe("runWithTrace 上下文传播", () => {
       { traceId: parentTraceId, spanId: generateSpanId(), operation: "parent" },
       async () => {
         return createChildSpan("child");
-      }
+      },
     );
 
     expect(childCtx.traceId).toBe(parentTraceId);
@@ -87,7 +84,7 @@ describe("runWithTrace 上下文传播", () => {
             };
           });
         });
-      }
+      },
     );
 
     expect(result.traceId).toBe(rootTraceId);
@@ -111,14 +108,11 @@ describe("日志与 trace 集成", () => {
     const originalLogger = getLogger();
 
     const traceId = generateTraceId();
-    await runWithTrace(
-      { traceId, spanId: generateSpanId(), operation: "log-test" },
-      async () => {
-        // logger 内部会调用 getTrace() 获取 traceId
-        const ctx = getTrace();
-        expect(ctx?.traceId).toBe(traceId);
-      }
-    );
+    await runWithTrace({ traceId, spanId: generateSpanId(), operation: "log-test" }, async () => {
+      // logger 内部会调用 getTrace() 获取 traceId
+      const ctx = getTrace();
+      expect(ctx?.traceId).toBe(traceId);
+    });
   });
 });
 

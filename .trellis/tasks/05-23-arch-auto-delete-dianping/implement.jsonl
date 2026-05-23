@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Cross-package thinking guides for code reuse and architecture decisions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality guidelines for backend code changes"}
+{"file": ".trellis/tasks/05-22-trellis-idle-explorer/research/p0-deepening-opportunities.md", "reason": "Research findings on dead code candidates"}

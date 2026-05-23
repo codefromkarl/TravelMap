@@ -9,7 +9,7 @@
 
 // ─── 评估维度定义 ──────────────────────────────────────────
 
-export type DimensionCategory = "structure" | "semantic" | "practical" | "safety";
+export type DimensionCategory = "structure" | "semantic" | "practical" | "safety" | "experience";
 
 export interface EvalDimension {
   /** 维度唯一 ID */
@@ -103,6 +103,7 @@ export interface EvalReport {
 
 // ─── 维度注册表 ─────────────────────────────────────────────
 
+import { evaluateExperience } from "./dimensions/experience.js";
 import { evaluatePractical } from "./dimensions/practical.js";
 import { evaluateSafety } from "./dimensions/safety.js";
 import { evaluateSemantic } from "./dimensions/semantic.js";
@@ -112,97 +113,55 @@ import { evaluateStructure } from "./dimensions/structure.js";
  * 所有评估维度
  *
  * 权重分配：
- *   - 结构完整性 25% — 格式、必填字段、日期连续性
- *   - 语义质量 30% — 合理性、逻辑性、一致性
- *   - 实用性 30% — 可执行性、预算合理性、时间安排
+ *   - 结构完整性 20% — 格式、必填字段、日期连续性
+ *   - 语义质量 25% — 合理性、逻辑性、一致性
+ *   - 实用性 25% — 可执行性、预算合理性、时间安排
  *   - 安全性 15% — 无危险建议、人群适配、地理安全
+ *   - 体验质量 15% — 操作指引、文化适配、个性化匹配
  */
 export const EVAL_DIMENSIONS: EvalDimension[] = [
-  // 结构维度 (25%)
   {
-    id: "structure.completeness",
+    id: "structure",
     name: "结构完整性",
     category: "structure",
-    weight: 0.15,
+    weight: 0.2,
     evaluator: evaluateStructure,
     required: true,
     threshold: 0.7,
   },
   {
-    id: "structure.format",
-    name: "格式规范性",
-    category: "structure",
-    weight: 0.1,
-    evaluator: evaluateStructure,
-    required: false,
-    threshold: 0.6,
-  },
-
-  // 语义维度 (30%)
-  {
-    id: "semantic.coherence",
-    name: "逻辑连贯性",
+    id: "semantic",
+    name: "语义质量",
     category: "semantic",
-    weight: 0.15,
+    weight: 0.25,
     evaluator: evaluateSemantic,
     required: true,
     threshold: 0.6,
   },
   {
-    id: "semantic.relevance",
-    name: "需求相关性",
-    category: "semantic",
-    weight: 0.15,
-    evaluator: evaluateSemantic,
-    required: true,
-    threshold: 0.6,
-  },
-
-  // 实用维度 (30%)
-  {
-    id: "practical.feasibility",
-    name: "可执行性",
+    id: "practical",
+    name: "实用性",
     category: "practical",
-    weight: 0.15,
+    weight: 0.25,
     evaluator: evaluatePractical,
     required: true,
     threshold: 0.5,
   },
   {
-    id: "practical.budget",
-    name: "预算合理性",
-    category: "practical",
-    weight: 0.08,
-    evaluator: evaluatePractical,
-    required: false,
-    threshold: 0.5,
-  },
-  {
-    id: "practical.timing",
-    name: "时间安排合理性",
-    category: "practical",
-    weight: 0.07,
-    evaluator: evaluatePractical,
-    required: false,
-    threshold: 0.5,
-  },
-
-  // 安全维度 (15%)
-  {
-    id: "safety.content",
-    name: "内容安全性",
+    id: "safety",
+    name: "安全性",
     category: "safety",
-    weight: 0.1,
+    weight: 0.15,
     evaluator: evaluateSafety,
     required: true,
     threshold: 0.9,
   },
   {
-    id: "safety.crowd",
-    name: "人群适配性",
-    category: "safety",
-    weight: 0.05,
-    evaluator: evaluateSafety,
+    id: "experience",
+    name: "体验质量",
+    category: "experience",
+    weight: 0.15,
+    evaluator: evaluateExperience,
     required: false,
     threshold: 0.6,
   },

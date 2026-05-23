@@ -335,6 +335,27 @@ export class AttributionAnalyzer {
         impact: "严重安全问题",
         difficulty: "easy",
       },
+      操作指引: {
+        id: "cause-missing-action-guidance",
+        description: "输出缺少足够的可执行操作指引",
+        evidence: [check.detail],
+        impact: "用户难以直接按行程执行",
+        difficulty: "easy",
+      },
+      文化适配: {
+        id: "cause-missing-culture-adaptation",
+        description: "输出缺少文化或场景适配提示",
+        evidence: [check.detail],
+        impact: "用户可能忽略本地礼仪、预约规则或错峰建议",
+        difficulty: "easy",
+      },
+      个性化匹配: {
+        id: "cause-missing-personalization",
+        description: "输出未充分回应用户偏好",
+        evidence: [check.evidence ?? check.detail],
+        impact: "行程与同行人群、兴趣或预算偏好匹配不足",
+        difficulty: "medium",
+      },
     };
 
     // 精确匹配
@@ -438,6 +459,30 @@ export class AttributionAnalyzer {
         expectedEffect: "安全性提升",
         priority,
       },
+      "cause-missing-action-guidance": {
+        id: "rec-add-action-guidance",
+        type: "prompt",
+        description: "补充可执行操作指引",
+        action: "在 prompt 中要求输出预约、门票、交通、开放时间和注意事项",
+        expectedEffect: "体验质量提升",
+        priority,
+      },
+      "cause-missing-culture-adaptation": {
+        id: "rec-add-culture-adaptation",
+        type: "prompt",
+        description: "补充文化和场景适配提示",
+        action: "在 prompt 中要求输出当地礼仪、错峰建议、景区规则或文化背景",
+        expectedEffect: "文化适配质量提升",
+        priority,
+      },
+      "cause-missing-personalization": {
+        id: "rec-add-personalization",
+        type: "prompt",
+        description: "强化用户偏好响应",
+        action: "在 prompt 中要求显式回应同行人群、兴趣关键词、预算和节奏偏好",
+        expectedEffect: "个性化匹配提升",
+        priority,
+      },
     };
 
     return (
@@ -491,6 +536,7 @@ export class AttributionAnalyzer {
       semantic: "语义",
       practical: "实用性",
       safety: "安全性",
+      experience: "体验质量",
       overall: "总体",
     };
     return nameMap[dimensionId] ?? dimensionId;
@@ -500,6 +546,12 @@ export class AttributionAnalyzer {
     if (rec.description.includes("结构")) return "structure";
     if (rec.description.includes("预算")) return "practical";
     if (rec.description.includes("老人") || rec.description.includes("儿童")) return "safety";
+    if (
+      rec.description.includes("体验") ||
+      rec.description.includes("文化") ||
+      rec.description.includes("偏好")
+    )
+      return "experience";
     return "overall";
   }
 
