@@ -52,7 +52,7 @@ import { initWelcome } from '../welcome.js';
 import { showOnboarding } from '../ui/onboarding.js';
 import { initPageMap } from '../map.js';
 import { initPlaceholder, applyI18n } from '../i18n.js';
-import { tryRestoreSession } from '../session.js';
+import { session, tryRestoreSession } from '../session.js';
 import { initTravelersPanel } from '../travelers.js';
 import { loadSharedTrip, renderSharedTrips } from '../export.js';
 import { loadSharedTripFromHash } from '../share.js';
@@ -577,6 +577,15 @@ export async function initApp() {
   // ─── 会话恢复 ─────────────────────────────────────────
   // 页面加载后尝试恢复上次行程（带确认提示）
   setTimeout(() => tryRestoreSession(), 500);
+
+  // ─── 开启新行程按钮 ─────────────────────────────────────
+  const btnNewTrip = document.getElementById('btn-new-trip');
+  if (btnNewTrip) {
+    btnNewTrip.addEventListener('click', () => {
+      session.startFresh();
+      showToast('已开启新行程规划', 2000, 'success');
+    });
+  }
 
   // ─── 语音播报按钮 ───────────────────────────────────────
   const btnTts = document.getElementById('btn-tts');
