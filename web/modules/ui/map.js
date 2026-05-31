@@ -294,15 +294,22 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
 }
 
 // ─── 景点坐标补全（地理编码） ────────────────────────────
-/** 通过高德地理编码 API 获取景点坐标 */
-async function _geocodeOne(name, city) {
+/** Session 级别强制重新地理编码标志（用于覆盖旧引擎坐标） */
+let _forceGeocodeSession = false;
+
+/** 通过高德地理编码 API 获取景点坐标
+ * @param {boolean} force - 是否跳过缓存强制重新获取
+ */
+async function _geocodeOne(name, city, force = false) {
   const key = `${city}:${name}`;
 
-  // 1. 先查持久化缓存
-  const cached = await getCachedCoord(city, name);
-  if (cached) {
-    console.log(`[Map] 坐标缓存命中: ${name}`);
-    return cached;
+  // 1. 先查持久化缓存（非强制模式）
+  if (!force) {
+    const cached = await getCachedCoord(city, name);
+    if (cached) {
+      console.log(`[Map] 坐标缓存命中: ${name}`);
+      return cached;
+    }
   }
 
   const geoKey = getAmapGeoKey();
@@ -333,20 +340,24 @@ async function _geocodeOne(name, city) {
  * 批量补全 tripPlan 中缺失坐标的景点
  * 优先用高德 API，fallback 到 CITY_CENTERS 附近随机偏移
  * @param {object} tripPlan
+ * @param {boolean} force - 是否强制重新获取所有坐标（覆盖旧引擎数据）
  * @returns {Promise<number>} 补全的景点数量
  */
-async function geocodeAttractions(tripPlan) {
+async function geocodeAttractions(tripPlan, force = false) {
   if (!tripPlan?.days) return 0;
 
   let fixedCount = 0;
   const pending = [];
+  const geoKey = getAmapGeoKey();
+  // 如果显式传入了 force=true 且配置了高德 Key，强制重新获取（覆盖旧 Google/Nominatim 坐标）
+  const shouldForce = force && geoKey;
 
   for (const day of tripPlan.days) {
     const city = day.city || tripPlan.city || '';
     for (const attr of day.attractions || []) {
       const loc = attr.location;
       const hasValidLoc = loc && loc.latitude && loc.longitude && (loc.latitude !== 0 || loc.longitude !== 0);
-      if (!hasValidLoc) {
+      if (!hasValidLoc || shouldForce) {
         pending.push({ attr, city });
       }
     }
@@ -359,7 +370,7 @@ async function geocodeAttractions(tripPlan) {
   for (let i = 0; i < pending.length; i += BATCH) {
     const batch = pending.slice(i, i + BATCH);
     const results = await Promise.all(
-      batch.map(({ attr, city }) => _geocodeOne(attr.nameZh || attr.name, city))
+      batch.map(({ attr, city }) => _geocodeOne(attr.nameZh || attr.name, city, shouldForce))
     );
     for (let j = 0; j < batch.length; j++) {
       const { attr, city } = batch[j];
@@ -707,7 +718,7 @@ export function initPageMap() {
       if (window._lastTripPlan) {
         if (emptyHint) emptyHint.style.display = 'none';
         // 先补全缺失坐标，再渲染
-        geocodeAttractions(window._lastTripPlan).then(count => {
+        geocodeAttractions(window._lastTripPlan, true).then(count => {
           if (count > 0) {
             console.log(`[Map] 补全了 ${count} 个景点坐标`);
             // 回写 IndexedDB，持久化补全后的坐标
@@ -727,7 +738,7 @@ export function initPageMap() {
     for (const layer of pageMapLayers) pageMapInstance.removeLayer(layer);
     pageMapLayers = [];
     // 先补全缺失坐标，再渲染
-    geocodeAttractions(window._lastTripPlan).then(count => {
+    geocodeAttractions(window._lastTripPlan, true).then(count => {
       if (count > 0) {
         console.log(`[Map] 补全了 ${count} 个景点坐标`);
         window._autoSaveTrip?.();
