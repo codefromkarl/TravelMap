@@ -201,7 +201,7 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
     const points = routeResults[i];
     if (!points || points.length < 2) continue;
 
-    // 坐标转换：WGS-84 → GCJ-02（高德瓦片时）
+    // 坐标转换：GCJ-02 → 当前瓦片坐标系
     const tilePoints = points.map(([lat, lng]) => toTileCoords(lat, lng));
 
     // 绘制路线 polyline
@@ -240,7 +240,8 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
         html: `<div class="route-info-badge">${mode === 'driving' ? '🚗' : '🚶'} ${walkMin}分钟</div>`,
         iconSize: [80, 24], iconAnchor: [40, 12],
       });
-      const infoMarker = L.marker(midPoint, { icon: infoIcon, interactive: false, zIndexOffset: -50 }).addTo(pageMapInstance);
+      const [midLat, midLng] = toTileCoords(midPoint[0], midPoint[1]);
+      const infoMarker = L.marker([midLat, midLng], { icon: infoIcon, interactive: false, zIndexOffset: -50 }).addTo(pageMapInstance);
       pageMapLayers.push(infoMarker);
     }
 
@@ -259,7 +260,8 @@ async function drawInterAttractionRoutes(attractions, mode, dayIdx = 0, attrOffs
           html: `<div class="route-arrow" style="transform: rotate(${90 - angle}deg)">${mode === 'driving' ? '▶' : '▷'}</div>`,
           iconSize: [12, 12], iconAnchor: [6, 6],
         });
-        const arrowMarker = L.marker(points[idx], { icon: arrowIcon, interactive: false, zIndexOffset: -100 }).addTo(pageMapInstance);
+        const [arrLat, arrLng] = toTileCoords(points[idx][0], points[idx][1]);
+        const arrowMarker = L.marker([arrLat, arrLng], { icon: arrowIcon, interactive: false, zIndexOffset: -100 }).addTo(pageMapInstance);
         pageMapLayers.push(arrowMarker);
       }
     }
@@ -517,8 +519,10 @@ async function _handleMapPoiClick(e, mapInstance) {
 
   try {
     if (geoKey) {
-      // 高德需要 GCJ-02 坐标，Leaflet 给的是 WGS-84，必须转换
-      const gcj = wgs84ToGcj02(lat, lng);
+      // 根据当前瓦片类型决定是否需要坐标转换
+      // 高德瓦片：Leaflet 事件坐标已是 GCJ-02 数值，直接传
+      // OSM 瓦片：Leaflet 事件坐标是 WGS-84，需转 GCJ-02
+      const gcj = isUsingAmapTiles() ? { lat, lng } : wgs84ToGcj02(lat, lng);
       const resp = await fetchWithTimeout(
         `https://restapi.amap.com/v3/place/around?location=${gcj.lng.toFixed(6)},${gcj.lat.toFixed(6)}&radius=500&types=风景名胜|餐饮服务|住宿服务|体育休闲服务|购物服务&key=${geoKey}&offset=5&extensions=all`,
         {}, 8000
@@ -1073,7 +1077,7 @@ async function renderTripOnPageMap(tripPlan) {
         marker.addTo(pageMapInstance);
         marker.on('click', () => scrollChatToAttraction(attrName));
         pageMapLayers.push(marker);
-        allCoords.push([loc.latitude, loc.longitude]);
+        allCoords.push([markerLat, markerLng]);
         markerCount++;
 
         // 注册到锚点系统
@@ -1091,8 +1095,7 @@ async function renderTripOnPageMap(tripPlan) {
           if (path.length > 1) {
             const riskLevel = route.riskAssessment?.riskLevel || 1;
             const rc = RISK_COLORS[riskLevel] || RISK_COLORS[1];
-            const tilePath = path.map(([lat, lng]) => toTileCoords(lat, lng));
-            const polyline = L.polyline(tilePath, {
+            const polyline = L.polyline(path, {
               color: rc.stroke, weight: 4, opacity: 0.85,
               lineJoin: 'round', lineCap: 'round',
               dashArray: riskLevel === 3 ? '10,6' : null,
@@ -1142,7 +1145,7 @@ async function renderTripOnPageMap(tripPlan) {
                       .bindPopup('<div class="map-popup"><div class="popup-title">' + sp.name + '</div><div class="popup-meta"><span>' + sp.type + '</span><span>' + (sp.estimatedCost > 0 ? '¥'+sp.estimatedCost : '免费') + '</span></div></div>', { maxWidth: 240 });
                     spMarker.addTo(pageMapInstance);
                     pageMapLayers.push(spMarker);
-                    allCoords.push([sp.location.latitude, sp.location.longitude]);
+                    allCoords.push([spLat, spLng]);
                     supplyPointCount++;
                   }
                   wpPopup += '</div>';
@@ -1160,7 +1163,7 @@ async function renderTripOnPageMap(tripPlan) {
                 const wpMarker = L.marker([wpLat, wpLng], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
                 wpMarker.addTo(pageMapInstance);
                 pageMapLayers.push(wpMarker);
-                allCoords.push([wp.location.latitude, wp.location.longitude]);
+                allCoords.push([wpLat, wpLng]);
               }
             });
           }
@@ -1178,7 +1181,7 @@ async function renderTripOnPageMap(tripPlan) {
         const rMarker = L.marker([rLat, rLng], { icon: rIcon, interactive: true }).bindPopup('<div class="map-popup">' + popupHtml + '</div>', { maxWidth: 260 });
         rMarker.addTo(pageMapInstance);
         pageMapLayers.push(rMarker);
-        allCoords.push([r.location.latitude, r.location.longitude]);
+        allCoords.push([rLat, rLng]);
         restaurantCount++;
       }
     }
@@ -1200,7 +1203,7 @@ async function renderTripOnPageMap(tripPlan) {
       const hMarker = L.marker([hLat, hLng], { icon: hIcon, interactive: true }).bindPopup(popupHtml, { maxWidth: 260 });
       hMarker.addTo(pageMapInstance);
       pageMapLayers.push(hMarker);
-      allCoords.push([hotelLoc.latitude, hotelLoc.longitude]);
+      allCoords.push([hLat, hLng]);
     }
 
     // ── 绘制路线：酒店 → 景点1 → 景点2 → ... → 酒店 ──
@@ -1234,7 +1237,7 @@ async function renderTripOnPageMap(tripPlan) {
           const [cityLat, cityLng] = toTileCoords(center[0], center[1]);
           const cityMarker = L.marker([cityLat, cityLng], { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
           pageMapLayers.push(cityMarker);
-          allCoords.push(center);
+          allCoords.push([cityLat, cityLng]);
         }
       });
     }
@@ -1243,8 +1246,9 @@ async function renderTripOnPageMap(tripPlan) {
   if (allCoords.length > 0) {
     pageMapInstance.fitBounds(allCoords, { padding: [60, 60], maxZoom: 14 });
   } else {
-    const center = CITY_CENTERS[tripPlan.city || '上海'] || [31.23, 121.47];
-    pageMapInstance.setView(center, 12);
+    const fbCenter = CITY_CENTERS[tripPlan.city || '上海'] || [31.23, 121.47];
+    const [fbLat, fbLng] = toTileCoords(fbCenter[0], fbCenter[1]);
+    pageMapInstance.setView([fbLat, fbLng], 12);
   }
 
   const statusBar = document.getElementById('page-map-statusbar');
@@ -1333,7 +1337,7 @@ async function renderTripAnimated(tripPlan) {
           const [cityLat, cityLng] = toTileCoords(center[0], center[1]);
           const cityMarker = L.marker([cityLat, cityLng], { icon: cityIcon, interactive: true }).addTo(pageMapInstance);
           pageMapLayers.push(cityMarker);
-          allCoords.push(center);
+          allCoords.push([cityLat, cityLng]);
         }
       });
     }
@@ -1354,12 +1358,13 @@ async function renderTripAnimated(tripPlan) {
     if (dayAttrItems.length === 0 && day.attractions?.length > 0) {
       const firstAttr = day.attractions[0];
       if (firstAttr.location?.latitude && firstAttr.location?.longitude) {
+        const [labelLat, labelLng] = toTileCoords(firstAttr.location.latitude, firstAttr.location.longitude);
         const dayLabelIcon = L.divIcon({
           className: 'custom-marker',
           html: `<div class="day-transition-label">第 ${dayIdx + 1} 天 · ${dayCity}</div>`,
           iconSize: [120, 30], iconAnchor: [60, 15],
         });
-        const dayLabelMarker = L.marker([firstAttr.location.latitude, firstAttr.location.longitude], { icon: dayLabelIcon, interactive: false, zIndexOffset: 1000 }).addTo(pageMapInstance);
+        const dayLabelMarker = L.marker([labelLat, labelLng], { icon: dayLabelIcon, interactive: false, zIndexOffset: 1000 }).addTo(pageMapInstance);
         pageMapLayers.push(dayLabelMarker);
         // 1.5秒后移除标签
         setTimeout(() => {
@@ -1398,11 +1403,11 @@ async function renderTripAnimated(tripPlan) {
         marker.addTo(pageMapInstance);
         marker.on('click', () => scrollChatToAttraction(attrName));
         pageMapLayers.push(marker);
-        allCoords.push([loc.latitude, loc.longitude]);
+        allCoords.push([markerLat2, markerLng2]);
         markerCount++;
 
         // 平滑平移到新景点 + 自动弹窗
-        pageMapInstance.panTo([loc.latitude, loc.longitude], { animate: true, duration: 0.5 });
+        pageMapInstance.panTo([markerLat2, markerLng2], { animate: true, duration: 0.5 });
         if (totalDays <= 5) {
           // 短行程：自动弹出景点信息卡（2秒后自动关闭）
           setTimeout(() => { marker.openPopup(); }, 300);
@@ -1424,8 +1429,7 @@ async function renderTripAnimated(tripPlan) {
           if (path.length > 1) {
             const riskLevel = route.riskAssessment?.riskLevel || 1;
             const rc = RISK_COLORS[riskLevel] || RISK_COLORS[1];
-            const tilePath = path.map(([lat, lng]) => toTileCoords(lat, lng));
-            const polyline = L.polyline(tilePath, {
+            const polyline = L.polyline(path, {
               color: rc.stroke, weight: 4, opacity: 0.85,
               lineJoin: 'round', lineCap: 'round',
               dashArray: riskLevel === 3 ? '10,6' : null,
@@ -1475,7 +1479,7 @@ async function renderTripAnimated(tripPlan) {
                       .bindPopup('<div class="map-popup"><div class="popup-title">' + sp.name + '</div><div class="popup-meta"><span>' + sp.type + '</span><span>' + (sp.estimatedCost > 0 ? '¥'+sp.estimatedCost : '免费') + '</span></div></div>', { maxWidth: 240 });
                     spMarker.addTo(pageMapInstance);
                     pageMapLayers.push(spMarker);
-                    allCoords.push([sp.location.latitude, sp.location.longitude]);
+                    allCoords.push([spLat, spLng]);
                     supplyPointCount++;
                   }
                   wpPopup += '</div>';
@@ -1493,7 +1497,7 @@ async function renderTripAnimated(tripPlan) {
                 const wpMarker = L.marker([wpLat, wpLng], { icon: wpIcon, interactive: true }).bindPopup(wpPopup, { maxWidth: 280 });
                 wpMarker.addTo(pageMapInstance);
                 pageMapLayers.push(wpMarker);
-                allCoords.push([wp.location.latitude, wp.location.longitude]);
+                allCoords.push([wpLat, wpLng]);
               }
             });
 
@@ -1528,7 +1532,7 @@ async function renderTripAnimated(tripPlan) {
         const rMarker = L.marker([rLat2, rLng2], { icon: rIcon, interactive: true }).bindPopup(rPopup, { maxWidth: 260 });
         rMarker.addTo(pageMapInstance);
         pageMapLayers.push(rMarker);
-        allCoords.push([r.location.latitude, r.location.longitude]);
+        allCoords.push([rLat2, rLng2]);
         restaurantCount++;
         await delay(restDelay);
       }
@@ -1557,7 +1561,7 @@ async function renderTripAnimated(tripPlan) {
       const hMarker = L.marker([hLat2, hLng2], { icon: hIcon, interactive: true }).bindPopup(hPopup, { maxWidth: 260 });
       hMarker.addTo(pageMapInstance);
       pageMapLayers.push(hMarker);
-      allCoords.push([hotelLoc.latitude, hotelLoc.longitude]);
+      allCoords.push([hLat2, hLng2]);
       await delay(attrDelay);
     }
 
@@ -1574,8 +1578,9 @@ async function renderTripAnimated(tripPlan) {
   if (allCoords.length > 0) {
     pageMapInstance.fitBounds(allCoords, { padding: [60, 60], maxZoom: 14 });
   } else {
-    const center = CITY_CENTERS[tripPlan.city || '上海'] || [31.23, 121.47];
-    pageMapInstance.setView(center, 12);
+    const fbCenter = CITY_CENTERS[tripPlan.city || '上海'] || [31.23, 121.47];
+    const [fbLat, fbLng] = toTileCoords(fbCenter[0], fbCenter[1]);
+    pageMapInstance.setView([fbLat, fbLng], 12);
   }
 
   // ── 状态栏 & 路线面板 ──────────────────────────────────
@@ -1689,7 +1694,7 @@ function addLabeledGhostMarker(name, lat, lng, city) {
   _ghostLayers.push({ marker, name, lat, lng, isNew: true });
 
   // 自动平移到新发现的地点
-  pageMapInstance.panTo([lat, lng], { animate: true, duration: 0.5 });
+  pageMapInstance.panTo([ghostLat2, ghostLng2], { animate: true, duration: 0.5 });
 }
 
 /** 清除所有幽灵 marker */
@@ -2011,19 +2016,20 @@ function renderRoutePanel(data) {
 
   body.querySelectorAll('.route-attr-item, .route-meal-item').forEach(item => {
     item.addEventListener('click', () => {
-      const lat = parseFloat(item.dataset.lat);
-      const lng = parseFloat(item.dataset.lng);
+      const rawLat = parseFloat(item.dataset.lat);
+      const rawLng = parseFloat(item.dataset.lng);
       const name = item.dataset.name;
-      if (lat && lng && pageMapInstance) {
-        pageMapInstance.setView([lat, lng], 16, { animate: true });
+      if (rawLat && rawLng && pageMapInstance) {
+        const [viewLat, viewLng] = toTileCoords(rawLat, rawLng);
+        pageMapInstance.setView([viewLat, viewLng], 16, { animate: true });
         pageMapLayers.forEach(layer => {
           if (layer.getLatLng) {
             const pos = layer.getLatLng();
-            if (Math.abs(pos.lat - lat) < 0.0001 && Math.abs(pos.lng - lng) < 0.0001) layer.openPopup();
+            if (Math.abs(pos.lat - viewLat) < 0.0001 && Math.abs(pos.lng - viewLng) < 0.0001) layer.openPopup();
           }
         });
       }
       if (name) scrollChatToAttraction(name);
     });
   });
-}
+}// force redeploy 2026年 05月 25日 星期一 16:04:15 CST

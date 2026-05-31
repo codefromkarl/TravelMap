@@ -2,10 +2,10 @@
  * 预算计算 Agent Tool
  */
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { calculateBudget, checkBudgetOverrun } from "../services/budget-service.js";
 import type { DayPlan } from "../types/trip.js";
+import { defineTool } from "./define-tool.js";
 
 /** 预算 schema — 从结构化行程数据中提取 */
 const AttractionSchema = Type.Object({
@@ -33,7 +33,7 @@ const DayPlanSchema = Type.Object({
   hotel: Type.Optional(HotelSchema),
 });
 
-export const calculateBudgetTool: AgentTool = {
+export const calculateBudgetTool = defineTool({
   name: "calculate_budget",
   label: "预算计算",
   description:
@@ -50,20 +50,20 @@ export const calculateBudgetTool: AgentTool = {
       Type.Number({ description: "每日市内交通预算（元）", default: 50 }),
     ),
   }),
-  execute: async (_toolCallId, params) => {
+  execute: async (params) => {
     const {
       days,
-      budgetLimit,
       interCityTransportCost = 0,
       dailyTransportBudget = 50,
     } = params as {
       days: DayPlan[];
-      budgetLimit?: number;
       interCityTransportCost?: number;
       dailyTransportBudget?: number;
     };
-
-    const budget = calculateBudget({ days, interCityTransportCost, dailyTransportBudget });
+    return calculateBudget({ days, interCityTransportCost, dailyTransportBudget });
+  },
+  format: (budget, params) => {
+    const { budgetLimit } = params as { budgetLimit?: number };
 
     const lines = [
       "## 💰 预算明细",
@@ -90,9 +90,10 @@ export const calculateBudgetTool: AgentTool = {
       }
     }
 
-    return {
-      content: [{ type: "text" as const, text: lines.join("\n") }],
-      details: { budget, budgetLimit },
-    };
+    return lines.join("\n");
   },
-};
+  details: (budget, params) => ({
+    budget,
+    budgetLimit: (params as { budgetLimit?: number }).budgetLimit,
+  }),
+});

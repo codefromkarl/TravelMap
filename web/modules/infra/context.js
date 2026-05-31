@@ -41,22 +41,18 @@ export const SUPPLY_STORE_NAME = "supplyPoints";
 // 高德地图默认 Key（仅白名单域名 + localhost 使用）
 export const _DEFAULT_AMAP_KEY = 'e134de721c4969afee0b5b82f2a232a4'; // Web端(JS API) - 地图瓦片
 export const _DEFAULT_AMAP_GEO_KEY = '74301f4873f7e09e18c9e39bf65c6256'; // Web服务 - 地理编码
-export const _ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'codefromkarl.xyz', 'www.codefromkarl.xyz'];
+export const _ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'codefromkarl.xyz', 'www.codefromkarl.xyz', 'travel-agent-ebl.pages.dev'];
 
 export function getAmapKey() {
   const userKey = localStorage.getItem('api-key-amap-web');
   if (userKey) return userKey;
-  const host = location.hostname;
-  const allowed = _ALLOWED_HOSTS.some(h => host === h || host.endsWith('.' + h));
-  return allowed ? _DEFAULT_AMAP_KEY : '';
+  return _DEFAULT_AMAP_KEY; // 直接返回默认 Key
 }
 
 export function getAmapGeoKey() {
   const userKey = localStorage.getItem('api-key-amap-geo');
   if (userKey) return userKey;
-  const host = location.hostname;
-  const allowed = _ALLOWED_HOSTS.some(h => host === h || host.endsWith('.' + h));
-  return allowed ? _DEFAULT_AMAP_GEO_KEY : '';
+  return _DEFAULT_AMAP_GEO_KEY; // 直接返回默认 Key
 }
 
 // ─── 补给点类型颜色 ─────────────────────────────────────
@@ -95,6 +91,16 @@ export const DOMESTIC_CITIES = [
 // ─── Provider 注册表 ────────────────────────────────────
 // 统一管理所有 provider 的元数据
 export const PROVIDER_REGISTRY = {
+  'mimo3': {
+    name: 'MiMo3',
+    displayName: 'MiMo3 (本地)',
+    free: true,
+    requiresKey: false,
+    baseUrl: '',
+    defaultModel: 'mimo3',
+    models: ['mimo3', 'mimo-v2.5-pro'],
+    piProvider: 'openai',
+  },
   'deepseek-local': {
     name: 'DeepSeek 本地',
     displayName: 'DeepSeek 本地 (免费)',
@@ -251,6 +257,8 @@ export const LLM_HOSTS = {
   'api.deepseek.com': 'deepseek',
   'openrouter.ai': 'openrouter',
   'token.sensenova.cn': 'sensenova',
+  'localhost': 'deepseek-local',
+  '127.0.0.1': 'deepseek-local',
 };
 
 // ─── 地图风险颜色 ──────────────────────────────────────
@@ -281,4 +289,7 @@ export function setIsProxyMode(m) { isProxyMode = m; }
 export function setLastTripContent(c) { lastTripContent = c; }
 export function setActivePanel(p) { activePanel = p; }
 export function setCurrentTravelers(t) { currentTravelers = t; }
-export function setCurrentPage(p) { currentPage = p; }
+export function setCurrentPage(p) { currentPage = p; }// force update 2026年 05月 26日 星期二 09:29:12 CST
+// test 2026年 05月 26日 星期二 09:54:59 CST
+// fix amap key 2026年 05月 26日 星期二 10:03:51 CST
+// force upload 1779761435

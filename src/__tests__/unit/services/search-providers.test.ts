@@ -1,36 +1,40 @@
 /**
- * Search Providers — 集成冒烟测试
+ * Search Orchestrator — 集成冒烟测试
  */
 
 import { describe, expect, it } from "vitest";
-import { AttractionSearchProvider } from "../../../services/search/providers/attraction-provider.js";
-import { GeocodeSearchProvider } from "../../../services/search/providers/geocode-provider.js";
-import { WeatherSearchProvider } from "../../../services/search/providers/weather-provider.js";
-import type { SearchProvider } from "../../../services/search/types.js";
+import { runParallelSearch } from "../../../services/search-orchestrator.js";
+import type { TripRequest } from "../../../types/trip.js";
 
-const providers: SearchProvider[] = [
-  new AttractionSearchProvider(),
-  new WeatherSearchProvider(),
-  new GeocodeSearchProvider(),
-];
+const mockRequest: TripRequest = {
+  city: "北京",
+  cities: [{ city: "北京", days: 3 }],
+  travelDays: 3,
+  preferences: ["博物馆"],
+  startDate: "2025-06-01",
+  endDate: "2025-06-03",
+  transportation: "步行",
+  accommodation: "酒店",
+};
 
-describe("Search Providers 冒烟测试", () => {
-  it("所有 provider 都有唯一的名称和 resultKey", () => {
-    const names = providers.map((p) => p.name);
-    const keys = providers.map((p) => p.resultKey);
-    expect(new Set(names).size).toBe(names.length);
-    expect(new Set(keys).size).toBe(keys.length);
+describe("Search Orchestrator 冒烟测试", () => {
+  it("runParallelSearch 返回正确的结构", async () => {
+    const result = await runParallelSearch(mockRequest, { enableGeocode: false });
+
+    expect(result).toHaveProperty("attractions");
+    expect(result).toHaveProperty("weather");
+    expect(result).toHaveProperty("sources");
+    expect(result).toHaveProperty("cityCoords");
+
+    expect(Array.isArray(result.attractions)).toBe(true);
+    expect(Array.isArray(result.weather)).toBe(true);
+    expect(Array.isArray(result.sources)).toBe(true);
+    expect(result.cityCoords).toBeInstanceOf(Map);
   });
 
-  it("每个 provider 都有 search 方法", () => {
-    for (const provider of providers) {
-      expect(typeof provider.search).toBe("function");
-    }
-  });
+  it("enableGeocode=false 时不返回坐标数据", async () => {
+    const result = await runParallelSearch(mockRequest, { enableGeocode: false });
 
-  it("默认 provider 列表包含 3 个", async () => {
-    const { createDefaultProviders } = await import("../../../services/search/providers/index.js");
-    const defaults = createDefaultProviders();
-    expect(defaults).toHaveLength(3);
+    expect(result.cityCoords.size).toBe(0);
   });
 });

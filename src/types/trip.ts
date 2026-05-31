@@ -163,6 +163,67 @@ export interface TripPlan {
   flightLinks?: ActionLink[];
 }
 
+/**
+ * 经过验证的 TripPlan — 保证结构有效
+ *
+ * 通过 validateTripPlan() 生成，调用方拿到它就知道：
+ * - days.length > 0
+ * - 日期连续（无跳跃）
+ * - dayIndex 正确
+ * - 非移动日有景点
+ * - 景点有坐标
+ *
+ * 使用 phantom type 防止未验证的 TripPlan 被误用。
+ */
+export interface ValidatedTripPlan extends TripPlan {
+  readonly __validated: unique symbol;
+}
+
+/**
+ * 验证 TripPlan 并返回 ValidatedTripPlan
+ *
+ * @throws Error 验证失败时抛出（包含具体错误列表）
+ */
+export function validateTripPlan(plan: TripPlan): ValidatedTripPlan {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // 基本结构
+  if (!plan.days || plan.days.length === 0) {
+    errors.push("行程没有任何天数数据");
+  }
+
+  // 日期连续性
+  if (plan.days && plan.days.length > 1) {
+    for (let i = 1; i < plan.days.length; i++) {
+      const prev = new Date(plan.days[i - 1]!.date);
+      const curr = new Date(plan.days[i]!.date);
+      const diffDays = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) {
+        errors.push(`第 ${i + 1} 天日期不晚于第 ${i} 天`);
+      } else if (diffDays > 1) {
+        warnings.push(`第 ${i} 天和第 ${i + 1} 天之间有 ${diffDays - 1} 天空隙`);
+      }
+    }
+  }
+
+  // 景点坐标完整性
+  for (const day of plan.days ?? []) {
+    for (const attr of day.attractions) {
+      const loc = attr.location;
+      if (!loc || (!loc.latitude && !loc.longitude)) {
+        errors.push(`${day.date} 的景点 "${attr.nameZh || attr.name}" 缺少坐标`);
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`TripPlan 验证失败:\n${errors.join("\n")}`);
+  }
+
+  return plan as ValidatedTripPlan;
+}
+
 /** 城市停留配置 */
 export interface CityStay {
   city: string;

@@ -2,11 +2,11 @@
  * 天气查询 Agent Tool
  */
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { searchWeather } from "../services/weather-service.js";
+import { defineTool } from "./define-tool.js";
 
-export const searchWeatherTool: AgentTool & { costTier: "cheap" } = {
+export const searchWeatherTool = defineTool({
   name: "search_weather",
   costTier: "cheap",
   label: "天气查询",
@@ -15,39 +15,22 @@ export const searchWeatherTool: AgentTool & { costTier: "cheap" } = {
     city: Type.String({ description: "城市名称" }),
     days: Type.Optional(Type.Number({ description: "查询天数，默认7天", default: 7 })),
   }),
-  execute: async (_toolCallId, params) => {
+  execute: async (params) => {
     const { city, days } = params as { city: string; days?: number };
-
-    try {
-      const { weather, source } = await searchWeather({ city, days: days ?? 7 });
-
-      const summary = weather
-        .map(
-          (w) =>
-            `${w.date}: 白天${w.dayWeather} ${w.dayTemp}°C / 夜间${w.nightWeather} ${w.nightTemp}°C | ${w.windDirection} ${w.windPower}`,
-        )
-        .join("\n");
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `## ${city}天气预报 (数据源: ${source})\n\n${summary}`,
-          },
-        ],
-        details: { city, weather, source },
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `天气查询遇到问题（${city}）：${msg}。建议根据季节给出穿衣建议。`,
-          },
-        ],
-        details: { city, error: msg },
-      };
-    }
+    return searchWeather({ city, days: days ?? 7 });
   },
-};
+  format: (result, params) => {
+    const { city } = params as { city: string };
+    const summary = result.weather
+      .map(
+        (w) =>
+          `${w.date}: 白天${w.dayWeather} ${w.dayTemp}°C / 夜间${w.nightWeather} ${w.nightTemp}°C | ${w.windDirection} ${w.windPower}`,
+      )
+      .join("\n");
+    return `## ${city}天气预报 (数据源: ${result.source})\n\n${summary}`;
+  },
+  errorHint: (params) => {
+    const { city } = params as { city: string };
+    return `建议根据季节给出${city}穿衣建议`;
+  },
+});

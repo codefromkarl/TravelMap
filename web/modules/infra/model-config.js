@@ -23,8 +23,8 @@ document.getElementById('model-modal-overlay')?.addEventListener('click', (e) =>
 });
 
 export function loadModelConfig() {
-  const provider = localStorage.getItem('travel-agent-provider') || 'openai';
-  const modelId = localStorage.getItem('travel-agent-model') || 'gpt-4o';
+  const provider = localStorage.getItem('travel-agent-provider') || 'mimo3';
+  const modelId = localStorage.getItem('travel-agent-model') || 'mimo3';
   const apiKey = localStorage.getItem(`api-key-${provider}`) || '';
 
   const provSelect = document.getElementById('cfg-provider');

@@ -2,11 +2,11 @@
  * 多城市行程编排 Agent Tool
  */
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { planMultiCityRoute } from "../services/multi-city-service.js";
+import { defineTool } from "./define-tool.js";
 
-export const planMultiCityTool: AgentTool = {
+export const planMultiCityTool = defineTool({
   name: "plan_multi_city",
   label: "多城市规划",
   description:
@@ -21,30 +21,28 @@ export const planMultiCityTool: AgentTool = {
     ),
     startDate: Type.String({ description: "出发日期，格式 YYYY-MM-DD" }),
   }),
-  execute: async (_toolCallId, params) => {
+  execute: async (params) => {
     const { cities, startDate } = params as {
       cities: Array<{ city: string; days: number }>;
       startDate: string;
     };
-
     if (cities.length === 0) {
-      return {
-        content: [{ type: "text" as const, text: "请至少指定一个城市。" }],
-        details: {},
-      };
+      return { empty: true, plan: null as never };
     }
+    return { empty: false, plan: planMultiCityRoute(cities, startDate) };
+  },
+  format: (result, params) => {
+    if (result.empty) return "请至少指定一个城市。";
 
-    const plan = planMultiCityRoute(cities, startDate);
+    const { cities } = params as { cities: Array<{ city: string; days: number }> };
+    const { plan } = result;
 
     const lines = [`## 🗺️ 多城市行程框架`, ""];
-
-    // 城市概览
     lines.push(`**路线**: ${cities.map((c) => `${c.city}(${c.days}天)`).join(" → ")}`);
     lines.push(`**总天数**: ${plan.totalDays}天（含 ${plan.transfers.length} 个城际移动日）`);
     lines.push(`**城际交通费用**: ¥${plan.totalTransportCost}`);
     lines.push("");
 
-    // 每日概览
     lines.push("### 📅 每日概览");
     for (const day of plan.dayOutline) {
       if (day.isTransferDay) {
@@ -54,7 +52,6 @@ export const planMultiCityTool: AgentTool = {
       }
     }
 
-    // 交通详情
     if (plan.transfers.length > 0) {
       lines.push("", "### 🚄 城际交通");
       for (const t of plan.transfers) {
@@ -64,9 +61,7 @@ export const planMultiCityTool: AgentTool = {
       }
     }
 
-    return {
-      content: [{ type: "text" as const, text: lines.join("\n") }],
-      details: plan,
-    };
+    return lines.join("\n");
   },
-};
+  details: (result) => (result.empty ? {} : result.plan),
+});

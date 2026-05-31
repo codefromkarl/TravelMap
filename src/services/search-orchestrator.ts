@@ -4,15 +4,15 @@
  * 核心优化：将搜索从 LLM 逐个决策调用改为代码层直接并行调用，
  * 搜索结果打包后一次性注入给 LLM 编排。
  *
- * 内部使用 SearchProvider 注册表，新搜索源只需实现 SearchProvider
- * 接口并注册，无需修改 orchestrator。
+ * 直接调用各搜索服务（景点/天气/地理编码），无需中间抽象层。
  */
 
 import type { TripRequest, WeatherInfo } from "../types/trip.js";
+import { dualGeocode } from "./dual-map-service.js";
 import { getLogger } from "./logger.js";
 import type { EnrichedAttraction } from "./multi-source-service.js";
-import { createDefaultProviders } from "./search/providers/index.js";
-import type { SearchProvider } from "./search/types.js";
+import { searchAttractionsMultiSource } from "./multi-source-service.js";
+import { searchWeather } from "./weather-service.js";
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
@@ -28,63 +28,99 @@ export interface SearchOrchestratorOptions {
   enableGeocode?: boolean;
 }
 
-// ─── Provider 注册表 ────────────────────────────────────────
+// ─── 搜索任务定义 ──────────────────────────────────────────
 
-/** 已注册的搜索 Provider 列表 */
-let providers: SearchProvider[] = createDefaultProviders();
-
-/** 注册新的搜索 Provider */
-export function registerSearchProvider(provider: SearchProvider): void {
-  providers.push(provider);
+interface SearchTask {
+  name: string;
+  resultKey: string;
+  run: (request: TripRequest) => Promise<{ data: unknown; source: string }>;
 }
 
-/** 重置为默认 Provider 列表 */
-export function resetSearchProviders(): void {
-  providers = createDefaultProviders();
-}
+function createSearchTasks(options: SearchOrchestratorOptions): SearchTask[] {
+  const tasks: SearchTask[] = [
+    {
+      name: "attractions",
+      resultKey: "attractions",
+      run: async (request) => {
+        const city = request.cities.length > 0 ? request.cities[0]!.city : request.city;
+        const result = await searchAttractionsMultiSource({
+          city,
+          preferences: request.preferences,
+        });
+        return { data: result.attractions, source: result.sources.join(",") };
+      },
+    },
+    {
+      name: "weather",
+      resultKey: "weather",
+      run: async (request) => {
+        const city = request.cities.length > 0 ? request.cities[0]!.city : request.city;
+        const result = await searchWeather({ city, days: request.travelDays });
+        return { data: result.weather, source: result.source };
+      },
+    },
+  ];
 
-/** 获取当前已注册的 Provider 列表 */
-export function getSearchProviders(): readonly SearchProvider[] {
-  return providers;
+  // 地理编码任务（可选）
+  if (options.enableGeocode !== false) {
+    tasks.push({
+      name: "geocode",
+      resultKey: "cityCoords",
+      run: async (request) => {
+        const cities =
+          request.cities.length > 0 ? request.cities.map((c) => c.city) : [request.city];
+        const cityCoords = new Map<string, { latitude: number; longitude: number }>();
+
+        await Promise.all(
+          cities.map(async (city) => {
+            try {
+              const { location } = await dualGeocode(city, city);
+              cityCoords.set(city, location);
+            } catch {
+              cityCoords.set(city, { latitude: 0, longitude: 0 });
+            }
+          }),
+        );
+
+        return { data: cityCoords, source: "dual-geocode" };
+      },
+    });
+  }
+
+  return tasks;
 }
 
 // ─── 搜索执行 ──────────────────────────────────────────────
 
 /**
- * 并行执行所有注册的搜索 Provider
+ * 并行执行所有搜索任务
  */
 export async function runParallelSearch(
   request: TripRequest,
-  _options: SearchOrchestratorOptions = {},
+  options: SearchOrchestratorOptions = {},
 ): Promise<SearchResultsBundle> {
-  const activeProviders = [...providers].filter((p) => {
-    // 支持 enableGeocode 选项过滤 geocode provider
-    if (p.resultKey === "cityCoords" && _options.enableGeocode === false) {
-      return false;
-    }
-    return true;
-  });
+  const tasks = createSearchTasks(options);
 
-  // 并行调用所有 provider
+  // 并行调用所有任务
   const logger = getLogger().child({ component: "search-orchestrator" });
   const results = await Promise.all(
-    activeProviders.map(async (provider) => {
+    tasks.map(async (task) => {
       const start = Date.now();
       try {
-        const result = await provider.search(request);
-        logger.debug("provider 完成", {
-          provider: provider.name,
+        const result = await task.run(request);
+        logger.debug("搜索任务完成", {
+          task: task.name,
           duration: Date.now() - start,
-          source: result?.source,
+          source: result.source,
         });
-        return result;
+        return { key: task.resultKey, data: result.data, source: result.source };
       } catch (err) {
-        logger.warn("provider 失败", {
-          provider: provider.name,
+        logger.warn("搜索任务失败", {
+          task: task.name,
           duration: Date.now() - start,
           error: err instanceof Error ? err.message : String(err),
         });
-        return { key: provider.resultKey, data: null, source: "failed" };
+        return { key: task.resultKey, data: null, source: "failed" };
       }
     }),
   );
@@ -119,8 +155,6 @@ export async function runParallelSearch(
         }
         break;
       }
-      // 新的 resultKey 会自动被跳过（不影响聚合）
-      // 后续可扩展 SearchResultsBundle 以支持更多结果类型
     }
   }
 

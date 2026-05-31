@@ -50,7 +50,6 @@ import { ALL_TOOLS } from '../tools/index.js';
 import { buildSystemPrompt } from '../prompt.js';
 import { initWelcome } from '../welcome.js';
 import { showOnboarding } from '../ui/onboarding.js';
-import { initPageMap } from '../map.js';
 import { initPlaceholder, applyI18n } from '../i18n.js';
 import { session, tryRestoreSession } from '../session.js';
 import { initTravelersPanel } from '../travelers.js';

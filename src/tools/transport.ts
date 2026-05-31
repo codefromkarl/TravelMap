@@ -2,11 +2,11 @@
  * 城际交通查询 Agent Tool
  */
 
-import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import { formatTransportPrice, searchIntercityTransport } from "../services/transport-service.js";
+import { defineTool } from "./define-tool.js";
 
-export const searchIntercityTransportTool: AgentTool & { costTier: "cheap" } = {
+export const searchIntercityTransportTool = defineTool({
   name: "search_intercity_transport",
   costTier: "cheap",
   label: "城际交通查询",
@@ -21,65 +21,54 @@ export const searchIntercityTransportTool: AgentTool & { costTier: "cheap" } = {
       }),
     ),
   }),
-  execute: async (_toolCallId, params) => {
+  execute: async (params) => {
     const { originCity, destCity, date, transportType } = params as {
       originCity: string;
       destCity: string;
       date: string;
       transportType?: "train" | "flight" | "all";
     };
-
-    try {
-      const options = await searchIntercityTransport({
-        originCity,
-        destCity,
-        date,
-        transportType: transportType ?? "all",
-      });
-
-      if (options.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `未找到 ${originCity} → ${destCity}（${date}）的交通方案。`,
-            },
-          ],
-          details: { originCity, destCity, date, options: [] },
-        };
-      }
-
-      const summary = options
-        .map((opt) => {
-          const icon = opt.type === "train" ? "🚄" : opt.type === "flight" ? "✈️" : "🚌";
-          const durationStr =
-            opt.durationMinutes >= 60
-              ? `${Math.floor(opt.durationMinutes / 60)}小时${opt.durationMinutes % 60}分`
-              : `${opt.durationMinutes}分钟`;
-          return `${icon} ${opt.code} | ${opt.departureTime}→${opt.arrivalTime}（${durationStr}）| ${formatTransportPrice(opt.price, opt.source)} | ${opt.departureStation}→${opt.arrivalStation}${opt.seatType ? ` | ${opt.seatType}` : ""} | 来源:${opt.source}`;
-        })
-        .join("\n");
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `## ${originCity} → ${destCity} 交通方案（${date}）\n\n${summary}`,
-          },
-        ],
-        details: { originCity, destCity, date, options },
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `城际交通查询失败（${originCity} → ${destCity}）：${msg}`,
-          },
-        ],
-        details: { originCity, destCity, date, error: msg },
-      };
-    }
+    return searchIntercityTransport({
+      originCity,
+      destCity,
+      date,
+      transportType: transportType ?? "all",
+    });
   },
-};
+  format: (options, params) => {
+    const { originCity, destCity, date } = params as {
+      originCity: string;
+      destCity: string;
+      date: string;
+    };
+
+    if (options.length === 0) {
+      return `未找到 ${originCity} → ${destCity}（${date}）的交通方案。`;
+    }
+
+    const summary = options
+      .map((opt) => {
+        const icon = opt.type === "train" ? "🚄" : opt.type === "flight" ? "✈️" : "🚌";
+        const durationStr =
+          opt.durationMinutes >= 60
+            ? `${Math.floor(opt.durationMinutes / 60)}小时${opt.durationMinutes % 60}分`
+            : `${opt.durationMinutes}分钟`;
+        return `${icon} ${opt.code} | ${opt.departureTime}→${opt.arrivalTime}（${durationStr}）| ${formatTransportPrice(opt.price, opt.source)} | ${opt.departureStation}→${opt.arrivalStation}${opt.seatType ? ` | ${opt.seatType}` : ""} | 来源:${opt.source}`;
+      })
+      .join("\n");
+
+    return `## ${originCity} → ${destCity} 交通方案（${date}）\n\n${summary}`;
+  },
+  details: (options, params) => {
+    const { originCity, destCity, date } = params as {
+      originCity: string;
+      destCity: string;
+      date: string;
+    };
+    return { originCity, destCity, date, options };
+  },
+  errorHint: (params) => {
+    const { originCity, destCity } = params as { originCity: string; destCity: string };
+    return `城际交通查询失败（${originCity} → ${destCity}）`;
+  },
+});

@@ -46,15 +46,8 @@ function installFetchProxy() {
       return origFetch.call(this, input, init);
     }
 
-    let body = init?.body;
-    if (body && typeof body === 'string') {
-      try {
-        const parsed = JSON.parse(body);
-        parsed._provider = matchedProvider;
-        body = JSON.stringify(parsed);
-      } catch {}
-    }
-    console.log(`[Proxy] → /api/chat (${matchedProvider})`);
+    // 代理到后端 API，但不覆盖 _provider（让用户选择的 provider 保持不变）
+    console.log(`[Proxy] → /api/chat (host: ${matchedProvider})`);
     logger.info(`代理请求: ${matchedProvider}`);
     const traceHeaders = addTraceHeaders({ 'Content-Type': 'application/json' });
     const resp = await traceAsync('api-chat-proxy', async () => {
@@ -62,7 +55,7 @@ function installFetchProxy() {
         ...init,
         method: 'POST',
         headers: traceHeaders,
-        body,
+        body: init?.body,
       });
     });
 

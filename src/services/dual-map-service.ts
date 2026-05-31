@@ -6,11 +6,16 @@
  *   2. 国内优先高德，国外优先 Google
  *   3. 全局标记：某引擎失败后不再重复尝试（避免逐个超时）
  *   4. 支持代理配置（国内访问 Google）
+ *
+ * 使用 GeocodeProvider 接口，每个后端独立为 adapter。
  */
 
 import type { Location } from "../types/trip.js";
 import { config as appConfig } from "./config.js";
-import { fetchWithTimeout } from "./http-client.js";
+import { AmapGeocodeProvider } from "./geo/amap-adapter.js";
+import { GoogleGeocodeProvider } from "./geo/google-adapter.js";
+import { NominatimGeocodeProvider } from "./geo/nominatim-adapter.js";
+import type { GeocodeProvider } from "./geo/types.js";
 import { getLogger } from "./logger.js";
 
 // ─── 配置 ────────────────────────────────────────────────
@@ -79,7 +84,7 @@ export function isDomesticCity(city: string): boolean {
   return DOMESTIC_INDICATORS.some((c) => city.includes(c) || c.includes(city));
 }
 
-// ─── 坐标系转换：GCJ-02 → WGS-84 ─────────────────────────
+// ─── 坐标系转换：GCJ-02 ↔ WGS-84 ─────────────────────────
 // 高德 API 返回 GCJ-02（火星坐标），Leaflet 使用 WGS-84
 // 不转换会导致 100-500m 偏移
 
@@ -104,7 +109,7 @@ function transformLng(x: number, y: number): number {
   let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
   ret += ((20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0) / 3.0;
   ret += ((20.0 * Math.sin(x * PI) + 40.0 * Math.sin((x / 3.0) * PI)) * 2.0) / 3.0;
-  ret += ((150.0 * Math.sin((x / 12.0) * PI) + 300.0 * Math.sin((x / 30.0) * PI)) * 2.0) / 3.0;
+  ret += ((150.0 * Math.sin((x / 12.0) * PI) + 300 * Math.sin((x / 30.0) * PI)) * 2.0) / 3.0;
   return ret;
 }
 
@@ -122,10 +127,7 @@ export function gcj02ToWgs84(lat: number, lng: number): Location {
   return { latitude: convertedLat, longitude: convertedLng };
 }
 
-/** WGS-84 → GCJ-02（国际标准坐标转高德坐标）
- *  用于将 Nominatim/Google 等返回的 WGS-84 坐标转换为 GCJ-02
- *  确保存储的坐标统一使用 GCJ-02 格式
- */
+/** WGS-84 → GCJ-02（国际标准坐标转高德坐标） */
 export function wgs84ToGcj02(lat: number, lng: number): Location {
   if (outOfChina(lat, lng)) return { latitude: lat, longitude: lng };
   const dLat = transformLat(lng - 105.0, lat - 35.0);
@@ -159,95 +161,6 @@ export function resetEngineState(): void {
   engineFailures.clear();
 }
 
-/** 可能走代理的 fetch */
-async function fetchProxied(
-  url: string,
-  config: DualMapConfig,
-  options: RequestInit & { timeout?: number } = {},
-): Promise<Response> {
-  if (config.proxyUrl) {
-    const proxyUrl = `${config.proxyUrl}?url=${encodeURIComponent(url)}`;
-    return fetchWithTimeout(proxyUrl, options);
-  }
-  return fetchWithTimeout(url, options);
-}
-
-// ─── 高德地图 ─────────────────────────────────────────────
-
-interface AmapGeocodeResponse {
-  status: string;
-  geocodes: { formatted_address: string; location: string }[];
-}
-
-async function geocodeAmap(
-  address: string,
-  city: string,
-  key: string,
-  timeout: number,
-): Promise<Location> {
-  const url = `https://restapi.amap.com/v3/geocode/geo?key=${key}&address=${encodeURIComponent(address)}&city=${encodeURIComponent(city)}`;
-  const res = await fetchWithTimeout(url, { timeout });
-  if (!res.ok) throw new Error(`Amap error: ${res.status}`);
-
-  const data = (await res.json()) as AmapGeocodeResponse;
-  if (data.status !== "1" || !data.geocodes?.length) {
-    throw new Error(`Amap no result: ${address}`);
-  }
-
-  const [lng, lat] = data.geocodes[0].location.split(",").map(Number);
-  // 直接返回 GCJ-02 坐标，前端根据瓦片类型决定是否转换
-  return { latitude: lat, longitude: lng };
-}
-
-// ─── Google Maps ──────────────────────────────────────────
-
-interface GoogleGeocodeResponse {
-  status: string;
-  results: { geometry: { location: { lat: number; lng: number } } }[];
-}
-
-async function geocodeGoogle(
-  address: string,
-  city: string,
-  key: string,
-  config: DualMapConfig,
-): Promise<Location> {
-  const query = `${address}, ${city}`;
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${key}`;
-  const res = await fetchProxied(url, config);
-  if (!res.ok) throw new Error(`Google Geocode error: ${res.status}`);
-
-  const data = (await res.json()) as GoogleGeocodeResponse;
-  if (data.status !== "OK" || !data.results?.length) {
-    throw new Error(`Google no result: ${address}`);
-  }
-
-  // Google Maps 返回 WGS-84 坐标，需要转换为 GCJ-02 以统一存储格式
-  const wgs84Lat = data.results[0].geometry.location.lat;
-  const wgs84Lng = data.results[0].geometry.location.lng;
-  return wgs84ToGcj02(wgs84Lat, wgs84Lng);
-}
-
-// ─── Nominatim (免费兜底) ────────────────────────────────
-
-async function geocodeNominatim(address: string, city: string, timeout: number): Promise<Location> {
-  const query = `${address}, ${city}`;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&accept-language=zh`;
-  const res = await fetchWithTimeout(url, {
-    timeout,
-    headers: { "User-Agent": "TravelAgent/0.1.0" },
-  });
-  if (!res.ok) throw new Error(`Nominatim error: ${res.status}`);
-
-  const data = (await res.json()) as { lat: string; lon: string }[];
-  if (!data.length) throw new Error(`Nominatim no result: ${address}`);
-
-  // Nominatim 返回 WGS-84 坐标，需要转换为 GCJ-02 以统一存储格式
-  const wgs84Lat = Number.parseFloat(data[0].lat);
-  const wgs84Lng = Number.parseFloat(data[0].lon);
-  return wgs84ToGcj02(wgs84Lat, wgs84Lng);
-}
-
 // ─── 默认坐标（GCJ-02 坐标系，与存储格式一致） ─────────────
 
 function defaultLocation(city: string): Location {
@@ -264,6 +177,37 @@ function defaultLocation(city: string): Location {
   return defaults[city] ?? { latitude: 31.2345, longitude: 121.4879 };
 }
 
+// ─── Provider 工厂 ─────────────────────────────────────────
+
+function createProviders(cfg: DualMapConfig, domestic: boolean): GeocodeProvider[] {
+  const providers: GeocodeProvider[] = [];
+
+  if (domestic) {
+    // 国内：高德优先
+    if (cfg.amapKey && !isEngineFailed("amap")) {
+      providers.push(new AmapGeocodeProvider(cfg.amapKey, cfg.timeout));
+    }
+  }
+
+  // Google（国内外都可用）
+  if (cfg.googleKey && !isEngineFailed("google")) {
+    providers.push(
+      new GoogleGeocodeProvider({
+        key: cfg.googleKey,
+        proxyUrl: cfg.proxyUrl,
+        timeout: cfg.timeout,
+      }),
+    );
+  }
+
+  // Nominatim 兜底
+  if (!isEngineFailed("nominatim")) {
+    providers.push(new NominatimGeocodeProvider(cfg.timeout));
+  }
+
+  return providers;
+}
+
 // ─── 主入口: 双引擎地理编码 ───────────────────────────────
 
 export interface DualGeocodeResult {
@@ -276,7 +220,7 @@ export interface DualGeocodeResult {
  * 双地图地理编码
  *
  * 国内: 高德优先 → Google 备用 → Nominatim 兜底
- * 国外: Google 优先 → Nominatium 兜底
+ * 国外: Google 优先 → Nominatim 兜底
  */
 export async function dualGeocode(
   address: string,
@@ -293,51 +237,21 @@ export async function dualGeocode(
   const domestic = isDomesticCity(city);
   const warnings: string[] = [];
 
-  // 引擎优先级
-  const engines: Array<{ name: string; fn: () => Promise<Location> }> = [];
-
-  if (domestic) {
-    // 国内：高德 > Google > Nominatim
-    if (cfg.amapKey && !isEngineFailed("amap")) {
-      engines.push({
-        name: "amap",
-        fn: () => geocodeAmap(address, city, cfg.amapKey!, cfg.timeout!),
-      });
-    }
-  }
-
-  // Google（国内外都可用）
-  if (cfg.googleKey && !isEngineFailed("google")) {
-    engines.push({
-      name: "google",
-      fn: () => geocodeGoogle(address, city, cfg.googleKey!, cfg),
-    });
-  }
-
-  if (!domestic) {
-    // 国外 Google 之后是 Nominatim
-  }
-
-  // Nominatim 兜底
-  if (!isEngineFailed("nominatim")) {
-    engines.push({
-      name: "nominatim",
-      fn: () => geocodeNominatim(address, city, cfg.timeout!),
-    });
-  }
+  // 获取可用的 providers
+  const providers = createProviders(cfg, domestic);
 
   // 按优先级尝试
-  for (const engine of engines) {
+  for (const provider of providers) {
     try {
-      const location = await engine.fn();
-      return { location, engine: engine.name };
+      const result = await provider.geocode(address, city);
+      return { location: result.location, engine: result.engine };
     } catch (err) {
-      markEngineFailed(engine.name);
+      markEngineFailed(provider.name);
       const msg = err instanceof Error ? err.message : String(err);
-      warnings.push(`${engine.name}: ${msg}`);
+      warnings.push(`${provider.name}: ${msg}`);
       getLogger()
         .child({ component: "dual-map-service" })
-        .warn("引擎失败", { engine: engine.name, error: msg });
+        .warn("引擎失败", { engine: provider.name, error: msg });
     }
   }
 

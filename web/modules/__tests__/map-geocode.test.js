@@ -17,8 +17,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ─── Mock 依赖 ─────────────────────────────────────────
 
-// Mock context.js
+// Mock context.js (ui/map.js 实际 import ./infra/context.js，需同时 mock)
 vi.mock('../context.js', () => ({
+  showToast: vi.fn(),
+  getAmapGeoKey: vi.fn(() => 'test-geo-key'),
+  CITY_CENTERS: {
+    '杭州': [30.2741, 120.1551],
+    '北京': [39.9042, 116.4074],
+    '上海': [31.2304, 121.4737],
+  },
+}));
+
+vi.mock('../infra/context.js', () => ({
   showToast: vi.fn(),
   getAmapGeoKey: vi.fn(() => 'test-geo-key'),
   CITY_CENTERS: {
@@ -144,7 +154,7 @@ describe('geocodeAttractions', () => {
   });
 
   it('无 API Key 时使用 CITY_CENTERS fallback', async () => {
-    const { getAmapGeoKey } = await import('../context.js');
+    const { getAmapGeoKey } = await import('../infra/context.js');
     getAmapGeoKey.mockReturnValue('');
 
     const tripPlan = createTripPlan([

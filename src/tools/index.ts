@@ -33,6 +33,7 @@ export { aiGuideTool } from "./ai-guide.js";
 export { searchAttractionsTool } from "./attractions.js";
 export { calculateBudgetTool } from "./budget.js";
 export { companionQATool } from "./companion.js";
+export { defineTool, type ToolDef } from "./define-tool.js";
 export { geocodeTool } from "./geocode.js";
 export { searchHotelsTool } from "./hotels.js";
 export { recognizeImageTool } from "./image-recognize.js";

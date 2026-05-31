@@ -1,7 +1,24 @@
+/**
+ * 酒店搜索 Agent Tool — 通过后端代理调用高德 API
+ *
+ * 不在前端持有 API Key，所有请求通过 /api/amap 代理
+ */
+
 import { Type } from "@earendil-works/pi-ai";
-import { getAmapGeoKey, CITY_CENTERS } from '../context.js?v=4';
+import { CITY_CENTERS } from '../infra/context.js';
 
 const WALK_SPEED_MPM = 5000 / 60;
+
+// ─── 推荐区域（无 API 时使用）──────────────────────────
+function getRecommendAreas(city) {
+  const areas = {
+    '杭州': ['西湖区（西湖景区周边）', '上城区（河坊街/南宋御街）', '下城区（武林广场）'],
+    '北京': ['东城区（故宫/天安门）', '西城区（什刹海）', '朝阳区（三里屯）'],
+    '上海': ['黄浦区（外滩/南京路）', '浦东新区（陆家嘴）', '徐汇区（衡山路）'],
+  };
+  const cityAreas = areas[city] || [`${city}市中心区域`];
+  return `### 推荐住宿区域\n\n${cityAreas.map((area, i) => `${i + 1}. **${area}**`).join('\n')}\n\n> 💡 提示：建议选择靠近景点或交通便利的区域入住`;
+}
 
 // ─── Haversine 距离计算 ──────────────────────────────────
 function haversineMeters(lat1, lng1, lat2, lng2) {
@@ -18,59 +35,77 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 function amapPoiToHotel(poi, centerLat, centerLng) {
   const distance = parseFloat(poi.distance ?? "0");
   const rating = parseFloat(poi.biz_ext?.rating ?? poi.rating ?? "0");
-  const price = parseFloat(poi.biz_ext?.cost ?? "0");
+  const cost = parseFloat(poi.biz_ext?.cost ?? "0");
+  const walkMinutes = Math.ceil(distance / WALK_SPEED_MPM);
+  const transitAccessible = distance < 8000;
 
-  let lat = 0, lng = 0;
-  if (poi.location) {
-    const [lngStr, latStr] = poi.location.split(",");
-    lat = parseFloat(latStr);
-    lng = parseFloat(lngStr);
-  }
+  let priceRange = "价格待询";
+  if (cost > 0) priceRange = `¥${cost}`;
 
-  const tags = poi.tag
-    ? poi.tag.split(";").map(t => t.trim()).filter(Boolean)
-    : [];
+  const tags = [];
+  if (poi.biz_ext?.tag) tags.push(...poi.biz_ext.tag.split("|").filter(Boolean));
+  if (transitAccessible) tags.push("公交可达");
 
   return {
-    name: poi.name,
-    rating: isNaN(rating) ? 0 : rating,
-    price: isNaN(price) ? 0 : price,
-    priceRange: isNaN(price) || price <= 0 ? "暂无报价" : `¥${price}`,
+    name: poi.name ?? "未知酒店",
     address: poi.address ?? "",
-    location: { latitude: lat, longitude: lng },
+    location: poi.location ? parseLocation(poi.location) : null,
+    priceRange,
+    rating: isNaN(rating) ? 0 : rating,
     distance,
-    walkMinutes: Math.ceil(distance / WALK_SPEED_MPM),
-    transitAccessible: distance < 8000,
+    walkMinutes,
+    transitAccessible,
     tags,
+    source: "amap",
   };
 }
 
-// ─── 预算解析 ────────────────────────────────────────────
-function parseBudget(budget) {
-  if (!budget) return { min: null, max: null };
-  const m = budget.match(/(\d+)\s*[-~]\s*(\d+)/);
-  if (m) return { min: +m[1], max: +m[2] };
-  const n = parseInt(budget, 10);
-  if (!isNaN(n)) return { min: 0, max: n };
-  return { min: null, max: null };
+function parseLocation(loc) {
+  const [lng, lat] = loc.split(",").map(Number);
+  return { latitude: lat, longitude: lng };
 }
 
+// ─── 预算过滤 ────────────────────────────────────────────
 function filterByBudget(hotels, budget) {
-  const { min, max } = parseBudget(budget);
-  if (min == null && max == null) return hotels;
+  if (!budget) return hotels;
+  const match = budget.match(/(\d+)[-\s]*(\d+)/);
+  if (!match) return hotels;
+  const min = parseInt(match[1]);
+  const max = parseInt(match[2]);
   return hotels.filter(h => {
-    if (h.price <= 0) return true;
-    if (min != null && h.price < min) return false;
-    if (max != null && h.price > max) return false;
-    return true;
+    const price = parseFloat(h.priceRange.replace(/[^\d.]/g, ""));
+    return isNaN(price) || (price >= min && price <= max);
   });
 }
 
-// ─── 酒店搜索工具 ──────────────────────────────────────
+// ─── 通过后端代理调用高德 API ────────────────────────────
+async function searchAmapPOI(params) {
+  const resp = await fetch('/api/amap', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      endpoint: 'place/around',
+      params: {
+        location: params.location,
+        types: '10', // 住宿服务
+        radius: params.radius || 5000,
+        sortrule: 'distance',
+        offset: '20',
+        page: '1',
+        extensions: 'all',
+        ...(params.keywords ? { keywords: params.keywords } : {}),
+      },
+    }),
+  });
+  return resp.json();
+}
+
+// ─── 工具定义 ────────────────────────────────────────────
 export const searchHotelsTool = {
   name: "search_hotels",
+  costTier: "cheap",
   label: "酒店搜索",
-  description: "搜索指定城市或景点附近的酒店，支持按预算筛选。返回酒店名称、价格、评分、距离等真实信息。",
+  description: "搜索指定城市或景点附近的真实酒店，返回名称、价格、评分、距离等信息",
   parameters: Type.Object({
     city: Type.String({ description: "城市名称" }),
     latitude: Type.Optional(Type.Number({ description: "搜索中心点纬度" })),
@@ -80,14 +115,6 @@ export const searchHotelsTool = {
   }),
   execute: async (_id, params) => {
     const { city, latitude, longitude, budget, style } = params;
-    const apiKey = getAmapGeoKey();
-
-    if (!apiKey) {
-      return {
-        content: [{ type: "text", text: `## ${city}酒店搜索\n\n> ⚠️ 无高德 API Key，无法搜索真实酒店数据` }],
-        details: { city, source: "none" },
-      };
-    }
 
     // 确定搜索中心点
     let centerLat, centerLng;
@@ -108,23 +135,13 @@ export const searchHotelsTool = {
     if (style?.includes("民宿")) keywords = "民宿";
     else if (style?.includes("青旅") || style?.includes("青年")) keywords = "青年旅舍";
 
-    // 搜索高德 POI
-    const radius = 5000;
-    const locStr = `${centerLng},${centerLat}`;
-    const url = new URL("https://restapi.amap.com/v3/place/around");
-    url.searchParams.set("key", apiKey);
-    url.searchParams.set("location", locStr);
-    url.searchParams.set("types", "10"); // 住宿服务大类
-    url.searchParams.set("radius", String(radius));
-    url.searchParams.set("sortrule", "distance");
-    url.searchParams.set("offset", "20");
-    url.searchParams.set("page", "1");
-    url.searchParams.set("extensions", "all");
-    if (keywords) url.searchParams.set("keywords", keywords);
-
     try {
-      const resp = await fetch(url.toString());
-      const data = await resp.json();
+      // 通过后端代理调用高德 API
+      const data = await searchAmapPOI({
+        location: `${centerLng},${centerLat}`,
+        radius: 5000,
+        keywords,
+      });
 
       if (data.status !== "1" || !Array.isArray(data.pois) || data.pois.length === 0) {
         return {
@@ -160,9 +177,11 @@ export const searchHotelsTool = {
         details: { city, hotels, source: "amap" },
       };
     } catch (err) {
+      // 后端代理失败时返回推荐区域
+      const recommendAreas = getRecommendAreas(city);
       return {
-        content: [{ type: "text", text: `## ${city}酒店搜索\n\n> ⚠️ 搜索失败: ${err.message}` }],
-        details: { city, source: "error", error: err.message },
+        content: [{ type: "text", text: `## ${city}酒店搜索\n\n${recommendAreas}` }],
+        details: { city, source: "recommend", error: err.message },
       };
     }
   },

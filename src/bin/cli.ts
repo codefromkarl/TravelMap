@@ -170,7 +170,7 @@ async function main() {
 
   try {
     // Step 1: 发起规划（可能触发偏好挖掘）
-    await agent.planTrip(request);
+    await agent.plan(request);
     await agent.waitForIdle();
 
     // Step 2: 交互式循环 — 偏好挖掘回答 + Steering 微调
@@ -192,9 +192,9 @@ async function main() {
         break;
       }
 
-      // 使用 steer 进行微调
+      // 使用 refine 进行微调
       console.log("\n🔧 正在微调行程...\n");
-      agent.steer(input);
+      agent.refine(input);
       await agent.waitForIdle();
     }
   } catch (err) {

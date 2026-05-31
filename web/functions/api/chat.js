@@ -48,6 +48,13 @@ const PROVIDERS = {
     authHeader: "Authorization",
     authPrefix: "Bearer ",
   },
+  // mimo3 — OpenAI 兼容的自建服务
+  mimo3: {
+    baseUrl: "https://api.mimo3.com",
+    path: "/v1/chat/completions",
+    authHeader: "Authorization",
+    authPrefix: "Bearer ",
+  },
 };
 
 const MAX_BODY = 256 * 1024;
@@ -83,6 +90,7 @@ export async function onRequest(context) {
   const apiKey = env.LLM_API_KEY || env.OPENAI_API_KEY || "";
   const allowedProvider = (env.LLM_PROVIDER || "sensenova").toLowerCase();
   const allowedModel = env.LLM_MODEL || "";
+  let customBaseUrl = env.LLM_BASE_URL || "";
 
   if (!apiKey) {
     return jsonResponse(503, {
@@ -103,21 +111,49 @@ export async function onRequest(context) {
 
   const provider = (body._provider || allowedProvider).toLowerCase();
   const cfg = PROVIDERS[provider];
-  if (!cfg) return jsonResponse(400, { error: `Unsupported provider: ${provider}` });
+  
+  // 如果 provider 不在路由表中，尝试使用 customBaseUrl 或默认 OpenAI 兼容格式
+  if (!cfg && !customBaseUrl) {
+    // 对于未知 provider，假设它是 OpenAI 兼容的
+    // 使用请求中的 baseUrl 或默认的 OpenAI 格式
+    const fallbackBaseUrl = body.baseUrl || "https://api.openai.com";
+    customBaseUrl = fallbackBaseUrl;
+  }
 
   const model = allowedModel || body.model || "";
-  const upstreamPath = cfg.pathFn ? cfg.pathFn(model) : cfg.path;
-  const upstreamUrl = `${cfg.baseUrl}${upstreamPath}`;
+  // 支持自定义 base-url（用于本地 mimo3 等自建服务）
+  let upstreamUrl;
+  if (customBaseUrl) {
+    upstreamUrl = `${customBaseUrl}/chat/completions`;
+  } else {
+    const upstreamPath = cfg.pathFn ? cfg.pathFn(model) : cfg.path;
+    upstreamUrl = `${cfg.baseUrl}${upstreamPath}`;
+  }
 
   const upstreamHeaders = {
     "Content-Type": "application/json",
-    [cfg.authHeader]: `${cfg.authPrefix}${apiKey}`,
-    ...(cfg.extraHeaders || {}),
   };
+  // 自定义 base-url 使用 Bearer 认证
+  if (customBaseUrl) {
+    upstreamHeaders["Authorization"] = `Bearer ${apiKey}`;
+  } else {
+    upstreamHeaders[cfg.authHeader] = `${cfg.authPrefix}${apiKey}`;
+    if (cfg.extraHeaders) Object.assign(upstreamHeaders, cfg.extraHeaders);
+  }
 
   const cleanBody = { ...body };
   delete cleanBody._provider;
   if (allowedModel) cleanBody.model = allowedModel;
+
+  // 将 developer 角色转换为 system（DeepSeek 等 API 不支持 developer）
+  if (cleanBody.messages) {
+    cleanBody.messages = cleanBody.messages.map(msg => {
+      if (msg.role === 'developer') {
+        return { ...msg, role: 'system' };
+      }
+      return msg;
+    });
+  }
 
   const isStream = !!cleanBody.stream;
 
