@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend review checklist and focused validation"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review runtime validation and JSDoc"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify end-to-end weather data flow"}
+{"file": ".trellis/tasks/08-13-weather-aware-trip-planning/research/weather-contract.md", "reason": "Check contract closure and failure states"}
+{"file": ".trellis/tasks/08-13-weather-aware-trip-planning/research/weather-ux.md", "reason": "Check UX acceptance and regression surface"}

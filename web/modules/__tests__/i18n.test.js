@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock context.js
-vi.mock('../context.js', () => ({
+vi.mock('../infra/context.js', () => ({
   currentLang: 'zh',
 }));
 
@@ -12,6 +12,13 @@ globalThis.document = {
   querySelectorAll: querySelectorAllMock,
   querySelector: querySelectorMock,
   documentElement: { lang: '' },
+  dispatchEvent: vi.fn(),
+};
+globalThis.CustomEvent = class CustomEvent {
+  constructor(type, init = {}) {
+    this.type = type;
+    this.detail = init.detail;
+  }
 };
 
 const { I18N, applyI18n, initPlaceholder } = await import('../i18n.js');

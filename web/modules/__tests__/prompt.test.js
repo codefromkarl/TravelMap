@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Mock context.js
-vi.mock('../context.js', () => ({
+// Mock the canonical dependency imported by trip/prompt.js.
+vi.mock('../infra/context.js', () => ({
   currentTravelers: null,
   currentPreferences: null,
 }));
@@ -102,5 +102,21 @@ describe('buildSystemPrompt', () => {
     // zh instruction is empty, so no language directive should be appended
     // (but the placeholder is replaced with empty string)
     expect(result).not.toContain('{{LANGUAGE_INSTRUCTION}}');
+  });
+
+  it('requires option-first direction confirmation with a free-input fallback', () => {
+    const result = buildSystemPrompt('zh');
+    expect(result).toContain('方向确认交互协议');
+    expect(result).toContain('2-4 个互斥、可执行的编号选项');
+    expect(result).toContain('推荐项放在第 1 项');
+    expect(result).toContain('其他:直接输入你的想法');
+    expect(result).toContain('回复编号、选项文字');
+  });
+
+  it('asks for missing facts progressively instead of batching open questions', () => {
+    const result = buildSystemPrompt('zh');
+    expect(result).toContain('逐项确认仍缺失的核心事实');
+    expect(result).toContain('不要一次抛出多个开放问题');
+    expect(result).not.toContain('反问用户 2-3 个关键信息');
   });
 });

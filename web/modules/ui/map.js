@@ -5,6 +5,7 @@ import { registerMarker, scrollToAttraction, clearMarkerRegistry } from '../anch
 import { getCachedCoord, setCachedCoord } from '../coord-cache.js';
 import { markerRegistry } from '../markers.js';
 import { routePlanner } from '../route-planner.js';
+import { matchWeatherToDay, classifyWeatherRisk, shouldShowRadar, buildWindyRadarUrl } from '../weather-planning.js';
 
 // ─── XSS 防护：HTML 转义 ──────────────────────────────
 function escapeHtml(str) {
@@ -15,6 +16,73 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// View-switch controls must remain reachable while either content pane is hidden.
+// Keep their DOM ownership at the stable page root, not inside the map pane.
+function moveMobileViewControlsToPageRoot() {
+  const pageMap = document.getElementById('page-map');
+  if (!pageMap) return;
+  for (const id of ['mobile-view-toggle', 'mobile-view-toggle-chat']) {
+    const control = document.getElementById(id);
+    if (control && control.parentElement !== pageMap) pageMap.appendChild(control);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', moveMobileViewControlsToPageRoot, { once: true });
+} else {
+  moveMobileViewControlsToPageRoot();
+}
+
+let _routePanelData = [];
+
+function addDaysToIsoDate(date, offset) {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
+  const value = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(value.getTime())) return '';
+  value.setUTCDate(value.getUTCDate() + offset);
+  return value.toISOString().slice(0, 10);
+}
+
+function getDayDate(day, dayIdx, tripPlan) {
+  return typeof day?.date === 'string' && day.date ? day.date : addDaysToIsoDate(tripPlan?.startDate, dayIdx);
+}
+
+function getRadarCoords(day, city) {
+  const locations = [
+    ...(day?.attractions || []).map(attr => attr?.location),
+    day?.hotel?.location,
+  ];
+  const valid = locations.find(location => {
+    const lat = Number(location?.latitude);
+    const lng = Number(location?.longitude);
+    return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0);
+  });
+  if (valid) return { latitude: Number(valid.latitude), longitude: Number(valid.longitude) };
+  const center = CITY_CENTERS[city];
+  return Array.isArray(center) ? { latitude: center[0], longitude: center[1] } : null;
+}
+
+function buildRoutePanelDayData(day, dayIdx, tripPlan, attractions, meals) {
+  const city = day?.city || tripPlan?.city || '';
+  const date = getDayDate(day, dayIdx, tripPlan);
+  const weatherDay = date && !day?.date ? { ...day, date, city } : day;
+  const weather = matchWeatherToDay(weatherDay, tripPlan, tripPlan?.weatherInfo);
+  const weatherRisk = classifyWeatherRisk(weather);
+  const radarUrl = weather && shouldShowRadar(weather, weatherRisk)
+    ? buildWindyRadarUrl(getRadarCoords(day, city), 11)
+    : null;
+  return {
+    dayNum: dayIdx + 1,
+    date,
+    city,
+    weather,
+    weatherRisk,
+    radarUrl,
+    attractions,
+    meals,
+  };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1203,7 +1271,7 @@ async function renderTripOnPageMap(tripPlan) {
       estimatedCost: m.estimatedCost,
       restaurant: m.restaurant,
     }));
-    routePanelData.push({ dayNum: dayIdx + 1, city: dayCity, attractions: dayAttrItems, meals: dayMeals });
+    routePanelData.push(buildRoutePanelDayData(day, dayIdx, tripPlan, dayAttrItems, dayMeals));
 
     // ── 酒店 marker ──────────────────────────────────
     const hotelLoc = day.hotel?.location;
@@ -1553,7 +1621,7 @@ async function renderTripAnimated(tripPlan) {
       type: m.type, name: m.name, description: m.description,
       estimatedCost: m.estimatedCost, restaurant: m.restaurant,
     }));
-    routePanelData.push({ dayNum: dayIdx + 1, city: dayCity, attractions: dayAttrItems, meals: dayMeals });
+    routePanelData.push(buildRoutePanelDayData(day, dayIdx, tripPlan, dayAttrItems, dayMeals));
 
     // ── 酒店 marker（动画模式）──
     const hotelLoc = day.hotel?.location;
@@ -1652,15 +1720,21 @@ window._confirmPreviewMarkers = confirmPreviewMarkers;
 
 /** 添加天气图标覆盖层 */
 export function addWeatherOverlay(weatherInfo) {
-  if (!pageMapInstance || !weatherInfo) return;
+  if (!pageMapInstance || !Array.isArray(weatherInfo)) return;
   const weatherIcons = { '晴': '\u2600\ufe0f', '多云': '\u26c5', '阴': '\u2601\ufe0f', '小雨': '\ud83c\udf27\ufe0f', '中雨': '\ud83c\udf27\ufe0f', '大雨': '\ud83c\udf27\ufe0f', '雪': '\u2744\ufe0f', '雾': '\ud83c\udf2b\ufe0f' };
-  for (const w of weatherInfo) {
+  const firstForecastByCity = new Map();
+  for (const forecast of weatherInfo) {
+    if (forecast?.city && !firstForecastByCity.has(forecast.city)) firstForecastByCity.set(forecast.city, forecast);
+  }
+  for (const w of firstForecastByCity.values()) {
     if (!w.dayWeather) continue;
     const center = CITY_CENTERS[w.city];
     if (!center) continue;
+    const temperature = Number(w.dayTemp);
+    if (!Number.isFinite(temperature)) continue;
     const icon = L.divIcon({
       className: 'weather-overlay',
-      html: '<div class="weather-badge">' + (weatherIcons[w.dayWeather] || '\ud83c\udf24\ufe0f') + ' ' + w.dayTemp + '\u00b0</div>',
+      html: '<div class="weather-badge">' + (weatherIcons[w.dayWeather] || '\ud83c\udf24\ufe0f') + ' ' + temperature + '\u00b0</div>',
       iconSize: [80, 28], iconAnchor: [40, 14],
     });
     const [weatherLat, weatherLng] = toTileCoords(center[0], center[1]);
@@ -1989,11 +2063,89 @@ function setDayFilter(day) {
   });
 }
 
+function weatherIcon(condition) {
+  const value = typeof condition === 'string' ? condition.toLowerCase() : '';
+  if (/雷|thunder|hail|冰雹/.test(value)) return '⛈️';
+  if (/雪|snow/.test(value)) return '❄️';
+  if (/雨|rain|shower|drizzle/.test(value)) return '🌧️';
+  if (/雾|fog|mist/.test(value)) return '🌫️';
+  if (/晴|clear|sun/.test(value)) return '☀️';
+  if (/云|阴|cloud|overcast/.test(value)) return '☁️';
+  return '🌤️';
+}
+
+function finiteWeatherNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatLocalizedTemplate(template, values) {
+  return Object.entries(values).reduce((result, [key, value]) => result.replaceAll(`{${key}}`, String(value)), template);
+}
+
+function renderWeatherBlock(day, dict) {
+  const weather = day.weather;
+  const impact = day.weatherRisk;
+  if (!weather) return '';
+  if (impact?.level === 'unknown') {
+    return '<div class="route-day-weather-block"><div class="route-day-weather route-day-weather-unavailable">' + escapeHtml(dict.weatherUnavailable) + '</div></div>';
+  }
+
+  const condition = typeof weather.dayWeather === 'string' ? weather.dayWeather.trim() : '';
+  const high = finiteWeatherNumber(weather.dayTemp);
+  const low = finiteWeatherNumber(weather.nightTemp);
+  const precipitation = finiteWeatherNumber(weather.precipitationProbability);
+  const temperature = high !== null && low !== null
+    ? `${low}–${high}°C`
+    : high !== null ? `${high}°C` : low !== null ? `${low}°C` : '';
+  const windDirection = typeof weather.windDirection === 'string' ? weather.windDirection.trim() : '';
+  const windPower = typeof weather.windPower === 'string' && !/^0(?:\D|$)/.test(weather.windPower.trim()) ? weather.windPower.trim() : '';
+  const wind = [windDirection, windPower].filter(Boolean).join(' ');
+  const summaryParts = [condition, temperature];
+  if (precipitation !== null && precipitation >= 0 && precipitation <= 100) {
+    summaryParts.push(`${dict.weatherPrecipitation} ${precipitation}%`);
+  }
+  if (wind) summaryParts.push(wind);
+  const safeSummary = summaryParts.filter(Boolean);
+  if (safeSummary.length === 0) {
+    return '<div class="route-day-weather-block"><div class="route-day-weather route-day-weather-unavailable">' + escapeHtml(dict.weatherUnavailable) + '</div></div>';
+  }
+
+  const advice = Array.isArray(impact?.advice)
+    ? impact.advice.map(key => dict[key]).filter(Boolean)
+    : [];
+  const reasons = Array.isArray(impact?.reasons)
+    ? impact.reasons.map(key => dict[key]).filter(Boolean)
+    : [];
+  const riskKey = impact?.level === 'high' ? 'weatherRiskHigh' : impact?.level === 'medium' ? 'weatherRiskMedium' : '';
+  const risk = riskKey
+    ? '<span class="route-weather-risk route-weather-risk-' + impact.level + '">' + escapeHtml(dict[riskKey]) + '</span>'
+    : '';
+  const adviceText = advice.length > 0
+    ? '<span class="route-weather-advice-text">' + escapeHtml(advice.join('；')) + '</span>'
+    : '';
+  const reasonText = reasons.length > 0
+    ? '<span class="route-weather-reason-text">' + escapeHtml(reasons.join('、')) + '</span>'
+    : '';
+  const radarAria = formatLocalizedTemplate(dict.weatherRadarAria, { day: day.dayNum, city: day.city });
+  const radar = day.radarUrl
+    ? '<a class="route-weather-radar-link" href="' + escapeHtml(day.radarUrl) + '" target="_blank" rel="noopener noreferrer" aria-label="' + escapeHtml(radarAria) + '">' + escapeHtml(dict.weatherRadarLink) + '</a>'
+    : '';
+  const impactRow = risk || reasonText || adviceText || radar
+    ? '<div class="route-day-weather-advice">' + risk + reasonText + adviceText + radar + '</div>'
+    : '';
+  return '<div class="route-day-weather-block"><div class="route-day-weather">' + weatherIcon(condition) + ' ' + escapeHtml(safeSummary.join(' · ')) + '</div>' + impactRow + '</div>';
+}
+
 function renderRoutePanel(data) {
   const body = document.getElementById('route-panel-body');
   if (!body) return;
+  _routePanelData = Array.isArray(data) ? data : [];
+  const dict = I18N[currentLang] || I18N.zh;
   body.innerHTML = data.map(day => '<div class="route-day-group">' +
     '<div class="route-day-label" data-day="' + day.dayNum + '">Day ' + day.dayNum + ' · ' + escapeHtml(day.city) + '</div>' +
+    renderWeatherBlock(day, dict) +
     day.attractions.map(attr => '<div class="route-attr-item" data-lat="' + (attr.lat||'') + '" data-lng="' + (attr.lng||'') + '" data-name="' + escapeHtml(attr.name||'') + '">' +
       '<span class="attr-dot"></span><span>' + escapeHtml(attr.name) + '</span>' +
       (attr.duration ? '<span class="attr-duration">' + attr.duration + 'min</span>' : '') +
@@ -2025,6 +2177,10 @@ function renderRoutePanel(data) {
     });
   });
 
+  body.querySelectorAll('.route-weather-radar-link').forEach(link => {
+    link.addEventListener('click', event => event.stopPropagation());
+  });
+
   body.querySelectorAll('.route-attr-item, .route-meal-item').forEach(item => {
     item.addEventListener('click', () => {
       const rawLat = parseFloat(item.dataset.lat);
@@ -2043,4 +2199,9 @@ function renderRoutePanel(data) {
       if (name) scrollChatToAttraction(name);
     });
   });
-}// force redeploy 2026年 05月 25日 星期一 16:04:15 CST
+}
+
+document.addEventListener('travelmap-language-changed', () => {
+  if (_routePanelData.length > 0) renderRoutePanel(_routePanelData);
+});
+// force redeploy 2026年 05月 25日 星期一 16:04:15 CST

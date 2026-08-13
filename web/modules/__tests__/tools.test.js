@@ -6,8 +6,10 @@ vi.mock('@earendil-works/pi-ai', () => ({
     Object: (props) => ({ type: 'object', properties: props }),
     String: (opts = {}) => ({ type: 'string', ...opts }),
     Number: (opts = {}) => ({ type: 'number', ...opts }),
+    Null: () => ({ type: 'null' }),
     Boolean: (opts = {}) => ({ type: 'boolean', ...opts }),
     Array: (items) => ({ type: 'array', items }),
+    Union: (schemas) => ({ anyOf: schemas }),
     Optional: (schema) => ({ ...schema, optional: true }),
   },
 }));
@@ -21,6 +23,13 @@ vi.mock('../context.js', () => ({
 }));
 
 // Mock window/document for action-links tool
+const storage = new Map();
+globalThis.localStorage = {
+  getItem: vi.fn((key) => storage.get(key) ?? null),
+  setItem: vi.fn((key, value) => storage.set(key, String(value))),
+  removeItem: vi.fn((key) => storage.delete(key)),
+  clear: vi.fn(() => storage.clear()),
+};
 globalThis.window = { _lastTripPlan: null, currentPage: 'page-chat' };
 globalThis.document = { getElementById: vi.fn().mockReturnValue(null) };
 
@@ -72,26 +81,87 @@ describe('search_attractions tool', () => {
 });
 
 describe('search_weather tool', () => {
+  const forecastResponse = (startDate, days) => ({
+    daily: {
+      time: Array.from({ length: days }, (_, index) => {
+        const date = new Date(`${startDate}T00:00:00Z`);
+        date.setUTCDate(date.getUTCDate() + index);
+        return date.toISOString().slice(0, 10);
+      }),
+      weather_code: Array(days).fill(61),
+      temperature_2m_max: Array(days).fill(26),
+      temperature_2m_min: Array(days).fill(20),
+      precipitation_probability_max: Array(days).fill(70),
+      wind_direction_10m_dominant: Array(days).fill(90),
+      wind_speed_10m_max: Array(days).fill(10),
+    },
+  });
+
   it('has correct name', () => {
     expect(tools.searchWeatherTool.name).toBe('search_weather');
   });
 
-  it('parameters has city and days', () => {
+  it('parameters has city, startDate and days', () => {
     const props = tools.searchWeatherTool.parameters.properties;
     expect(props).toHaveProperty('city');
+    expect(props).toHaveProperty('startDate');
     expect(props).toHaveProperty('days');
   });
 
   it('execute returns weather data', async () => {
-    const result = await tools.searchWeatherTool.execute('id', { city: '北京', days: 3 });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => forecastResponse('2026-08-13', 3),
+    });
+    const result = await tools.searchWeatherTool.execute('id', { city: '北京', startDate: '2026-08-13', days: 3 });
     expect(result.content[0].text).toContain('北京');
     expect(result.content[0].text).toContain('天气预报');
-    expect(result.details.weather.length).toBe(3);
+    expect(result.details.weatherInfo).toHaveLength(3);
+    expect(result.details.weatherInfo[0]).toMatchObject({
+      date: '2026-08-13', city: '北京', dayWeather: '小雨', nightWeather: '小雨',
+      dayTemp: 26, nightTemp: 20, precipitationProbability: 70,
+      windDirection: '东风', windPower: '2级', source: 'open-meteo', isSynthetic: false,
+    });
+    expect(result.details.coverage.complete).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toContain('start_date=2026-08-13');
+    fetchMock.mockRestore();
   });
 
-  it('execute uses default 7 days', async () => {
-    const result = await tools.searchWeatherTool.execute('id', { city: '上海' });
-    expect(result.details.weather.length).toBe(7);
+  it('returns a stable empty contract for unknown cities', async () => {
+    const result = await tools.searchWeatherTool.execute('id', { city: '未知城市', startDate: '2026-08-13' });
+    expect(result.details.weatherInfo).toEqual([]);
+    expect(result.details.coverage.complete).toBe(false);
+    expect(result.details.error.code).toBe('UNKNOWN_CITY');
+  });
+
+  it('returns a stable empty contract for HTTP errors', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status: 503 });
+    const result = await tools.searchWeatherTool.execute('id', { city: '上海', startDate: '2026-08-13', days: 7 });
+    expect(result.details.weatherInfo).toEqual([]);
+    expect(result.details.error).toEqual({ code: 'HTTP_ERROR', message: 'HTTP 503' });
+    fetchMock.mockRestore();
+  });
+
+  it('reports partial coverage without inventing missing forecast dates', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => forecastResponse('2026-08-13', 1),
+    });
+    const result = await tools.searchWeatherTool.execute('id', {
+      city: '北京', startDate: '2026-08-13', days: 3,
+    });
+    expect(result.details.weatherInfo.map((weather) => weather.date)).toEqual(['2026-08-13']);
+    expect(result.details.coverage).toMatchObject({
+      requestedStartDate: '2026-08-13',
+      requestedDays: 3,
+      availableStartDate: '2026-08-13',
+      availableEndDate: '2026-08-13',
+      complete: false,
+    });
+    expect(result.content[0].text).toContain('预报未完整覆盖行程日期');
+    fetchMock.mockRestore();
   });
 });
 
@@ -172,6 +242,24 @@ describe('calculate_budget tool', () => {
 describe('generate_action_links tool', () => {
   it('has correct name', () => {
     expect(tools.generateActionLinksTool.name).toBe('generate_action_links');
+  });
+
+  it('schema and result preserve complete weatherInfo', async () => {
+    expect(tools.generateActionLinksTool.parameters.properties.tripPlan.properties).toHaveProperty('weatherInfo');
+    const weatherInfo = [{
+      date: '2026-08-13', city: '北京', dayWeather: '小雨', nightWeather: '阴',
+      dayTemp: 26, nightTemp: 20, precipitationProbability: null,
+      windDirection: '东风', windPower: '2级', source: 'open-meteo',
+      fetchedAt: '2026-08-13T00:00:00.000Z', isSynthetic: false,
+    }];
+    const weatherSchema = tools.generateActionLinksTool.parameters.properties.tripPlan.properties.weatherInfo;
+    expect(weatherSchema.items.properties.precipitationProbability.anyOf).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'null' })]),
+    );
+    const result = await tools.generateActionLinksTool.execute('id', {
+      tripPlan: { city: '北京', cities: ['北京'], startDate: '2026-08-13', endDate: '2026-08-13', days: [], weatherInfo },
+    });
+    expect(result.details.tripPlan.weatherInfo).toEqual(weatherInfo);
   });
 
   it('execute generates links for trip plan', async () => {

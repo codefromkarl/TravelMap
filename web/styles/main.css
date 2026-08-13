@@ -1183,6 +1183,71 @@
       border-radius: 50%;
       flex-shrink: 0;
     }
+    .route-day-weather-block {
+      margin: 0 4px 8px 20px;
+      padding: 8px 10px;
+      border: 1px solid #e4e4e7;
+      border-radius: 8px;
+      background: #fafafa;
+      overflow-wrap: anywhere;
+    }
+    .route-day-weather {
+      color: #3f3f46;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .route-day-weather-unavailable {
+      color: #71717a;
+    }
+    .route-day-weather-advice {
+      display: flex;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 6px 8px;
+      margin-top: 5px;
+      color: #52525b;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .route-weather-risk {
+      flex-shrink: 0;
+      border-radius: 999px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .route-weather-risk-medium {
+      color: #92400e;
+      background: #fef3c7;
+    }
+    .route-weather-risk-high {
+      color: #991b1b;
+      background: #fee2e2;
+    }
+    .route-weather-advice-text {
+      flex: 1 1 150px;
+      min-width: 0;
+    }
+    .route-weather-reason-text {
+      color: #71717a;
+    }
+    .route-weather-radar-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      border-radius: 6px;
+      color: #4338ca;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .route-weather-radar-link:hover {
+      color: #312e81;
+      text-decoration: underline;
+    }
+    .route-weather-radar-link:focus-visible {
+      outline: 3px solid rgba(79, 70, 229, 0.35);
+      outline-offset: 2px;
+    }
     .route-attr-item {
       display: flex;
       align-items: center;
@@ -2161,6 +2226,12 @@
       #page-map.mobile-map-focused #map-chat-panel { display: none; }
       .map-search-box { max-width: 180px; font-size: 13px; }
       #page-map-routes { width: calc(100vw - 24px); }
+      .route-day-weather-block {
+        margin-right: 0;
+      }
+      .route-weather-radar-link {
+        min-height: 44px;
+      }
       #page-map-statusbar { font-size: 11px; gap: 8px; }
       #page-map-toolbar { gap: 6px; }
       .map-tool-btn { width: 32px; height: 32px; font-size: 14px; }
@@ -2188,8 +2259,10 @@
         gap: 6px;
       }
     }
-    /* 移动端视图切换按钮 — 桌面端隐藏 */
-    .mobile-view-toggle { display: none; }
+    /* 移动端视图切换按钮 — 仅桌面端隐藏，避免覆盖上方移动端规则 */
+    @media (min-width: 769px) {
+      .mobile-view-toggle { display: none; }
+    }
 
     /* ─── 减少动画偏好 ─────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {

@@ -20,6 +20,7 @@ import { createServer } from "net";
 
 let server: ChildProcess | null = null;
 let serverPort = 0;
+const ONBOARDING_STORAGE_KEY = "travel-agent-onboarding-done";
 
 /** 启动本地 HTTP 服务器 */
 async function startServer(): Promise<number> {
@@ -156,7 +157,7 @@ async function injectMockTrip(page: Page) {
 
 test.describe("页面地图功能测试", () => {
   let consoleErrors: string[] = [];
-  let consoleCleanup: () => void;
+  let consoleCleanup: () => void = () => {};
 
   test.beforeAll(async () => {
     serverPort = await startServer();
@@ -174,9 +175,21 @@ test.describe("页面地图功能测试", () => {
   }
 
   test.beforeEach(async ({ page }) => {
+    consoleCleanup = () => {};
     const listener = setupConsoleListener(page);
     consoleErrors = listener.errors;
     consoleCleanup = listener.cleanup;
+
+    await page.addInitScript((storageKey) => {
+      localStorage.setItem(storageKey, "true");
+    }, ONBOARDING_STORAGE_KEY);
+
+    await page.route(`http://localhost:${serverPort}/config.local.js`, (route) =>
+      route.fulfill({
+        contentType: "application/javascript",
+        body: "export default {};\n",
+      })
+    );
   });
 
   test.afterEach(async () => {
@@ -333,6 +346,75 @@ test.describe("页面地图功能测试", () => {
     await page.waitForTimeout(300);
     const isHidden = await routePanel.evaluate((el) => !el.classList.contains("show"));
     expect(isHidden).toBe(true);
+  });
+
+  test("路线面板按日显示天气风险，并仅为降雨日提供实时雷达", async ({ page }) => {
+    await gotoPage(page, "/index.html");
+    await waitForMapReady(page);
+    await page.locator(".onboarding-skip").click({ timeout: 1000 }).catch(() => {});
+
+    await page.evaluate(async () => {
+      const tripPlan = {
+        city: "杭州",
+        startDate: "2026-08-13",
+        endDate: "2026-08-14",
+        weatherInfo: [
+          {
+            date: "2026-08-13", city: "杭州", dayWeather: "大雨", nightWeather: "中雨",
+            dayTemp: 30, nightTemp: 23, precipitationProbability: 80,
+            windDirection: "东风", windPower: "4级", source: "open-meteo",
+          },
+          {
+            date: "2026-08-14", city: "杭州", dayWeather: "晴", nightWeather: "晴",
+            dayTemp: 29, nightTemp: 21, precipitationProbability: 10,
+            windDirection: "东风", windPower: "2级", source: "open-meteo",
+          },
+        ],
+        days: [
+          {
+            dayIndex: 1, date: "2026-08-13", city: "杭州", meals: [],
+            attractions: [{
+              name: "西湖", nameZh: "西湖", visitDuration: 120,
+              location: { latitude: 30.2458, longitude: 120.1484 },
+            }],
+          },
+          {
+            dayIndex: 2, date: "2026-08-14", city: "杭州", meals: [],
+            attractions: [{
+              name: "浙江省博物馆", nameZh: "浙江省博物馆", visitDuration: 90,
+              location: { latitude: 30.2526, longitude: 120.1371 },
+            }],
+          },
+        ],
+      };
+      (window as any)._lastTripPlan = tripPlan;
+      await (window as any)._renderTripOnMap(tripPlan);
+    });
+
+    const routeButton = page.locator("#btn-map-routes");
+    const mobileMapButton = page.locator("#btn-mobile-map");
+    expect(await page.locator("#mobile-view-toggle").evaluate((control) => control.parentElement?.id)).toBe("page-map");
+    if (!(await routeButton.isVisible())) {
+      await expect(mobileMapButton).toBeVisible();
+      await mobileMapButton.click();
+      await expect(page.locator("#page-map")).toHaveClass(/mobile-map-focused/);
+      await expect(routeButton).toBeVisible();
+    }
+    await routeButton.click();
+    const weatherRows = page.locator(".route-day-weather");
+    await expect(weatherRows).toHaveCount(2);
+    await expect(weatherRows.nth(0)).toContainText("大雨");
+    await expect(weatherRows.nth(0)).toContainText("23–30°C");
+    await expect(page.locator(".route-weather-risk-high")).toHaveCount(1);
+    await expect(page.locator(".route-weather-reason-text").first()).toContainText("强降雨");
+    await expect(page.locator(".route-weather-advice-text").first()).toContainText("室内");
+
+    const radarLinks = page.locator(".route-weather-radar-link");
+    await expect(radarLinks).toHaveCount(1);
+    await expect(radarLinks).toHaveAttribute("target", "_blank");
+    await expect(radarLinks).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(radarLinks).toHaveAttribute("href", /windy\.com\/30\./);
+    await expect(page.locator("#route-panel-body")).not.toContainText(/undefined|null|NaN/);
   });
 
   // ── 5. 定位按钮 ──

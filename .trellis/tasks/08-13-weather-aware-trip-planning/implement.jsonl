@@ -1,0 +1,10 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend ES modules entrypoint and pre-development checklist"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Route panel UI, i18n, and accessibility conventions"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Browser module, fetch, and event conventions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "JSDoc and runtime boundary validation"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and focused-test requirements"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Weather tool to TripPlan to map cross-layer contract"}
+{"file": ".trellis/tasks/08-13-weather-aware-trip-planning/research/weather-contract.md", "reason": "Verified current weather contract drift and target contract"}
+{"file": ".trellis/tasks/08-13-weather-aware-trip-planning/research/weather-ux.md", "reason": "Verified minimal route-panel UX and acceptance cases"}
+{"file": ".trellis/tasks/08-13-weather-aware-trip-planning/research/windy-boundary.md", "reason": "External radar link boundary"}

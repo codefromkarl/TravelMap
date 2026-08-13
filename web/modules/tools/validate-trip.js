@@ -5,6 +5,18 @@
  * 检测坐标缺失、必填字段缺失等问题。
  */
 
+/**
+ * 为历史行程和旧工具结果补齐稳定的天气数组契约。
+ * @param {object} tripPlan
+ * @returns {object}
+ */
+export function normalizeTripPlanWeatherInfo(tripPlan) {
+  if (tripPlan && typeof tripPlan === 'object' && !Array.isArray(tripPlan.weatherInfo)) {
+    tripPlan.weatherInfo = [];
+  }
+  return tripPlan;
+}
+
 // ─── TripPlan 结构校验 ─────────────────────────────────────
 
 /**
@@ -19,6 +31,8 @@ export function validateTripPlanSchema(tripPlan) {
   if (!tripPlan) {
     return { valid: false, errors: ['tripPlan 为空'] };
   }
+
+  normalizeTripPlanWeatherInfo(tripPlan);
 
   if (typeof tripPlan.city !== 'string' || tripPlan.city.length === 0) {
     errors.push('缺少 city 字段');

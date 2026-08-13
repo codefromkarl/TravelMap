@@ -103,6 +103,69 @@ Remove `.disabled-ghost` class to enable after itinerary generation.
 - Panels close via: ✕ button, overlay click, Esc key
 - `prefers-reduced-motion` supported via CSS media query (see below)
 
+## Scenario: Mobile View-Reveal Controls
+
+### 1. Scope / Trigger
+
+Apply this contract when a mobile control reveals, restores, or switches to a panel that can be hidden with `display: none`, including the map/chat view switcher.
+
+### 2. Signatures
+
+- Stable owner: `#page-map`
+- Hideable panels: `#map-right-area`, `#map-chat-panel`
+- View controls: `#mobile-view-toggle`, `#mobile-view-toggle-chat`
+- State classes: `.mobile-chat-focused`, `.mobile-map-focused`
+
+### 3. Contracts
+
+- A control that reveals a hidden panel must be owned by a common ancestor that remains rendered in every state; it must not be a descendant of the panel it reveals.
+- If legacy markup places a control under a hideable panel, move the existing node to the stable owner after DOM readiness. Preserve the node identity, event listeners, accessible name, and inline state.
+- CSS controls presentation only. `display`, `position`, and `z-index` on a child cannot override `display: none` on an ancestor.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+|---|---|
+| Chat-focused state hides `#map-right-area` | Map reveal control remains visible and enabled |
+| Map reveal control is activated | `#page-map` gains `.mobile-map-focused`; route/map controls become visible |
+| Map-focused state hides the chat panel | Chat reveal control remains visible and enabled |
+| Required stable owner or control is absent | Initialization safely no-ops without throwing |
+
+### 5. Good / Base / Bad Cases
+
+- Good: both view controls are direct children of `#page-map` and survive either panel being hidden.
+- Base: legacy markup starts inside a panel, and DOM-ready initialization moves the same nodes to `#page-map` before interaction.
+- Bad: the map reveal button is inside `#map-right-area` while `.mobile-chat-focused #map-right-area { display: none; }`; the user cannot return to the map.
+
+### 6. Tests Required
+
+- Mobile E2E asserts the control container's parent is `#page-map`.
+- Assert the reveal control is visible before clicking it.
+- Click the control and assert the corresponding state class changes.
+- Assert a target-panel behavior or control becomes visible after the transition; an attachment-only assertion is insufficient.
+- Keep a desktop assertion so the mobile ownership fix does not alter desktop visibility.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```html
+<section id="map-right-area">
+  <div id="mobile-view-toggle"><button>Show map</button></div>
+</section>
+```
+
+#### Correct
+
+```html
+<main id="page-map">
+  <section id="map-right-area"></section>
+  <section id="map-chat-panel"></section>
+  <div id="mobile-view-toggle"><button>Show map</button></div>
+  <div id="mobile-view-toggle-chat"><button>Show chat</button></div>
+</main>
+```
+
 ---
 
 ## Skeleton Screen Pattern

@@ -285,10 +285,10 @@ export async function initApp() {
           window._addAttractionPreview(details.attractions, details.city);
         }
       }
-      // 天气工具返回后显示天气图标
-      if (toolName === "get_weather" || toolName === "getWeather") {
+      // 天气工具返回后显示结构化天气预览；最终逐日 UI 由 TripPlan.weatherInfo 驱动
+      if (toolName === "search_weather") {
         const details = result.result?.details || result.result;
-        if (details?.weatherInfo && window._addWeatherOverlay) {
+        if (Array.isArray(details?.weatherInfo) && window._addWeatherOverlay) {
           window._addWeatherOverlay(details.weatherInfo);
         }
       }

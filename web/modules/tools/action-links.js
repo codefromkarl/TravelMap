@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai";
-import { validateAndWarn, validateToMarkdown, validateTripPlanSchema } from "./validate-trip.js";
+import { normalizeTripPlanWeatherInfo, validateAndWarn, validateTripPlanSchema } from "./validate-trip.js";
 
 // ─── 行动链接工具 ────────────────────────────────────
 export const generateActionLinksTool = {
@@ -49,10 +49,24 @@ export const generateActionLinksTool = {
           })),
         }))),
       })),
+      weatherInfo: Type.Optional(Type.Array(Type.Object({
+        date: Type.String(),
+        city: Type.String(),
+        dayWeather: Type.Optional(Type.String()),
+        nightWeather: Type.Optional(Type.String()),
+        dayTemp: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+        nightTemp: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+        precipitationProbability: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+        windDirection: Type.Optional(Type.String()),
+        windPower: Type.Optional(Type.String()),
+        source: Type.Optional(Type.String()),
+        fetchedAt: Type.Optional(Type.String()),
+        isSynthetic: Type.Optional(Type.Boolean()),
+      }))),
     }),
   }),
   execute: async (_id, params) => {
-    const { tripPlan } = params;
+    const tripPlan = normalizeTripPlanWeatherInfo(params.tripPlan);
     const lines = ["## 🔗 行动链接"];
     let linkCount = 0;
     for (const day of tripPlan.days) {
