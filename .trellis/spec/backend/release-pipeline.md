@@ -26,7 +26,7 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 - Deploy downloads the exact `travelmap-pages-<run-id>-<run-attempt>` artifact and compares every source identity field before invoking `deploy.sh`.
 - In GitHub Actions, `DEPLOY_SOURCE_SHA` is required and `deploy.sh` forwards it to Wrangler as `--commit-hash=<validated-workflow-run-sha>`; an invalid or missing CI SHA fails before upload.
 - Only `artifact/site` may be passed to Pages. Repository roots, `web/`, rsync trees, source maps, tests, local server files, and secret files are forbidden inputs.
-- Post-deploy smoke receives the exact Wrangler URL, requests the content-addressed JS/CSS references parsed from its `index.html`, and treats chat/auth Function preflight failures as blocking.
+- Post-deploy smoke receives the exact Wrangler URL, fetches and times its canonical `/` document (never `/index.html`), requests the content-addressed JS/CSS references parsed from that response, and treats chat/auth Function preflight failures as blocking. A bounded propagation window retries only HTTP 404/5xx; `HEALTH_CHECK_MAX_ATTEMPTS` and `HEALTH_CHECK_RETRY_DELAY_SECONDS` default to 7/5 and may be reduced to 1/0 in tests.
 - Runtime: Node `22.19.0`; Wrangler is the exact package-lock version at `node_modules/.bin/wrangler`.
 - Blocking browser validation uses `playwright.config.ts`, starts from a completed-onboarding storage state, and excludes only the explicit `LEGACY_E2E_SPECS` list. The excluded specs remain runnable through `npm run test:e2e:legacy`; this non-blocking lane must not be presented as release evidence.
 
@@ -41,7 +41,8 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 | Workflow conclusion/repository/source identity differs | Deploy is skipped or fails before upload |
 | CI source SHA is absent/invalid or differs from the validated workflow run | Deploy fails before Wrangler upload |
 | Wrangler returns zero, multiple, non-HTTPS, or lookalike `pages.dev` URLs | Deploy fails and emits no deployment URL |
-| Referenced hashed asset is missing, chat/auth OPTIONS is not 200/204, or index takes at least 3 seconds | Post-deploy smoke fails the deploy job; the remote mutation is reported as already performed |
+| Canonical root, referenced hashed asset, or chat/auth OPTIONS returns 404/5xx during propagation | Retry up to the configured bounded attempt count; the final status and attempt count remain visible |
+| Referenced hashed asset is missing, chat/auth OPTIONS is not 200/204 after retry, root is not HTML/200, or root takes at least 3 seconds | Post-deploy smoke fails the deploy job; the remote mutation is reported as already performed |
 | AI secrets are absent | CI records explicit skip; permitted only on PR validation |
 | Configured AI evaluation fails | CI fails; no failure suppression is allowed |
 
@@ -56,7 +57,7 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 - `deploy-artifact-safety.test.ts`: allowlist, secret/source-map rejection, reference closure, manifest hashes, real pinned-Wrangler JavaScript output, multipart rejection, strict Functions output shape/cleanup, real-bundle false-positive regressions, and fake-Wrangler shell contracts.
 - `ci-workflow-contract.test.ts`: Node version, unique validation workflow, producer/consumer identity, permissions, artifact naming, PR preview, reports, and exact-URL smoke.
 - Any legacy browser quarantine must have an explicit filename in `LEGACY_E2E_SPECS`, remain runnable via `playwright.legacy.config.ts`, and have a contract assertion. Do not expand it to suppress a new product regression.
-- `health-check-contract.test.ts`: actual index-referenced hashed assets are requested; chat 404 and auth 5xx each force a non-zero smoke result.
+- `health-check-contract.test.ts`: canonical `/` is used instead of redirecting `/index.html`; actual root-referenced hashed assets are requested; a transient root 404 recovers within the bound; persistent chat 404 and auth 5xx each report their final attempt and force a non-zero smoke result.
 - A real builder and independent validator run must return the same aggregate SHA and file count.
 - An isolated directory without sibling `../pi` must pass `npm ci --ignore-scripts` and `npm run typecheck`.
 

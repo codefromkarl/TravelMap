@@ -8,6 +8,8 @@
 
 第一次 Hosted deploy run `31693601165` 揭示了本地测试未覆盖的输出格式错误：Wrangler 4.122.0 的 deprecated `pages functions build --outfile` 写出 `_worker.bundle` multipart envelope，而 builder 把它命名为 `site/_worker.js`。`pages deploy` 因此在 `Content-Disposition: form-data; name="metadata"` 处把 multipart 当 JavaScript 解析并失败。修复改用 fresh temp `--outdir`，严格接受唯一 `index.js` 并复制为 `site/_worker.js`；builder/validator 都拒绝 multipart 标记。完整根因见 `research/wrangler-worker-output.md`。
 
+后续 Hosted deploy run `31695172551` 已成功创建部署，但紧接着的 smoke 全部返回 404；约 30 秒后 canonical `/` 返回 200、chat/auth OPTIONS 返回 204，而 `/index.html` 持续 308 到 `/`。因此 smoke 改为只获取和测速 canonical `/`，并只对传播期 404/5xx 做默认覆盖 0–30 秒的有界重试；最终 API 非健康仍然阻断并报告状态及尝试次数。
+
 `BASE_URL` 失败的根因是旧调用或 Vitest 传入文件系统路径，Playwright 将其直接用作导航基址。现在文件系统路径和 `file://` 会归一到 `http://127.0.0.1:3456/` 并启动本地 web server；显式 HTTP(S) 地址则不启动本地 server；其他无效值立即以 `[PLAYWRIGHT_BASE_URL_INVALID]` 失败。
 
 ## 通过的验证
@@ -39,11 +41,21 @@
 | Git 秘密路径合约 | `.dev.vars` / `web/.dev.vars` 未被跟踪，变体被 ignore，`.dev.vars.example` 被跟踪 |
 | 部署源身份 | artifact 模式必须提供 40-64 位小写十六进制 SHA，Wrangler 必带 `--commit-hash` |
 
+## Post-deploy smoke fix 最终验证
+
+| 验证 | 结果 |
+|---|---|
+| `npx vitest run --project backend-unit src/__tests__/quality/health-check-contract.test.ts` | 1 file，4/4 通过；覆盖 canonical `/`、短暂 root 404 恢复、持续 chat 404 与 auth 503 阻断 |
+| `shellcheck scripts/health-check.sh` | 未执行：隔离环境未安装 `shellcheck`（`command not found`） |
+| `bash -n scripts/health-check.sh` | 通过 |
+| `npx biome check src/__tests__/quality/health-check-contract.test.ts` | 通过，1 file，0 个诊断 |
+| scoped `git diff --check` | 通过 |
+
 ## 未通过或未执行的边界
 
 - 未运行 full Playwright；按任务要求使用 PR-scoped desktop Page Map 证明 HTTP server/BASE_URL/reporter 契约。
-- GitHub hosted CI 未触发；Actions 权限、Environments、required checks 与 secrets 配置仍待远程验证。
-- Cloudflare preview/production 部署、exact-URL smoke 与 CDN 状态未在本子任务执行。
+- 本修复未重新触发 GitHub hosted CI；Actions 权限、Environments、required checks 与 secrets 配置仍待远程验证。
+- Hosted run `31695172551` 已创建 Cloudflare 部署，但旧 smoke 在传播窗口内失败；本修复未重新提交或部署，因此修复后的 hosted exact-URL smoke 与最终 CDN green 尚未证明。
 - 密钥轮换、供应商账单/调用审计、WAF/Access 配置不在仓库修改边界内，不得由本地 green 推导为已完成。
 
 ## 运行环境与备注

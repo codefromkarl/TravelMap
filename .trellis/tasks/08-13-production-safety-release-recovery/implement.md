@@ -46,6 +46,14 @@
 - [x] 运行最终 focused tests、真实 artifact build/validate 与 diff check，并把精确结果写入 `verification.md`。
 - [ ] 后续独立任务：迁移离开 Cloudflare 标记为内部接口的 `pages functions build`；本轮不扩大到 compiler 迁移。
 
+## 6. Deploy run 31695172551 smoke 恢复
+
+- [x] 确认部署创建成功后的即时 smoke 全为 404，而约 30 秒后 canonical `/` 为 200、API OPTIONS 为 204；`/index.html` 稳定 308 到 `/`。
+- [x] index 获取与测速统一使用 exact deployment URL 的 canonical `/`。
+- [x] 对 404/5xx 增加默认 7 次、间隔 5 秒的有界传播重试，并允许测试以环境变量降为 1/0；非健康 API 最终仍阻断。
+- [x] 增加 canonical root、短暂 root 404 后恢复、持续 chat 404/auth 503 失败及最终诊断回归。
+- [x] 运行 focused test、shell 静态检查和 scoped diff check，并把结果写入 `verification.md`。
+
 ## 风险文件
 
 - `.dev.vars`, `.gitignore`, `package.json`, `package-lock.json`

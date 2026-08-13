@@ -9,12 +9,24 @@ const HEALTH_CHECK = path.join(PROJECT_ROOT, "scripts", "health-check.sh");
 const servers: Server[] = [];
 
 async function startFixtureServer(
-  options: { authStatus?: number; chatStatus?: number } = {},
+  options: { authStatus?: number; chatStatus?: number; rootFailuresBeforeSuccess?: number } = {},
 ): Promise<{ baseURL: string; requests: string[] }> {
   const requests: string[] = [];
+  let rootRequests = 0;
   const server = createServer((request, response) => {
     requests.push(`${request.method} ${request.url}`);
     if (request.url === "/index.html") {
+      response.writeHead(308, { Location: "/" });
+      response.end();
+      return;
+    }
+    if (request.url === "/") {
+      rootRequests += 1;
+      if (rootRequests <= (options.rootFailuresBeforeSuccess ?? 0)) {
+        response.writeHead(404);
+        response.end();
+        return;
+      }
       response.writeHead(200, { "Content-Type": "text/html" });
       response.end(`<!doctype html>
 <html>
@@ -56,7 +68,10 @@ async function startFixtureServer(
   return { baseURL: `http://127.0.0.1:${address.port}`, requests };
 }
 
-async function runHealthCheck(baseURL: string): Promise<{
+async function runHealthCheck(
+  baseURL: string,
+  retryOptions: { attempts?: number; delaySeconds?: number } = {},
+): Promise<{
   status: number | null;
   stderr: string;
   stdout: string;
@@ -64,7 +79,11 @@ async function runHealthCheck(baseURL: string): Promise<{
   return new Promise((resolve, reject) => {
     const child = spawn("bash", [HEALTH_CHECK, baseURL], {
       cwd: PROJECT_ROOT,
-      env: process.env,
+      env: {
+        ...process.env,
+        HEALTH_CHECK_MAX_ATTEMPTS: String(retryOptions.attempts ?? 1),
+        HEALTH_CHECK_RETRY_DELAY_SECONDS: String(retryOptions.delaySeconds ?? 0),
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -94,16 +113,28 @@ afterEach(async () => {
 });
 
 describe("blocking deployment health check", () => {
-  it("checks the assets referenced by index and passes healthy Functions", async () => {
+  it("uses the canonical root, checks referenced assets, and passes healthy Functions", async () => {
     const fixture = await startFixtureServer();
     const result = await runHealthCheck(fixture.baseURL);
 
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(result.stdout).toContain("All blocking smoke checks passed");
+    expect(fixture.requests).toContain("GET /");
+    expect(fixture.requests).not.toContain("GET /index.html");
     expect(fixture.requests).toContain("GET /styles/main.1234abcd.css");
     expect(fixture.requests).toContain("GET /modules/app.abcdef12.js");
     expect(fixture.requests).toContain("OPTIONS /api/chat");
     expect(fixture.requests).toContain("OPTIONS /api/auth/status");
+  });
+
+  it("retries a transient root 404 during deployment propagation", async () => {
+    const fixture = await startFixtureServer({ rootFailuresBeforeSuccess: 1 });
+    const result = await runHealthCheck(fixture.baseURL, { attempts: 2 });
+
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(fixture.requests.filter((request) => request === "GET /")).toHaveLength(3);
+    expect(result.stderr).toContain("Index HTML HTTP 404 (attempt 1/2)");
+    expect(result.stdout).toContain("All blocking smoke checks passed");
   });
 
   it.each([
@@ -115,6 +146,9 @@ describe("blocking deployment health check", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stdout).toContain(expected);
+    expect(result.stdout).toContain(
+      `HTTP ${options.chatStatus ?? options.authStatus} after 1 attempt(s)`,
+    );
     expect(result.stdout).toContain("blocking smoke check(s) failed");
     expect(result.stdout).not.toContain("All blocking smoke checks passed");
   });

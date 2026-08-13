@@ -31,6 +31,17 @@ case "${1:-production}" in
 esac
 
 BASE_URL="${BASE_URL%/}"
+HEALTH_CHECK_MAX_ATTEMPTS="${HEALTH_CHECK_MAX_ATTEMPTS:-7}"
+HEALTH_CHECK_RETRY_DELAY_SECONDS="${HEALTH_CHECK_RETRY_DELAY_SECONDS:-5}"
+if [[ ! "$HEALTH_CHECK_MAX_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "HEALTH_CHECK_MAX_ATTEMPTS must be a positive integer" >&2
+  exit 2
+fi
+if [[ ! "$HEALTH_CHECK_RETRY_DELAY_SECONDS" =~ ^[0-9]+$ ]]; then
+  echo "HEALTH_CHECK_RETRY_DELAY_SECONDS must be a non-negative integer" >&2
+  exit 2
+fi
+
 CURL_BIN="$(command -v curl)"
 NODE_BIN="$(command -v node)"
 TEMP_DIRECTORY="$(mktemp -d "${TMPDIR:-/tmp}/travelmap-health-check.XXXXXX")"
@@ -44,9 +55,6 @@ CURL_COMMON=(
   --show-error
   --max-time 10
   --connect-timeout 5
-  --retry 3
-  --retry-delay 1
-  --retry-connrefused
 )
 ERRORS=0
 
@@ -75,6 +83,35 @@ request_status() {
   printf '%s\n' "$status"
 }
 
+request_status_with_retry() {
+  local label="$1"
+  local method="$2"
+  local url="$3"
+  local output_file="$4"
+  shift 4
+
+  local attempt=1
+  local status
+  while [[ "$attempt" -le "$HEALTH_CHECK_MAX_ATTEMPTS" ]]; do
+    if status="$(request_status "$method" "$url" "$output_file" "$@")"; then
+      if [[ "$status" == "404" || "$status" =~ ^5[0-9]{2}$ ]] \
+        && [[ "$attempt" -lt "$HEALTH_CHECK_MAX_ATTEMPTS" ]]; then
+        echo "⏳ $label HTTP $status (attempt $attempt/$HEALTH_CHECK_MAX_ATTEMPTS); retrying in ${HEALTH_CHECK_RETRY_DELAY_SECONDS}s" >&2
+        if [[ "$HEALTH_CHECK_RETRY_DELAY_SECONDS" -gt 0 ]]; then
+          sleep "$HEALTH_CHECK_RETRY_DELAY_SECONDS"
+        fi
+        attempt=$((attempt + 1))
+        continue
+      fi
+      printf '%s %s\n' "$status" "$attempt"
+      return 0
+    fi
+
+    echo "$label transport failure (attempt $attempt/$HEALTH_CHECK_MAX_ATTEMPTS)" >&2
+    return 1
+  done
+}
+
 record_failure() {
   echo "❌ $1"
   ERRORS=$((ERRORS + 1))
@@ -87,11 +124,12 @@ echo ""
 
 INDEX_BODY="$TEMP_DIRECTORY/index.html"
 echo -n "1. Index HTML... "
-if INDEX_STATUS="$(request_status GET "$BASE_URL/index.html" "$INDEX_BODY")"; then
+if INDEX_RESULT="$(request_status_with_retry "Index HTML" GET "$BASE_URL/" "$INDEX_BODY")"; then
+  read -r INDEX_STATUS INDEX_ATTEMPTS <<<"$INDEX_RESULT"
   if [[ "$INDEX_STATUS" == "200" ]] && grep -Eqi '<!doctype html|<html([[:space:]>])' "$INDEX_BODY"; then
     echo "✅ HTTP $INDEX_STATUS"
   else
-    record_failure "HTTP $INDEX_STATUS or missing HTML marker"
+    record_failure "HTTP $INDEX_STATUS after $INDEX_ATTEMPTS attempt(s) or missing HTML marker"
   fi
 else
   record_failure "transport failure"
@@ -136,8 +174,12 @@ then
     [[ -n "$asset_path" ]] || continue
     ASSET_COUNT=$((ASSET_COUNT + 1))
     ASSET_BODY="$TEMP_DIRECTORY/asset-$ASSET_COUNT"
-    if ASSET_STATUS="$(request_status GET "$BASE_URL/${asset_path#./}" "$ASSET_BODY")"; then
+    if ASSET_RESULT="$(
+      request_status_with_retry "Asset $asset_path" GET "$BASE_URL/${asset_path#./}" "$ASSET_BODY"
+    )"; then
+      read -r ASSET_STATUS ASSET_ATTEMPTS <<<"$ASSET_RESULT"
       if [[ "$ASSET_STATUS" != "200" ]]; then
+        echo "Asset $asset_path returned HTTP $ASSET_STATUS after $ASSET_ATTEMPTS attempt(s)" >&2
         ASSET_FAILURES=$((ASSET_FAILURES + 1))
       fi
     else
@@ -156,14 +198,15 @@ fi
 echo -n "3. Chat Function preflight... "
 CHAT_BODY="$TEMP_DIRECTORY/chat-options"
 if CHAT_STATUS="$(
-  request_status OPTIONS "$BASE_URL/api/chat" "$CHAT_BODY" \
+  request_status_with_retry "Chat Function preflight" OPTIONS "$BASE_URL/api/chat" "$CHAT_BODY" \
     --header "Origin: $BASE_URL" \
     --header "Access-Control-Request-Method: POST"
 )"; then
+  read -r CHAT_STATUS CHAT_ATTEMPTS <<<"$CHAT_STATUS"
   if [[ "$CHAT_STATUS" == "200" || "$CHAT_STATUS" == "204" ]]; then
     echo "✅ HTTP $CHAT_STATUS"
   else
-    record_failure "HTTP $CHAT_STATUS"
+    record_failure "HTTP $CHAT_STATUS after $CHAT_ATTEMPTS attempt(s)"
   fi
 else
   record_failure "transport failure"
@@ -172,14 +215,15 @@ fi
 echo -n "4. Auth Function preflight... "
 AUTH_BODY="$TEMP_DIRECTORY/auth-options"
 if AUTH_STATUS="$(
-  request_status OPTIONS "$BASE_URL/api/auth/status" "$AUTH_BODY" \
+  request_status_with_retry "Auth Function preflight" OPTIONS "$BASE_URL/api/auth/status" "$AUTH_BODY" \
     --header "Origin: $BASE_URL" \
     --header "Access-Control-Request-Method: GET"
 )"; then
+  read -r AUTH_STATUS AUTH_ATTEMPTS <<<"$AUTH_STATUS"
   if [[ "$AUTH_STATUS" == "200" || "$AUTH_STATUS" == "204" ]]; then
     echo "✅ HTTP $AUTH_STATUS"
   else
-    record_failure "HTTP $AUTH_STATUS"
+    record_failure "HTTP $AUTH_STATUS after $AUTH_ATTEMPTS attempt(s)"
   fi
 else
   record_failure "transport failure"
@@ -190,16 +234,18 @@ set +e
 TOTAL_TIME="$(
   "$CURL_BIN" "${CURL_COMMON[@]}" \
     --output /dev/null \
-    --write-out '%{time_total}' \
-    "$BASE_URL/index.html"
+    --write-out '%{http_code} %{time_total}' \
+    "$BASE_URL/"
 )"
 TIME_STATUS=$?
 set -e
-if [[ "$TIME_STATUS" -eq 0 ]] && awk -v seconds="$TOTAL_TIME" 'BEGIN { exit !(seconds >= 0 && seconds < 3) }'; then
+read -r TIME_HTTP TOTAL_TIME <<<"$TOTAL_TIME"
+if [[ "$TIME_STATUS" -eq 0 && "$TIME_HTTP" == "200" ]] \
+  && awk -v seconds="$TOTAL_TIME" 'BEGIN { exit !(seconds >= 0 && seconds < 3) }'; then
   TIME_MS="$(awk -v seconds="$TOTAL_TIME" 'BEGIN { printf "%d", seconds * 1000 }')"
   echo "✅ ${TIME_MS}ms"
 else
-  record_failure "transport failure or response time >= 3000ms"
+  record_failure "HTTP ${TIME_HTTP:-unknown}, transport failure, or response time >= 3000ms"
 fi
 
 echo ""
