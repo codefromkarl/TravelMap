@@ -4,7 +4,7 @@
  * 生成 OAuth 授权 URL，将用户重定向到 GitHub / Google 登录页
  */
 
-import { signJwt } from "../../_lib/jwt.js";
+import { isSafeRedirectPath, signJwt } from "../../_lib/jwt.js";
 
 const OAUTH_CONFIG = {
   github: {
@@ -28,6 +28,10 @@ export async function onRequestGet(context) {
     return new Response("Unsupported provider", { status: 400 });
   }
 
+  if (!env.JWT_SECRET) {
+    return new Response("Authentication not configured", { status: 503 });
+  }
+
   const clientId = env[cfg.clientIdEnv];
   if (!clientId) {
     return new Response(`OAuth not configured: ${cfg.clientIdEnv}`, { status: 503 });
@@ -38,8 +42,11 @@ export async function onRequestGet(context) {
   const redirectUri = `${reqUrl.origin}/api/auth/callback`;
 
   // state 参数用 JWT 签名防 CSRF（5 分钟有效）
-  const jwtSecret = env.JWT_SECRET || "dev-secret";
-  const state = await signJwt({ provider, redirect: url.searchParams.get("redirect") || "/" }, jwtSecret, 300);
+  const requestedRedirect = url.searchParams.get("redirect") || "/";
+  if (!isSafeRedirectPath(requestedRedirect)) {
+    return new Response("Invalid redirect", { status: 400 });
+  }
+  const state = await signJwt({ provider, redirect: requestedRedirect }, env.JWT_SECRET, 300);
 
   const params = new URLSearchParams({
     client_id: clientId,

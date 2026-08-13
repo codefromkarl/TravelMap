@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify stable fail-closed responses"}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Verify secrets and bodies are never logged"}
+{"file":".trellis/spec/backend/testing-strategy.md","reason":"Verify scoped security test coverage"}
+{"file":".trellis/spec/backend/pages-api-security.md","reason":"Verify Pages-supported bindings and fail-closed proxy contract"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify production auth UX and proxy behavior"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify end-to-end browser/Function data flow"}
+{"file":".trellis/tasks/08-13-secure-api-proxy/prd.md","reason":"Acceptance criteria"}
+{"file":".trellis/tasks/08-13-secure-api-proxy/design.md","reason":"Security architecture contract"}

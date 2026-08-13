@@ -3,6 +3,14 @@ dist/
 coverage/
 .env
 .env.local
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+web/.dev.vars
+web/.dev.vars.*
+!web/.dev.vars.example
 web/config.local.js
 *.log
 .trellis/.developer

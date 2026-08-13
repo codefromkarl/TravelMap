@@ -9,9 +9,9 @@ import { verifyJwt, extractToken } from "../../_lib/jwt.js";
 import { getUser, FREE_TIER } from "../../_lib/quota.js";
 
 const HEADERS = {
-  "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Credentials": "true",
+  "Content-Type": "application/json; charset=utf-8",
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
 };
 
 /** 返回 401，附带建议走 SSO 的重定向信息 */
@@ -33,7 +33,13 @@ export async function onRequestOptions() {
 
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const jwtSecret = env.JWT_SECRET || "dev-secret";
+  const jwtSecret = env.JWT_SECRET;
+  if (!jwtSecret || !env.RATE_LIMIT_KV) {
+    return new Response(JSON.stringify({ authenticated: false, code: "AUTH_NOT_CONFIGURED" }), {
+      status: 503,
+      headers: HEADERS,
+    });
+  }
   const token = extractToken(request);
 
   // 无本地 JWT → 检查是否有博客的 Better Auth cookie
@@ -48,8 +54,7 @@ export async function onRequestGet(context) {
     return unauthenticated(true);
   }
 
-  const kv = env.RATE_LIMIT_KV;
-  const user = kv ? await getUser(kv, payload.sub) : null;
+  const user = await getUser(env.RATE_LIMIT_KV, payload.sub);
 
   if (!user) {
     return unauthenticated(true);

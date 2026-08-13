@@ -9,7 +9,7 @@
  *   5. 重定向回首页
  */
 
-import { verifyJwt, signJwt } from "../../_lib/jwt.js";
+import { isSafeRedirectPath, verifyJwt, signJwt } from "../../_lib/jwt.js";
 import { getUser, createUser } from "../../_lib/quota.js";
 
 export async function onRequestGet(context) {
@@ -23,7 +23,10 @@ export async function onRequestGet(context) {
   }
 
   // ── 验证 state ──
-  const jwtSecret = env.JWT_SECRET || "dev-secret";
+  const jwtSecret = env.JWT_SECRET;
+  if (!jwtSecret) {
+    return new Response("Authentication not configured", { status: 503 });
+  }
   const statePayload = await verifyJwt(state, jwtSecret);
   if (!statePayload || !statePayload.provider) {
     return new Response("Invalid or expired state", { status: 400 });
@@ -31,14 +34,17 @@ export async function onRequestGet(context) {
 
   const provider = statePayload.provider;
   const redirect = statePayload.redirect || "/";
+  if (!isSafeRedirectPath(redirect)) {
+    return new Response("Invalid redirect", { status: 400 });
+  }
 
   // ── 用 code 换 access_token ──
   let profile;
   try {
     const tokenData = await exchangeCode(request, provider, code, env);
     profile = await fetchUserProfile(provider, tokenData.access_token, env);
-  } catch (err) {
-    console.error("[Auth] OAuth exchange failed:", err);
+  } catch {
+    console.error("[Auth] OAuth exchange failed");
     return new Response("OAuth authentication failed", { status: 502 });
   }
 
@@ -71,11 +77,10 @@ export async function onRequestGet(context) {
     86400 * 7, // 7 天有效
   );
 
-  const redirectUrl = new URL(redirect, url.origin);
   return new Response(null, {
     status: 302,
     headers: {
-      Location: redirectUrl.toString(),
+      Location: new URL(redirect, url.origin).toString(),
       "Set-Cookie": `auth_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${86400 * 7}`,
     },
   });

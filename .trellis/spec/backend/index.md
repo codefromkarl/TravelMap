@@ -6,7 +6,7 @@
 
 ## Overview
 
-This directory contains guidelines for the `src/` directory — TypeScript backend using pi-agent-core framework.
+This directory contains guidelines for the `src/` TypeScript backend and server-side Cloudflare Pages Functions under `web/functions/`.
 
 **Language**: All documentation is in **English** (with Chinese comments where appropriate).
 
@@ -23,6 +23,7 @@ This directory contains guidelines for the `src/` directory — TypeScript backe
 | [Testing Roadmap](./testing-roadmap.md) | Test iteration plan (Phase 1-4) | ✅ Active |
 | [Testing Strategy](./testing-strategy.md) | Mock routing, test layers, fixtures | ✅ Active |
 | [Logging Guidelines](./logging-guidelines.md) | Log levels, URL sanitization | ✅ Active |
+| [Pages API Security](./pages-api-security.md) | Same-origin proxy, secrets, auth, quota, and deployment contracts | ✅ Active |
 
 ---
 

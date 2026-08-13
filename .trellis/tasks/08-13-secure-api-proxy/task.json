@@ -1,0 +1,33 @@
+{
+  "id": "secure-api-proxy",
+  "name": "secure-api-proxy",
+  "title": "生产 API 安全代理与密钥治理",
+  "description": "收口线上 LLM 代理：浏览器仅访问同源 /api/chat，密钥仅存在 Cloudflare Secret，服务端完成认证、固定上游、限流和额度控制，并阻止密钥进入 Git、静态产物与日志。",
+  "status": "in_progress",
+  "dev_type": "security",
+  "scope": "cross-layer",
+  "package": "backend",
+  "priority": "P0",
+  "creator": "yuanzhi",
+  "assignee": "yuanzhi",
+  "createdAt": "2026-08-13",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "web/functions/api/chat.js",
+    "web/functions/_lib/jwt.js",
+    "web/functions/_lib/quota.js",
+    "web/modules/auth/auth.js",
+    "scripts/deploy.sh",
+    ".gitignore"
+  ],
+  "notes": "不包含外部密钥轮换、Cloudflare Dashboard 配置、历史重写、部署、提交或推送；这些动作需要单独授权。",
+  "meta": {}
+}

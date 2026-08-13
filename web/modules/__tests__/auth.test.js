@@ -1,204 +1,109 @@
-/**
- * auth.js 单元测试
- *
- * 测试认证系统逻辑：
- * - checkAuth - 检查认证状态
- * - requireAuth - 要求认证
- * - onAuthenticated - 认证成功回调
- * - updateQuota - 更新配额
- *
- * @vitest-environment jsdom
- */
+/** @vitest-environment jsdom */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// Mock 依赖
-vi.mock('../context.js', () => ({
-  currentUser: null,
+const contextMocks = vi.hoisted(() => ({
   setCurrentUser: vi.fn(),
   setQuotaRemaining: vi.fn(),
-  isProxyMode: false,
   setIsProxyMode: vi.fn(),
   showToast: vi.fn(),
-  LLM_HOSTS: [],
+}));
+
+vi.mock('../infra/context.js', () => ({
+  currentUser: null,
+  setCurrentUser: contextMocks.setCurrentUser,
+  setQuotaRemaining: contextMocks.setQuotaRemaining,
+  setIsProxyMode: contextMocks.setIsProxyMode,
+  showToast: contextMocks.showToast,
+  LLM_HOSTS: { 'api.openai.com': 'openai' },
   currentLang: 'zh',
 }));
-
-vi.mock('../i18n.js', () => ({
-  I18N: {},
-}));
-
+vi.mock('../i18n.js', () => ({ I18N: { zh: { authRequired: '请先登录' } } }));
 vi.mock('../trace.js', () => ({
-  addTraceHeaders: vi.fn(),
+  addTraceHeaders: vi.fn(() => ({ 'Content-Type': 'application/json' })),
   extractTraceId: vi.fn(),
 }));
-
 vi.mock('../logger.js', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
+  createLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })),
 }));
+vi.mock('../perf-trace.js', () => ({ traceAsync: vi.fn((_name, fn) => fn()) }));
 
-vi.mock('../perf-trace.js', () => ({
-  traceAsync: vi.fn((name, fn) => fn()),
-}));
+import { checkAuth, onAuthenticated, requireAuth, updateQuota } from '../auth.js';
 
-// 导入被测模块
-import {
-  checkAuth,
-  requireAuth,
-  onAuthenticated,
-  updateQuota,
-  authOverlay,
-  quotaBar,
-} from '../auth.js';
+function setHostname(hostname) {
+  Object.defineProperty(window, 'location', {
+    value: { hostname },
+    configurable: true,
+  });
+}
 
-// ─── 测试 ─────────────────────────────────────────────
-
-describe('auth.js', () => {
+describe('production authentication UI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    document.body.innerHTML = `
+      <div id="auth-overlay" style="display:none"></div>
+      <div id="quota-bar"></div>
+      <img id="quota-avatar" />
+      <span id="quota-name"></span>
+      <span id="quota-count">0</span>
+    `;
     global.fetch = vi.fn();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterEach(() => vi.restoreAllMocks());
+
+  it('does not call the production auth endpoint on localhost', async () => {
+    setHostname('localhost');
+    expect(await checkAuth()).toBe(false);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  // === checkAuth ===
-  describe('checkAuth', () => {
-    it('本地环境返回 false', async () => {
-      // 模拟本地环境
-      Object.defineProperty(window, 'location', {
-        value: { hostname: 'localhost' },
-        writable: true,
-      });
-
-      const result = await checkAuth();
-      expect(result).toBe(false);
-    });
-
-    it('已认证时返回 true', async () => {
-      Object.defineProperty(window, 'location', {
-        value: { hostname: 'example.com' },
-        writable: true,
-      });
-
-      global.fetch.mockResolvedValue({
-        json: () => Promise.resolve({
-          authenticated: true,
-          user: { name: '测试用户', avatar: 'https://example.com/avatar.jpg' },
-          quota: { remaining: 100 },
-        }),
-      });
-
-      const result = await checkAuth();
-      expect(result).toBe(true);
-    });
-
-    it('未认证且有 ssoUrl 时重定向', async () => {
-      Object.defineProperty(window, 'location', {
-        value: { hostname: 'example.com', href: '' },
-        writable: true,
-      });
-
-      global.fetch.mockResolvedValue({
-        json: () => Promise.resolve({
-          authenticated: false,
-          ssoUrl: 'https://sso.example.com/login',
-        }),
-      });
-
-      const result = await checkAuth();
-      expect(result).toBe(false);
-    });
-
-    it('网络错误时返回 false', async () => {
-      Object.defineProperty(window, 'location', {
-        value: { hostname: 'example.com' },
-        writable: true,
-      });
-
-      global.fetch.mockRejectedValue(new Error('Network error'));
-
-      const result = await checkAuth();
-      expect(result).toBe(false);
-    });
-  });
-
-  // === requireAuth ===
-  describe('requireAuth', () => {
-    it('已有用户时返回 true', async () => {
-      const context = await import('../context.js');
-      context.currentUser = { name: '测试用户' };
-
-      const result = await requireAuth();
-      expect(result).toBe(true);
-    });
-  });
-
-  // === onAuthenticated ===
-  describe('onAuthenticated', () => {
-    beforeEach(() => {
-      // 设置 DOM
-      document.body.innerHTML = `
-        <div id="auth-overlay" class="visible"></div>
-        <div id="quota-bar"></div>
-        <img id="quota-avatar" />
-        <span id="quota-name"></span>
-        <span id="quota-count">0</span>
-      `;
-    });
-
-    it('更新 UI 元素', () => {
-      const data = {
+  it('hydrates the user and quota after a successful status response', async () => {
+    setHostname('example.com');
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        authenticated: true,
         user: { name: '测试用户', avatar: 'https://example.com/avatar.jpg' },
         quota: { remaining: 100 },
-      };
-
-      // 重新加载模块以获取新的 DOM 引用
-      vi.resetModules();
-
-      onAuthenticated(data);
-
-      // onAuthenticated 不会移除 auth-overlay 的 visible class
-      // 只会移除 authOverlay 的 visible class（如果 authOverlay 存在）
-      expect(document.getElementById('quota-avatar').src).toBe('https://example.com/avatar.jpg');
-      expect(document.getElementById('quota-name').textContent).toBe('测试用户');
-      expect(document.getElementById('quota-count').textContent).toBe('100');
-      // quotaBar 在模块加载时获取，可能为 null
-      // expect(document.getElementById('quota-bar').classList.contains('visible')).toBe(true);
+      }),
     });
 
-    it('用户无头像时不报错', () => {
-      const data = {
-        user: { name: '测试用户' },
-        quota: { remaining: 50 },
-      };
-
-      expect(() => onAuthenticated(data)).not.toThrow();
-      expect(document.getElementById('quota-count').textContent).toBe('50');
-    });
+    expect(await checkAuth()).toBe(true);
+    expect(contextMocks.setCurrentUser).toHaveBeenCalledWith(expect.objectContaining({ name: '测试用户' }));
+    expect(document.getElementById('quota-count').textContent).toBe('100');
+    expect(document.getElementById('auth-overlay').style.display).toBe('none');
   });
 
-  // === updateQuota ===
-  describe('updateQuota', () => {
-    it('更新配额显示', () => {
-      document.body.innerHTML = '<span id="quota-count">0</span>';
+  it('shows the login overlay when unauthenticated', async () => {
+    setHostname('example.com');
+    global.fetch.mockResolvedValue({ ok: false, json: async () => ({ authenticated: false }) });
 
-      updateQuota(100);
+    expect(await checkAuth()).toBe(false);
+    expect(document.getElementById('auth-overlay').style.display).toBe('flex');
+    expect(document.getElementById('auth-overlay').classList.contains('visible')).toBe(true);
+  });
 
-      // DOM textContent 是字符串
-      expect(document.getElementById('quota-count').textContent).toBe('100');
+  it('fails closed and shows the overlay on a network error', async () => {
+    setHostname('example.com');
+    global.fetch.mockRejectedValue(new Error('network'));
+    expect(await requireAuth()).toBe(false);
+    expect(contextMocks.showToast).toHaveBeenCalled();
+    expect(document.getElementById('auth-overlay').style.display).toBe('flex');
+  });
+
+  it('updates user-facing elements without rendering HTML', () => {
+    onAuthenticated({
+      user: { name: '<img src=x>', avatar: 'https://example.com/avatar.jpg' },
+      quota: { remaining: 50 },
     });
+    expect(document.getElementById('quota-name').textContent).toBe('<img src=x>');
+    expect(document.getElementById('quota-name').children).toHaveLength(0);
+    expect(document.getElementById('quota-count').textContent).toBe('50');
+  });
 
-    it('DOM 元素不存在时不报错', () => {
-      document.body.innerHTML = '';
-
-      expect(() => updateQuota(100)).not.toThrow();
-    });
+  it('normalizes quota values', () => {
+    updateQuota(-10);
+    expect(document.getElementById('quota-count').textContent).toBe('0');
+    expect(contextMocks.setQuotaRemaining).toHaveBeenCalledWith(0);
   });
 });

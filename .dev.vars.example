@@ -1,0 +1,8 @@
+# Local development only. Copy to .dev.vars, which is ignored by Git.
+# Never use production credentials in local files.
+JWT_SECRET=replace-with-a-long-random-local-secret
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=replace-with-a-revocable-local-test-key
+
+# Bind RATE_LIMIT_KV and add a Cloudflare WAF rate limiting rule in production.

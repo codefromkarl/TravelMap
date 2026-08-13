@@ -5,8 +5,19 @@ import { getModel } from "@earendil-works/pi-ai";
 import { getAppStorage } from "@earendil-works/pi-web-ui";
 import { config } from '../config.js';
 
+const BROWSER_KEY_CONFIG_ALLOWED = ['localhost', '127.0.0.1'].includes(location.hostname);
+if (!BROWSER_KEY_CONFIG_ALLOWED) {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('api-key-')) localStorage.removeItem(key);
+  }
+}
+
 // ─── 模型配置弹窗 ──────────────────────────────────
 document.getElementById('btn-open-model')?.addEventListener('click', () => {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) {
+    showToast('线上模型由服务端安全配置，无需在浏览器填写 API Key', 3000, 'info');
+    return;
+  }
   const overlay = document.getElementById('model-modal-overlay');
   if (overlay) {
     overlay.classList.add('open');
@@ -23,6 +34,7 @@ document.getElementById('model-modal-overlay')?.addEventListener('click', (e) =>
 });
 
 export function loadModelConfig() {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) return;
   const provider = localStorage.getItem('travel-agent-provider') || 'mimo3';
   const modelId = localStorage.getItem('travel-agent-model') || 'mimo3';
   const apiKey = localStorage.getItem(`api-key-${provider}`) || '';
@@ -114,6 +126,7 @@ function showAddProviderDialog() {
 
 // 测试 API Key
 async function testApiKey(provider, apiKey) {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) return false;
   try {
     const models = PROVIDER_MODELS[provider];
     if (!models || models.length === 0) return false;
@@ -154,6 +167,7 @@ function getProviderBaseUrl(provider) {
 }
 
 function saveInput(inputId, storageKey) {
+  if (!BROWSER_KEY_CONFIG_ALLOWED && storageKey.startsWith('api-key-')) return;
   const val = document.getElementById(inputId)?.value;
   if (val !== undefined && val !== null) localStorage.setItem(storageKey, val);
 }
@@ -177,6 +191,10 @@ document.getElementById('cfg-provider')?.addEventListener('change', (e) => {
 });
 
 document.getElementById('btn-save-model')?.addEventListener('click', async () => {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) {
+    showToast('线上模型由服务端安全配置', 3000, 'warning');
+    return;
+  }
   const provider = document.getElementById('cfg-provider')?.value;
   const apiKey = document.getElementById('cfg-apikey')?.value;
 
@@ -283,6 +301,10 @@ document.getElementById('btn-save-model')?.addEventListener('click', async () =>
 
 // ─── 获取自定义模型列表 ────────────────────────────────
 document.getElementById('btn-fetch-models')?.addEventListener('click', async () => {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) {
+    showToast('线上环境不允许浏览器直连模型服务', 3000, 'warning');
+    return;
+  }
   const url = document.getElementById('cfg-custom-url')?.value?.trim();
   const apiKey = document.getElementById('cfg-apikey')?.value?.trim();
 
@@ -343,6 +365,10 @@ document.getElementById('btn-fetch-models')?.addEventListener('click', async () 
 
 // ─── 添加服务商对话框 ────────────────────────────────
 document.getElementById('btn-add-provider')?.addEventListener('click', () => {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) {
+    showToast('线上模型由服务端安全配置', 3000, 'warning');
+    return;
+  }
   showAddProviderDialog();
 });
 
@@ -357,6 +383,7 @@ document.getElementById('add-provider-overlay')?.addEventListener('click', (e) =
 
 // 添加服务商确认
 document.getElementById('btn-confirm-add-provider')?.addEventListener('click', async () => {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) return;
   const provider = document.getElementById('add-provider-select')?.value;
   const apiKey = document.getElementById('add-provider-apikey')?.value?.trim();
 
@@ -438,6 +465,7 @@ document.getElementById('btn-reset-providers')?.addEventListener('click', () => 
 
 // 测试 API Key 按钮
 document.getElementById('btn-test-apikey')?.addEventListener('click', async () => {
+  if (!BROWSER_KEY_CONFIG_ALLOWED) return;
   const provider = document.getElementById('cfg-provider')?.value;
   const apiKey = document.getElementById('cfg-apikey')?.value?.trim();
 
@@ -471,4 +499,4 @@ document.getElementById('btn-test-apikey')?.addEventListener('click', async () =
 // ─── 初始化 ──────────────────────────────────────────
 // 页面加载时更新服务商选项
 updateProviderOptions();
-loadModelConfig();
+if (BROWSER_KEY_CONFIG_ALLOWED) loadModelConfig();

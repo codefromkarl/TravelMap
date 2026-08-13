@@ -17,7 +17,10 @@ const BLOG_ORIGIN = "https://codefromkarl.xyz";
 
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const jwtSecret = env.JWT_SECRET || "dev-secret";
+  const jwtSecret = env.JWT_SECRET;
+  if (!jwtSecret || !env.RATE_LIMIT_KV) {
+    return new Response("Authentication not configured", { status: 503 });
+  }
   const url = new URL(request.url);
   const travelOrigin = url.origin;
 
@@ -44,8 +47,8 @@ export async function onRequestGet(context) {
           return await issueLocalJwt(env, jwtSecret, sessionData.user, travelOrigin);
         }
       }
-    } catch (err) {
-      console.error("[SSO] blog_session verification failed:", err);
+    } catch {
+      console.error("[SSO] blog_session verification failed");
     }
     // 验证失败 → 继续到登录页
   }
@@ -64,8 +67,8 @@ export async function onRequestGet(context) {
           return await issueLocalJwt(env, jwtSecret, sessionData.user, travelOrigin);
         }
       }
-    } catch (err) {
-      console.error("[SSO] cookie verification failed:", err);
+    } catch {
+      console.error("[SSO] cookie verification failed");
     }
   }
 

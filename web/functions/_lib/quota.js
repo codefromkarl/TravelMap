@@ -38,7 +38,10 @@ export async function createUser(kv, profile) {
 }
 
 /**
- * 检查配额 & 递增使用量（原子操作）
+ * 检查配额 & 递增使用量。
+ *
+ * 注意：Cloudflare KV 的 get/put 不是强一致原子计数器。此额度用于低频产品成本
+ * 防护；并发硬限额由 Cloudflare WAF 规则和供应商预算规则承担。
  * 返回 { ok, user, remaining }
  */
 export async function consumeQuota(kv, userId) {

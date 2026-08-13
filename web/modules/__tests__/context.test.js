@@ -78,9 +78,10 @@ describe('context.js exports', () => {
     expect(ctx.RISK_COLORS['1']).toHaveProperty('label');
   });
 
-  it('exports _DEFAULT_AMAP_KEY', () => {
+  it('does not embed a default AMap key in browser code', () => {
     expect(typeof ctx._DEFAULT_AMAP_KEY).toBe('string');
-    expect(ctx._DEFAULT_AMAP_KEY.length).toBeGreaterThan(0);
+    expect(ctx._DEFAULT_AMAP_KEY).toBe('');
+    expect(ctx._DEFAULT_AMAP_GEO_KEY).toBe('');
   });
 
   it('exports _ALLOWED_HOSTS', () => {
@@ -200,8 +201,8 @@ describe('getAmapKey', () => {
     expect(ctx.getAmapKey()).toBe('user-key-123');
   });
 
-  it('returns default key for allowed host', () => {
+  it('returns no key when the user did not configure one', () => {
     localStorageMock.getItem.mockReturnValueOnce(null);
-    expect(ctx.getAmapKey()).toBe(ctx._DEFAULT_AMAP_KEY);
+    expect(ctx.getAmapKey()).toBe('');
   });
 });

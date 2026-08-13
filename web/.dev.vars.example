@@ -1,0 +1,5 @@
+# Local Pages Functions development only. This example contains no real keys.
+JWT_SECRET=replace-with-a-long-random-local-secret
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=replace-with-a-revocable-local-test-key

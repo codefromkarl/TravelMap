@@ -1,0 +1,11 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend Functions conventions and security entry points"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Fail-closed error and upstream failure handling"}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Secret and request-data redaction requirements"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Validation and maintainability constraints"}
+{"file":".trellis/spec/backend/testing-strategy.md","reason":"Scoped normal and error-path tests"}
+{"file":".trellis/spec/backend/pages-api-security.md","reason":"Executable Pages proxy and Secret contract discovered during implementation"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Browser auth/proxy behavior changes"}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"JSDoc and frontend contract safety"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Browser-to-Function auth/quota contract"}
+{"file":".trellis/tasks/08-13-secure-api-proxy/research.md","reason":"Security evidence and platform constraints"}
+{"file":".trellis/tasks/08-13-secure-api-proxy/design.md","reason":"Approved request and deployment security design"}

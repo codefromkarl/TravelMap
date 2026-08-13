@@ -59,3 +59,8 @@ export function extractToken(request) {
   const m = cookie.match(/(?:^|;\s*)auth_token=([^;]+)/);
   return m ? m[1] : null;
 }
+
+/** 仅允许站内绝对路径，禁止 scheme-relative 和外域 URL。 */
+export function isSafeRedirectPath(value) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//");
+}

@@ -76,7 +76,18 @@ export async function initApp() {
   const modelId = localStorage.getItem("travel-agent-model") || registry?.defaultModel || 'gpt-4o';
 
   let model;
-  if (provider === "deepseek-local") {
+  if (isProxyMode) {
+    // The SDK only needs a transport-shaped model in production. The Function
+    // overwrites model/provider and the fetch proxy prevents this URL from being
+    // contacted directly.
+    model = {
+      id: 'server-managed', name: 'Server managed model', api: 'openai-completions',
+      provider: 'openai', baseUrl: 'https://api.openai.com/v1',
+      reasoning: false, input: ['text'],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128000, maxTokens: 8192,
+    };
+  } else if (provider === "deepseek-local") {
     // 默认：本地 ds2api DeepSeek
     model = {
       id: registry.defaultModel, name: "DeepSeek V4 Flash", api: "openai-completions",

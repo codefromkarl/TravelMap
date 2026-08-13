@@ -38,21 +38,21 @@ export const DB_VERSION = 3;
 export const STORE_NAME = "trips";
 export const SUPPLY_STORE_NAME = "supplyPoints";
 
-// 高德地图默认 Key（仅白名单域名 + localhost 使用）
-export const _DEFAULT_AMAP_KEY = 'e134de721c4969afee0b5b82f2a232a4'; // Web端(JS API) - 地图瓦片
-export const _DEFAULT_AMAP_GEO_KEY = '74301f4873f7e09e18c9e39bf65c6256'; // Web服务 - 地理编码
+// 不在静态资源中内置任何供应商 Key；无 Key 时地图自动降级到 OSM。
+export const _DEFAULT_AMAP_KEY = '';
+export const _DEFAULT_AMAP_GEO_KEY = '';
 export const _ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'codefromkarl.xyz', 'www.codefromkarl.xyz', 'travel-agent-ebl.pages.dev'];
 
 export function getAmapKey() {
   const userKey = localStorage.getItem('api-key-amap-web');
   if (userKey) return userKey;
-  return _DEFAULT_AMAP_KEY; // 直接返回默认 Key
+  return _DEFAULT_AMAP_KEY;
 }
 
 export function getAmapGeoKey() {
   const userKey = localStorage.getItem('api-key-amap-geo');
   if (userKey) return userKey;
-  return _DEFAULT_AMAP_GEO_KEY; // 直接返回默认 Key
+  return _DEFAULT_AMAP_GEO_KEY;
 }
 
 // ─── 补给点类型颜色 ─────────────────────────────────────

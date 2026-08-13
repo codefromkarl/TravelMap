@@ -44,6 +44,21 @@ describe("auth/login", () => {
     expect(res.status).toBe(503);
   });
 
+  it("缺少 JWT_SECRET 时应 fail closed", async () => {
+    const req = new Request("https://example.com/api/auth/login?provider=github");
+    const res = await onLoginGet(mockContext(req, { JWT_SECRET: undefined }));
+    expect(res.status).toBe(503);
+  });
+
+  it.each([
+    "https://attacker.example/after-login",
+    "//attacker.example/after-login",
+  ])("拒绝外域 redirect: %s", async (redirect) => {
+    const req = new Request(`https://example.com/api/auth/login?provider=github&redirect=${encodeURIComponent(redirect)}`);
+    const res = await onLoginGet(mockContext(req));
+    expect(res.status).toBe(400);
+  });
+
   it("GitHub 登录应返回 302 重定向", async () => {
     const req = new Request("https://example.com/api/auth/login?provider=github&redirect=/dashboard");
     const res = await onLoginGet(mockContext(req));
@@ -91,6 +106,12 @@ describe("auth/status", () => {
     expect(body.authenticated).toBe(false);
   });
 
+  it("缺少 JWT_SECRET 时应返回 503", async () => {
+    const req = new Request("https://example.com/api/auth/status");
+    const res = await onStatusGet(mockContext(req, { JWT_SECRET: undefined }));
+    expect(res.status).toBe(503);
+  });
+
   it("无效 token 时应返回 401", async () => {
     const req = new Request("https://example.com/api/auth/status", {
       headers: { Cookie: "auth_token=invalid-token" },
@@ -131,6 +152,20 @@ describe("auth/callback", () => {
 
   it("无效 state 应返回 400", async () => {
     const req = new Request("https://example.com/api/auth/callback?code=abc&state=invalid");
+    const res = await onCallbackGet(mockContext(req));
+    expect(res.status).toBe(400);
+  });
+
+  it("缺少 JWT_SECRET 时应返回 503", async () => {
+    const req = new Request("https://example.com/api/auth/callback?code=abc&state=state");
+    const res = await onCallbackGet(mockContext(req, { JWT_SECRET: undefined }));
+    expect(res.status).toBe(503);
+  });
+
+  it("拒绝 state 中的外域 redirect", async () => {
+    const { signJwt } = await import("../../functions/_lib/jwt.js");
+    const state = await signJwt({ provider: "github", redirect: "https://attacker.example" }, SECRET, 60);
+    const req = new Request(`https://example.com/api/auth/callback?code=abc&state=${state}`);
     const res = await onCallbackGet(mockContext(req));
     expect(res.status).toBe(400);
   });
