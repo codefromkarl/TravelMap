@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, copyFile, lstat, mkdir, readdir } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hashAssets } from "./hash-assets.js";
 import {
   ALLOWED_TOP_LEVEL_FILES,
+  assertWorkerJavaScriptContent,
   createDeployManifest,
   SITE_DIR_NAME,
   validateDeployArtifact,
@@ -80,7 +82,7 @@ async function copyAllowedTree(repoRoot, siteDirectory, relativeRoot, allowedExt
   await visit(sourceRoot, relativeRoot);
 }
 
-async function defaultFunctionsBuilder({ repoRoot, functionsDirectory, outputFile }) {
+async function defaultFunctionsBuilder({ repoRoot, functionsDirectory, outputDirectory }) {
   const wranglerBinary = path.join(repoRoot, "node_modules", ".bin", "wrangler");
   try {
     await access(wranglerBinary);
@@ -95,7 +97,7 @@ async function defaultFunctionsBuilder({ repoRoot, functionsDirectory, outputFil
       "functions",
       "build",
       functionsDirectory,
-      `--outfile=${outputFile}`,
+      `--outdir=${outputDirectory}`,
       "--sourcemap=false",
     ],
     { cwd: repoRoot, stdio: "inherit" },
@@ -115,6 +117,29 @@ async function assertCompiledWorker(outputFile) {
   if (!stats.isFile() || stats.size === 0) {
     throw new Error("[FUNCTIONS_OUTPUT_INVALID] site/_worker.js");
   }
+  assertWorkerJavaScriptContent("_worker.js", await readFile(outputFile, "utf8"));
+}
+
+async function getCompiledWorker(functionsOutputDirectory) {
+  const entries = await readdir(functionsOutputDirectory, { withFileTypes: true });
+  entries.sort((left, right) => comparePaths(left.name, right.name));
+  const unexpectedEntry = entries.find((entry) => entry.name !== "index.js");
+  if (unexpectedEntry) {
+    throw new Error(`[FUNCTIONS_OUTPUT_UNEXPECTED] ${unexpectedEntry.name}`);
+  }
+
+  const entrypoint = entries.find((entry) => entry.name === "index.js");
+  if (!entrypoint) throw new Error("[FUNCTIONS_OUTPUT_MISSING] index.js");
+  if (entrypoint.isSymbolicLink()) throw new Error("[FUNCTIONS_OUTPUT_SYMLINK] index.js");
+  if (!entrypoint.isFile()) throw new Error("[FUNCTIONS_OUTPUT_INVALID] index.js");
+
+  const entrypointPath = path.join(functionsOutputDirectory, entrypoint.name);
+  const stats = await lstat(entrypointPath);
+  if (stats.isSymbolicLink()) throw new Error("[FUNCTIONS_OUTPUT_SYMLINK] index.js");
+  if (!stats.isFile() || stats.size === 0) {
+    throw new Error("[FUNCTIONS_OUTPUT_INVALID] index.js");
+  }
+  return entrypointPath;
 }
 
 export async function buildDeployArtifact({
@@ -137,12 +162,22 @@ export async function buildDeployArtifact({
 
   const functionsDirectory = path.join(resolvedRepoRoot, "web", "functions");
   const workerOutput = path.join(siteDirectory, "_worker.js");
-  await functionsBuilder({
-    repoRoot: resolvedRepoRoot,
-    functionsDirectory,
-    outputFile: workerOutput,
-  });
-  await assertCompiledWorker(workerOutput);
+  const functionsOutputDirectory = await mkdtemp(
+    path.join(tmpdir(), "travelmap-functions-build-"),
+  );
+  try {
+    await functionsBuilder({
+      repoRoot: resolvedRepoRoot,
+      functionsDirectory,
+      outputDirectory: functionsOutputDirectory,
+    });
+    const compiledWorker = await getCompiledWorker(functionsOutputDirectory);
+    assertWorkerJavaScriptContent("_worker.js", await readFile(compiledWorker, "utf8"));
+    await copyFile(compiledWorker, workerOutput);
+    await assertCompiledWorker(workerOutput);
+  } finally {
+    await rm(functionsOutputDirectory, { recursive: true, force: true });
+  }
 
   await hashAssets(siteDirectory);
   await createDeployManifest(resolvedArtifactDirectory);

@@ -19,7 +19,8 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 
 ### 3. Contracts
 
-- The builder copies only the explicit public allowlist into `<artifact-dir>/site`, compiles Functions to `_worker.js` with the repository-pinned Wrangler, hashes assets, and writes `manifest.json`.
+- The builder copies only the explicit public allowlist into `<artifact-dir>/site`, runs the repository-pinned Wrangler with `pages functions build --outdir=<fresh-temp-dir>`, accepts only one regular non-symlink non-empty `index.js`, copies it to `site/_worker.js`, cleans the temp directory, hashes assets, and writes `manifest.json`.
+- `site/_worker.js` is Module Worker JavaScript, never a Worker upload envelope. Builder and validator reject multipart boundaries, `Content-Disposition: form-data`, and `name="metadata"` before deployment.
 - The validator independently rechecks paths, content, local-reference closure, per-file hashes, and aggregate SHA-256. Validation is read-only and fail-closed.
 - CI writes `source.json` with workflow, run, attempt, event, repository, ref, SHA, branch, PR number, and PR head SHA.
 - Deploy downloads the exact `travelmap-pages-<run-id>-<run-attempt>` artifact and compares every source identity field before invoking `deploy.sh`.
@@ -35,6 +36,7 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 |---|---|
 | Unexpected path, symlink, source map, secret-like value, or missing local reference | Artifact build/validation fails before upload |
 | Functions build or asset hashing fails | Artifact build fails; deployment does not continue |
+| Functions output is missing, empty, a symlink, not exactly one `index.js`, or contains multipart markers | Artifact build fails before manifest creation; the fresh temp output is removed |
 | Manifest file hash or aggregate SHA differs | Validator fails |
 | Workflow conclusion/repository/source identity differs | Deploy is skipped or fails before upload |
 | CI source SHA is absent/invalid or differs from the validated workflow run | Deploy fails before Wrangler upload |
@@ -51,7 +53,7 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 
 ### 6. Tests Required
 
-- `deploy-artifact-safety.test.ts`: allowlist, secret/source-map rejection, reference closure, manifest hashes, real-bundle false-positive regressions, and fake-Wrangler shell contracts.
+- `deploy-artifact-safety.test.ts`: allowlist, secret/source-map rejection, reference closure, manifest hashes, real pinned-Wrangler JavaScript output, multipart rejection, strict Functions output shape/cleanup, real-bundle false-positive regressions, and fake-Wrangler shell contracts.
 - `ci-workflow-contract.test.ts`: Node version, unique validation workflow, producer/consumer identity, permissions, artifact naming, PR preview, reports, and exact-URL smoke.
 - Any legacy browser quarantine must have an explicit filename in `LEGACY_E2E_SPECS`, remain runnable via `playwright.legacy.config.ts`, and have a contract assertion. Do not expand it to suppress a new product regression.
 - `health-check-contract.test.ts`: actual index-referenced hashed assets are requested; chat 404 and auth 5xx each force a non-zero smoke result.
@@ -65,17 +67,24 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 ```bash
 rsync -a web/ /tmp/deploy/
 npx wrangler pages deploy /tmp/deploy/ || echo "warning"
+wrangler pages functions build web/functions --outfile=site/_worker.js
 ```
 
 #### Correct
 
 ```bash
+functions_dir="$(mktemp -d)"
+node_modules/.bin/wrangler pages functions build web/functions --outdir="$functions_dir"
+# Fail unless the only output is a regular, non-empty index.js; reject multipart markers.
+cp "$functions_dir/index.js" artifact/site/_worker.js
 node scripts/build-deploy-artifact.mjs "$artifact_dir"
 node scripts/validate-deploy-artifact.mjs "$artifact_dir"
 DEPLOY_SOURCE_SHA="$validated_sha" \
   bash scripts/deploy.sh --artifact "$artifact_dir" --branch "pr-$pr_number"
 bash scripts/health-check.sh "$exact_deployment_url"
 ```
+
+The direct `pages functions build` dependency is pinned and guarded only as a release-recovery measure. Replacing this Cloudflare-internal build command with a supported compiler/build pipeline requires a separate migration task.
 
 ## Scanner Gotcha: Syntax-looking Text Is Not Always Runtime Code
 

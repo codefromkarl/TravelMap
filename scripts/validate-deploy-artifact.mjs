@@ -54,6 +54,12 @@ const SOURCE_MAP_PATTERNS = Object.freeze([
   ["SOURCE_MAP_SOURCES_CONTENT", /["']sourcesContent["']\s*:/i],
 ]);
 
+const WORKER_MULTIPART_PATTERNS = Object.freeze([
+  ["WORKER_MULTIPART_BOUNDARY", /^--+(?:formdata|form-data-boundary)-[0-9A-Za-z_-]+/im],
+  ["WORKER_MULTIPART_CONTENT_DISPOSITION", /^Content-Disposition:\s*form-data\b/im],
+  ["WORKER_MULTIPART_METADATA", /\bname=["']metadata["']/i],
+]);
+
 function comparePaths(left, right) {
   if (left < right) return -1;
   if (left > right) return 1;
@@ -176,6 +182,10 @@ async function listRegularFiles(rootDirectory) {
 function scanContent(relativePath, content) {
   if (content.includes("\0")) fail("CONTENT_BINARY", relativePath);
 
+  if (relativePath === "_worker.js") {
+    assertWorkerJavaScriptContent(relativePath, content);
+  }
+
   for (const [ruleId, pattern] of SOURCE_MAP_PATTERNS) {
     if (pattern.test(content)) fail(ruleId, relativePath);
   }
@@ -191,6 +201,12 @@ function scanContent(relativePath, content) {
     if (protocolIdentifier === assignmentName) continue;
     if (/^(?:YOUR[_-]|example|placeholder|changeme|dummy|sample|test[_-])/i.test(value)) continue;
     fail("SECRET_NAMED_ASSIGNMENT", relativePath);
+  }
+}
+
+export function assertWorkerJavaScriptContent(relativePath, content) {
+  for (const [ruleId, pattern] of WORKER_MULTIPART_PATTERNS) {
+    if (pattern.test(content)) fail(ruleId, relativePath);
   }
 }
 

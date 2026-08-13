@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 type FunctionsBuilderInput = {
-  outputFile: string;
+  outputDirectory: string;
 };
 
 type DeployManifest = {
@@ -28,7 +28,7 @@ type DeployManifest = {
 type BuildDeployArtifactOptions = {
   artifactDirectory: string;
   repoRoot: string;
-  functionsBuilder: (input: FunctionsBuilderInput) => Promise<void>;
+  functionsBuilder?: (input: FunctionsBuilderInput) => Promise<void>;
 };
 
 const builderModuleUrl = new URL("../../../scripts/build-deploy-artifact.mjs", import.meta.url)
@@ -122,9 +122,9 @@ async function makeFixtureRepo(): Promise<string> {
   return repoRoot;
 }
 
-async function fakeFunctionsBuilder({ outputFile }: FunctionsBuilderInput): Promise<void> {
+async function fakeFunctionsBuilder({ outputDirectory }: FunctionsBuilderInput): Promise<void> {
   await writeFile(
-    outputFile,
+    path.join(outputDirectory, "index.js"),
     'export default { fetch() { return new Response("fixture"); } };\n',
     "utf8",
   );
@@ -264,6 +264,126 @@ describe("deploy artifact fail-closed build stages", () => {
     ).rejects.toThrow("[FUNCTIONS_OUTPUT_MISSING]");
   });
 
+  it("removes the fresh Functions build directory after a builder failure", async () => {
+    const repoRoot = await makeFixtureRepo();
+    const artifactDirectory = path.join(
+      await makeTempDirectory("travelmap-functions-cleanup-"),
+      "artifact",
+    );
+    let functionsOutputDirectory = "";
+
+    await expect(
+      buildDeployArtifact({
+        artifactDirectory,
+        repoRoot,
+        functionsBuilder: async ({ outputDirectory }) => {
+          functionsOutputDirectory = outputDirectory;
+          throw new Error("fixture functions failure");
+        },
+      }),
+    ).rejects.toThrow("fixture functions failure");
+    expect(functionsOutputDirectory).not.toBe("");
+    await expect(access(functionsOutputDirectory)).rejects.toThrow();
+  });
+
+  it("rejects additional Functions build outputs instead of silently dropping modules", async () => {
+    const repoRoot = await makeFixtureRepo();
+    const artifactDirectory = path.join(
+      await makeTempDirectory("travelmap-functions-extra-"),
+      "artifact",
+    );
+
+    await expect(
+      buildDeployArtifact({
+        artifactDirectory,
+        repoRoot,
+        functionsBuilder: async ({ outputDirectory }) => {
+          await writeFile(path.join(outputDirectory, "index.js"), "export default {};\n", "utf8");
+          await writeFile(path.join(outputDirectory, "extra.js"), "export const extra = true;\n");
+        },
+      }),
+    ).rejects.toThrow("[FUNCTIONS_OUTPUT_UNEXPECTED] extra.js");
+  });
+
+  it("rejects an empty Functions entrypoint", async () => {
+    const repoRoot = await makeFixtureRepo();
+    const artifactDirectory = path.join(
+      await makeTempDirectory("travelmap-functions-empty-file-"),
+      "artifact",
+    );
+
+    await expect(
+      buildDeployArtifact({
+        artifactDirectory,
+        repoRoot,
+        functionsBuilder: async ({ outputDirectory }) => {
+          await writeFile(path.join(outputDirectory, "index.js"), "", "utf8");
+        },
+      }),
+    ).rejects.toThrow("[FUNCTIONS_OUTPUT_INVALID] index.js");
+  });
+
+  it("rejects a symlinked Functions entrypoint", async () => {
+    const repoRoot = await makeFixtureRepo();
+    const artifactDirectory = path.join(
+      await makeTempDirectory("travelmap-functions-symlink-"),
+      "artifact",
+    );
+
+    await expect(
+      buildDeployArtifact({
+        artifactDirectory,
+        repoRoot,
+        functionsBuilder: async ({ outputDirectory }) => {
+          await symlink(
+            path.join(repoRoot, "web", "pi-bundle.js"),
+            path.join(outputDirectory, "index.js"),
+          );
+        },
+      }),
+    ).rejects.toThrow("[FUNCTIONS_OUTPUT_SYMLINK] index.js");
+  });
+
+  it("rejects multipart worker bundle content before writing a manifest", async () => {
+    const repoRoot = await makeFixtureRepo();
+    const artifactDirectory = path.join(
+      await makeTempDirectory("travelmap-functions-multipart-"),
+      "artifact",
+    );
+
+    await expect(
+      buildDeployArtifact({
+        artifactDirectory,
+        repoRoot,
+        functionsBuilder: async ({ outputDirectory }) => {
+          await writeFile(
+            path.join(outputDirectory, "index.js"),
+            '------formdata-undici-fixture\r\nContent-Disposition: form-data; name="metadata"\r\n',
+          );
+        },
+      }),
+    ).rejects.toThrow("[WORKER_MULTIPART_BOUNDARY] _worker.js");
+    await expect(access(path.join(artifactDirectory, "manifest.json"))).rejects.toThrow();
+  });
+
+  it("builds normal JavaScript with the repository-pinned Wrangler", async () => {
+    const artifactDirectory = path.join(
+      await makeTempDirectory("travelmap-real-functions-"),
+      "artifact",
+    );
+
+    const manifest = await buildDeployArtifact({ artifactDirectory, repoRoot: PROJECT_ROOT });
+    const workerPath = path.join(artifactDirectory, "site", "_worker.js");
+    const worker = await readFile(workerPath, "utf8");
+    const syntaxCheck = spawnSync(process.execPath, ["--check", workerPath], { encoding: "utf8" });
+
+    expect(manifest.files.map((file) => file.path)).toContain("_worker.js");
+    expect(worker).not.toContain("Content-Disposition: form-data");
+    expect(worker).not.toContain('name="metadata"');
+    expect(worker).toMatch(/\bexport\s*\{/);
+    expect(syntaxCheck.status, syntaxCheck.stderr).toBe(0);
+  });
+
   it("fails hashing before writes when an index reference is missing", async () => {
     const siteDirectory = await makeTempDirectory("travelmap-hash-missing-");
     await writeFile(
@@ -380,6 +500,19 @@ describe("deploy artifact path, secret, and source-map scan", () => {
 
     await expect(validateDeployArtifact(artifactDirectory)).rejects.toThrow(
       "[SOURCE_MAP_REFERENCE]",
+    );
+  });
+
+  it.each([
+    ["WORKER_MULTIPART_BOUNDARY", "------formdata-undici-fixture\nexport default {};\n"],
+    ["WORKER_MULTIPART_CONTENT_DISPOSITION", "Content-Disposition: form-data\n"],
+    ["WORKER_MULTIPART_METADATA", "const marker = 'name=\"metadata\"';\n"],
+  ])("rejects %s markers in _worker.js", async (ruleId, workerContent) => {
+    const { artifactDirectory } = await buildFixtureArtifact();
+    await writeFile(path.join(artifactDirectory, "site", "_worker.js"), workerContent, "utf8");
+
+    await expect(validateDeployArtifact(artifactDirectory)).rejects.toThrow(
+      `[${ruleId}] _worker.js`,
     );
   });
 

@@ -37,6 +37,15 @@
 - [x] 临时隔离 checkout 的 `npm ci` 与 typecheck。
 - [x] trellis-check 子代理复核 diff、规范和验证证据。
 
+## 5. Deploy run 31693601165 恢复
+
+- [x] 复现并确认 `pages functions build --outfile=site/_worker.js` 把 `_worker.bundle` multipart envelope 误命名为 JavaScript。
+- [x] 改用 fresh temp `--outdir`，只接受唯一、普通、非 symlink、非空的 `index.js`，复制为 `site/_worker.js` 后清理临时目录。
+- [x] builder 与 independent validator 拒绝 multipart boundary、`Content-Disposition: form-data` 和 `name="metadata"`。
+- [x] 增加缺失/空文件/symlink/额外模块/临时目录清理/multipart/真实 Wrangler JavaScript 回归。
+- [x] 运行最终 focused tests、真实 artifact build/validate 与 diff check，并把精确结果写入 `verification.md`。
+- [ ] 后续独立任务：迁移离开 Cloudflare 标记为内部接口的 `pages functions build`；本轮不扩大到 compiler 迁移。
+
 ## 风险文件
 
 - `.dev.vars`, `.gitignore`, `package.json`, `package-lock.json`
