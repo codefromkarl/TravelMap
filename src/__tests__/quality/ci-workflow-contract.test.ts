@@ -9,6 +9,7 @@ const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const CI_PATH = path.join(PROJECT_ROOT, ".github", "workflows", "ci.yml");
 const DEPLOY_PATH = path.join(PROJECT_ROOT, ".github", "workflows", "deploy.yml");
 const PLAYWRIGHT_PATH = path.join(PROJECT_ROOT, "playwright.config.ts");
+const PLAYWRIGHT_LEGACY_PATH = path.join(PROJECT_ROOT, "playwright.legacy.config.ts");
 const PACKAGE_PATH = path.join(PROJECT_ROOT, "package.json");
 const NVMRC_PATH = path.join(PROJECT_ROOT, ".nvmrc");
 const BIOME_PATH = path.join(PROJECT_ROOT, "biome.json");
@@ -16,6 +17,7 @@ const BIOME_PATH = path.join(PROJECT_ROOT, "biome.json");
 const ciWorkflow = readFileSync(CI_PATH, "utf8");
 const deployWorkflow = readFileSync(DEPLOY_PATH, "utf8");
 const playwrightConfig = readFileSync(PLAYWRIGHT_PATH, "utf8");
+const playwrightLegacyConfig = readFileSync(PLAYWRIGHT_LEGACY_PATH, "utf8");
 const packageJson = JSON.parse(readFileSync(PACKAGE_PATH, "utf8")) as {
   engines?: { node?: string };
   scripts?: Record<string, string>;
@@ -188,6 +190,26 @@ describe("CI and release workflow contract", () => {
     expect(occurrences(ciWorkflow, "run: npm run test:e2e:pr")).toBe(1);
     expect(occurrences(ciWorkflow, "run: npm run test:e2e:full")).toBe(1);
     expect(e2eJob).not.toMatch(/--reporter(?:=|\s)/);
+  });
+
+  it("keeps stale browser contracts in an explicit runnable legacy lane", () => {
+    const legacySpecs = [
+      "accessibility.spec.ts",
+      "e2e-chat-map.spec.ts",
+      "flows/chaos-monkey.spec.ts",
+      "interaction.spec.ts",
+      "page-load.spec.ts",
+    ];
+
+    for (const spec of legacySpecs) {
+      expect(playwrightConfig).toContain(`**/${spec}`);
+    }
+    expect(playwrightLegacyConfig).toContain("LEGACY_E2E_SPECS");
+    expect(playwrightLegacyConfig).toContain('testIgnore: ["**/unit/**"]');
+    expect(packageJson.scripts?.["test:e2e:legacy"]).toBe(
+      "playwright test --config playwright.legacy.config.ts",
+    );
+    expect(ciWorkflow).not.toContain("npm run test:e2e:legacy");
   });
 
   it("normalizes legacy file BASE_URL values to the local HTTP server", () => {

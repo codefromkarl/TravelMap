@@ -27,6 +27,7 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 - Only `artifact/site` may be passed to Pages. Repository roots, `web/`, rsync trees, source maps, tests, local server files, and secret files are forbidden inputs.
 - Post-deploy smoke receives the exact Wrangler URL, requests the content-addressed JS/CSS references parsed from its `index.html`, and treats chat/auth Function preflight failures as blocking.
 - Runtime: Node `22.19.0`; Wrangler is the exact package-lock version at `node_modules/.bin/wrangler`.
+- Blocking browser validation uses `playwright.config.ts`, starts from a completed-onboarding storage state, and excludes only the explicit `LEGACY_E2E_SPECS` list. The excluded specs remain runnable through `npm run test:e2e:legacy`; this non-blocking lane must not be presented as release evidence.
 
 ### 4. Validation & Error Matrix
 
@@ -52,6 +53,7 @@ Manual commands `bash scripts/deploy.sh` and `bash scripts/deploy.sh preview` fi
 
 - `deploy-artifact-safety.test.ts`: allowlist, secret/source-map rejection, reference closure, manifest hashes, real-bundle false-positive regressions, and fake-Wrangler shell contracts.
 - `ci-workflow-contract.test.ts`: Node version, unique validation workflow, producer/consumer identity, permissions, artifact naming, PR preview, reports, and exact-URL smoke.
+- Any legacy browser quarantine must have an explicit filename in `LEGACY_E2E_SPECS`, remain runnable via `playwright.legacy.config.ts`, and have a contract assertion. Do not expand it to suppress a new product regression.
 - `health-check-contract.test.ts`: actual index-referenced hashed assets are requested; chat 404 and auth 5xx each force a non-zero smoke result.
 - A real builder and independent validator run must return the same aggregate SHA and file count.
 - An isolated directory without sibling `../pi` must pass `npm ci --ignore-scripts` and `npm run typecheck`.

@@ -1,6 +1,13 @@
 import { defineConfig } from "@playwright/test";
 
 const LOCAL_E2E_BASE_URL = "http://127.0.0.1:3456/";
+export const LEGACY_E2E_SPECS = [
+  "**/accessibility.spec.ts",
+  "**/e2e-chat-map.spec.ts",
+  "**/flows/chaos-monkey.spec.ts",
+  "**/interaction.spec.ts",
+  "**/page-load.spec.ts",
+];
 
 export function isLocalFileBaseURL(rawBaseURL: string | undefined): boolean {
   const candidate = rawBaseURL?.trim();
@@ -35,6 +42,17 @@ export function resolvePlaywrightBaseURL(rawBaseURL = process.env.BASE_URL): str
 const configuredBaseURL = process.env.BASE_URL?.trim();
 const baseURL = resolvePlaywrightBaseURL(configuredBaseURL);
 const useLocalWebServer = !configuredBaseURL || isLocalFileBaseURL(configuredBaseURL);
+const completedOnboardingStorageState = {
+  cookies: [],
+  origins: [...new Set([
+    new URL(baseURL).origin,
+    "http://127.0.0.1:3456",
+    "http://localhost:3456",
+  ])].map((origin) => ({
+    origin,
+    localStorage: [{ name: "travel-agent-onboarding-done", value: "true" }],
+  })),
+};
 
 // 代理配置：PROXY_URL 有值则启用代理，无值则不走代理
 const proxy = process.env.PROXY_URL
@@ -48,6 +66,7 @@ export default defineConfig({
     "**/shanghai-hangzhou-e2e.spec.ts",
     "**/shanghai-hangzhou-real-e2e.spec.ts",
     "**/ai-scenario-generator.spec.ts",
+    ...LEGACY_E2E_SPECS,
   ],
   outputDir: "test-results",
   timeout: 30_000,
@@ -81,6 +100,9 @@ export default defineConfig({
     },
     // 统一使用 HTTP；文件路径/file:// 会在加载配置时立即失败。
     baseURL,
+    // Generic feature specs start from the post-onboarding application state
+    // on both supported local hosts; onboarding needs dedicated acceptance.
+    storageState: completedOnboardingStorageState,
     actionTimeout: 10_000,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",

@@ -40,6 +40,7 @@
     "test:e2e": "npm run test:e2e:full",
     "test:e2e:pr": "playwright test web/__tests__/page-map.spec.ts --project=desktop --config playwright.config.ts",
     "test:e2e:full": "playwright test --config playwright.config.ts",
+    "test:e2e:legacy": "playwright test --config playwright.legacy.config.ts",
     "test:e2e:ui": "playwright test --config playwright.config.ts --ui",
     "test:all": "vitest run",
     "typecheck": "tsc --noEmit",
