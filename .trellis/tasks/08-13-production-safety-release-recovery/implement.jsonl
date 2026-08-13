@@ -1,0 +1,8 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared pre-modification and guide routing rules"}
+{"file":".trellis/spec/guides/deployment-guide.md","reason":"Current Cloudflare deployment entry points and validation contract"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CI artifact to deploy consumer boundary"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Keep build and deploy artifact file-set logic single-sourced"}
+{"file":".trellis/spec/backend/testing-strategy.md","reason":"Scoped Vitest quality and failure-path tests"}
+{"file":".trellis/tasks/08-13-production-safety-release-recovery/research/pi-dependencies.md","reason":"Immutable dependency choice, engine constraint and isolation checks"}
+{"file":".trellis/tasks/08-13-production-safety-release-recovery/research/deploy-safety.md","reason":"Allowlist artifact, fail-closed validator and deployment risks"}
+{"file":".trellis/tasks/08-13-production-safety-release-recovery/research/ci-workflow.md","reason":"Target CI/deploy DAG, reporter artifacts and GitHub permission traps"}

@@ -1,177 +1,304 @@
-name: Deploy & Test
+name: Deploy
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions: {}
 
 env:
-  NODE_VERSION: '20'
+  DEPLOY_ARTIFACT_PREFIX: travelmap-pages
 
 jobs:
-  # ─── 1. 代码质量检查 ─────────────────────────────────────
-  quality:
-    name: Lint & Type Check
+  production:
+    name: Deploy Production
     runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_sha != ''
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.deployment_url }}
+    concurrency:
+      group: production
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      # workflow_run is privileged. Checkout only the trusted default-branch
+      # revision represented by this workflow run, never the upstream PR SHA.
+      - name: Checkout trusted deployment code
+        uses: actions/checkout@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
-      - run: npm ci
-
-      - name: Biome Lint
-        run: npm run lint
-
-      - name: TypeScript Check
-        run: npm run typecheck
-
-  # ─── 2. 单元测试 ─────────────────────────────────────────
-  unit-test:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    needs: quality
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Run Unit Tests
-        run: npm run test:unit
-
-      - name: Upload Coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage/
-
-  # ─── 3. 集成测试 ─────────────────────────────────────────
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: quality
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Run Integration Tests
-        run: npm run test:integration
-
-  # ─── 4. E2E 测试 ─────────────────────────────────────────
-  e2e-test:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    needs: quality
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run E2E Tests
-        run: npm run test:e2e
+      - name: Validate upstream production identity
         env:
-          CI: true
-
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
-
-  # ─── 5. 部署（仅 main 分支 push）─────────────────────────
-  deploy:
-    name: Deploy to Cloudflare
-    runs-on: ubuntu-latest
-    needs: [quality, unit-test, integration-test, e2e-test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Deploy to Production
-        run: bash scripts/deploy.sh
-        env:
-          TRAVEL_DEPLOY_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-  # ─── 6. 部署后健康检查 ───────────────────────────────────
-  health-check:
-    name: Post-Deploy Health Check
-    runs-on: ubuntu-latest
-    needs: deploy
-    if: success()
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Wait for CDN
-        run: sleep 30
-
-      - name: Run Health Check
-        run: bash scripts/health-check.sh production
-
-  # ─── 7. Preview 部署（PR）────────────────────────────────
-  preview:
-    name: Deploy Preview
-    runs-on: ubuntu-latest
-    needs: [quality, unit-test]
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Deploy Preview
-        run: bash scripts/deploy.sh preview
-        env:
-          TRAVEL_DEPLOY_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-      - name: Preview Health Check
+          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          UPSTREAM_REF: ${{ github.event.workflow_run.head_branch }}
+          UPSTREAM_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          UPSTREAM_SHA: ${{ github.event.workflow_run.head_sha }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        shell: bash
         run: |
-          sleep 10
-          bash scripts/health-check.sh preview
+          [[ "$UPSTREAM_CONCLUSION" == "success" ]]
+          [[ "$UPSTREAM_EVENT" == "push" ]]
+          [[ "$UPSTREAM_REF" == "main" ]]
+          [[ "$UPSTREAM_REPOSITORY" == "$GITHUB_REPOSITORY" ]]
+          [[ "$UPSTREAM_SHA" =~ ^[0-9a-f]{40,64}$ ]]
+          [[ "$UPSTREAM_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$UPSTREAM_RUN_ATTEMPT" =~ ^[0-9]+$ ]]
 
-      - name: Comment PR with Preview URL
+      - name: Download exact validated artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.DEPLOY_ARTIFACT_PREFIX }}-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          path: ${{ runner.temp }}/travelmap-pages
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install trusted deployment dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Revalidate artifact with trusted policy
+        env:
+          EXPECTED_SOURCE_WORKFLOW: CI
+          EXPECTED_SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          EXPECTED_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EXPECTED_SOURCE_EVENT: push
+          EXPECTED_SOURCE_REPOSITORY: ${{ github.repository }}
+          EXPECTED_SOURCE_REF: main
+          EXPECTED_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_SOURCE_BRANCH: main
+          EXPECTED_PR_NUMBER: ""
+          EXPECTED_PR_HEAD_SHA: ""
+          ARTIFACT_DIR: ${{ runner.temp }}/travelmap-pages
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import path from "node:path";
+
+          const actual = JSON.parse(
+            await readFile(path.join(process.env.ARTIFACT_DIR, "source.json"), "utf8"),
+          );
+          const expected = {
+            schema_version: 1,
+            workflow: process.env.EXPECTED_SOURCE_WORKFLOW,
+            run_id: process.env.EXPECTED_SOURCE_RUN_ID,
+            run_attempt: process.env.EXPECTED_SOURCE_RUN_ATTEMPT,
+            event: process.env.EXPECTED_SOURCE_EVENT,
+            repository: process.env.EXPECTED_SOURCE_REPOSITORY,
+            ref: `refs/heads/${process.env.EXPECTED_SOURCE_REF}`,
+            sha: process.env.EXPECTED_SOURCE_SHA,
+            branch: process.env.EXPECTED_SOURCE_BRANCH,
+            pr_number: process.env.EXPECTED_PR_NUMBER,
+            pr_head_sha: process.env.EXPECTED_PR_HEAD_SHA,
+          };
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error("Artifact source identity does not match workflow_run metadata");
+          }
+          NODE
+          node scripts/validate-deploy-artifact.mjs "$ARTIFACT_DIR"
+
+      # Contract: deploy.sh appends deployment_url=<exact Pages URL> to
+      # $GITHUB_OUTPUT. The workflow never reconstructs or guesses this URL.
+      - name: Deploy validated production artifact
+        id: deploy
+        env:
+          TRAVEL_DEPLOY_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DEPLOY_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: >-
+          bash scripts/deploy.sh
+          --artifact "${RUNNER_TEMP}/travelmap-pages"
+          --branch main
+
+      - name: Validate exact production URL
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        shell: bash
+        run: |
+          [[ "$DEPLOYMENT_URL" =~ ^https://[a-zA-Z0-9.-]+\.pages\.dev/?$ ]]
+
+      - name: Smoke exact production deployment
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: bash scripts/health-check.sh "$DEPLOYMENT_URL"
+
+  preview:
+    name: Deploy PR Preview
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_sha != '' &&
+      github.event.workflow_run.pull_requests[0].number != null &&
+      github.event.workflow_run.pull_requests[0].head.sha != ''
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      issues: write
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.deployment_url }}
+    concurrency:
+      group: preview-pr-${{ github.event.workflow_run.pull_requests[0].number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout trusted deployment code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate upstream preview identity
+        env:
+          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          UPSTREAM_REF: ${{ github.event.workflow_run.head_branch }}
+          UPSTREAM_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          UPSTREAM_SHA: ${{ github.event.workflow_run.head_sha }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          PR_HEAD_SHA: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
+        shell: bash
+        run: |
+          [[ "$UPSTREAM_CONCLUSION" == "success" ]]
+          [[ "$UPSTREAM_EVENT" == "pull_request" ]]
+          [[ -n "$UPSTREAM_REF" ]]
+          [[ "$UPSTREAM_REPOSITORY" == "$GITHUB_REPOSITORY" ]]
+          [[ "$UPSTREAM_SHA" =~ ^[0-9a-f]{40,64}$ ]]
+          [[ "$UPSTREAM_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$UPSTREAM_RUN_ATTEMPT" =~ ^[0-9]+$ ]]
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+          [[ "$PR_HEAD_SHA" =~ ^[0-9a-f]{40,64}$ ]]
+
+      - name: Download exact validated artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.DEPLOY_ARTIFACT_PREFIX }}-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          path: ${{ runner.temp }}/travelmap-pages
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install trusted deployment dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Revalidate artifact with trusted policy
+        env:
+          EXPECTED_SOURCE_WORKFLOW: CI
+          EXPECTED_SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          EXPECTED_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EXPECTED_SOURCE_EVENT: pull_request
+          EXPECTED_SOURCE_REPOSITORY: ${{ github.repository }}
+          EXPECTED_SOURCE_REF: refs/pull/${{ github.event.workflow_run.pull_requests[0].number }}/merge
+          EXPECTED_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          EXPECTED_PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          EXPECTED_PR_HEAD_SHA: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
+          ARTIFACT_DIR: ${{ runner.temp }}/travelmap-pages
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import path from "node:path";
+
+          const actual = JSON.parse(
+            await readFile(path.join(process.env.ARTIFACT_DIR, "source.json"), "utf8"),
+          );
+          const expected = {
+            schema_version: 1,
+            workflow: process.env.EXPECTED_SOURCE_WORKFLOW,
+            run_id: process.env.EXPECTED_SOURCE_RUN_ID,
+            run_attempt: process.env.EXPECTED_SOURCE_RUN_ATTEMPT,
+            event: process.env.EXPECTED_SOURCE_EVENT,
+            repository: process.env.EXPECTED_SOURCE_REPOSITORY,
+            ref: process.env.EXPECTED_SOURCE_REF,
+            sha: process.env.EXPECTED_SOURCE_SHA,
+            branch: process.env.EXPECTED_SOURCE_BRANCH,
+            pr_number: process.env.EXPECTED_PR_NUMBER,
+            pr_head_sha: process.env.EXPECTED_PR_HEAD_SHA,
+          };
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error("Artifact source identity does not match workflow_run metadata");
+          }
+          NODE
+          node scripts/validate-deploy-artifact.mjs "$ARTIFACT_DIR"
+
+      - name: Deploy validated preview artifact
+        id: deploy
+        env:
+          TRAVEL_DEPLOY_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DEPLOY_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: >-
+          bash scripts/deploy.sh
+          --artifact "${RUNNER_TEMP}/travelmap-pages"
+          --branch "pr-${PR_NUMBER}"
+
+      - name: Validate exact preview URL
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        shell: bash
+        run: |
+          [[ "$DEPLOYMENT_URL" =~ ^https://[a-zA-Z0-9.-]+\.pages\.dev/?$ ]]
+
+      - name: Smoke exact preview deployment
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: bash scripts/health-check.sh "$DEPLOYMENT_URL"
+
+      - name: Comment with exact preview URL
         uses: actions/github-script@v7
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
         with:
           script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            await github.rest.issues.createComment({
+              issue_number: Number(process.env.PR_NUMBER),
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '✅ Preview deployed: https://preview.travel-agent-ebl.pages.dev'
-            })
+              body: `✅ Preview deployed and smoke-tested: ${process.env.DEPLOYMENT_URL}`,
+            });
+
+  preview-skipped:
+    name: Preview Policy Skip
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      (
+        github.event.workflow_run.head_repository.full_name != github.repository ||
+        github.event.workflow_run.pull_requests[0].number == null ||
+        github.event.workflow_run.pull_requests[0].head.sha == ''
+      )
+    steps:
+      - name: Explain preview policy
+        run: |
+          echo "### Preview deployment skipped" >> "$GITHUB_STEP_SUMMARY"
+          echo "Privileged previews are limited to same-repository pull requests with trusted event metadata." >> "$GITHUB_STEP_SUMMARY"

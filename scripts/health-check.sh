@@ -1,18 +1,12 @@
-#!/bin/bash
-# TravelAgent — 线上健康检查脚本
+#!/usr/bin/env bash
+# TravelAgent — blocking post-deploy verification
 #
 # Usage:
-#   bash scripts/health-check.sh              # 检查 production
-#   bash scripts/health-check.sh preview      # 检查 preview
-#   bash scripts/health-check.sh <URL>        # 检查自定义 URL
-#
-# 返回码：
-#   0 = 所有检查通过
-#   1 = 检查失败
+#   bash scripts/health-check.sh
+#   bash scripts/health-check.sh preview
+#   bash scripts/health-check.sh <absolute-http(s)-URL>
 
 set -euo pipefail
-
-# ─── URL 解析 ──────────────────────────────────────────────
 
 PROD_URL="https://travel-agent-ebl.pages.dev"
 PREVIEW_URL="https://preview.travel-agent-ebl.pages.dev"
@@ -26,97 +20,193 @@ case "${1:-production}" in
     BASE_URL="$PREVIEW_URL"
     ENV_NAME="Preview"
     ;;
-  http*|https*)
+  http://*|https://*)
     BASE_URL="$1"
-    ENV_NAME="Custom"
+    ENV_NAME="Exact deployment"
     ;;
   *)
-    echo "Usage: $0 [production|preview|<URL>]"
-    exit 1
+    echo "Usage: $0 [production|preview|<absolute-http(s)-URL>]" >&2
+    exit 2
     ;;
 esac
 
-echo "=== 线上健康检查 ==="
-echo "环境: $ENV_NAME"
-echo "URL:  $BASE_URL"
-echo ""
+BASE_URL="${BASE_URL%/}"
+CURL_BIN="$(command -v curl)"
+NODE_BIN="$(command -v node)"
+TEMP_DIRECTORY="$(mktemp -d "${TMPDIR:-/tmp}/travelmap-health-check.XXXXXX")"
+cleanup() {
+  rm -rf -- "$TEMP_DIRECTORY"
+}
+trap cleanup EXIT
 
+CURL_COMMON=(
+  --silent
+  --show-error
+  --max-time 10
+  --connect-timeout 5
+  --retry 3
+  --retry-delay 1
+  --retry-connrefused
+)
 ERRORS=0
 
-# ─── 1. 页面可访问 ──────────────────────────────────────────
+request_status() {
+  local method="$1"
+  local url="$2"
+  local output_file="$3"
+  shift 3
 
-echo -n "1. 页面可访问... "
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -L "$BASE_URL/index.html")
-if [[ "$STATUS" == "200" ]]; then
-  echo "✅ HTTP $STATUS"
-else
-  echo "❌ HTTP $STATUS"
+  local status
+  local curl_status
+  set +e
+  status="$(
+    "$CURL_BIN" "${CURL_COMMON[@]}" \
+      --request "$method" \
+      --output "$output_file" \
+      --write-out '%{http_code}' \
+      "$@" \
+      "$url"
+  )"
+  curl_status=$?
+  set -e
+  if [[ "$curl_status" -ne 0 || ! "$status" =~ ^[0-9]{3}$ ]]; then
+    return 1
+  fi
+  printf '%s\n' "$status"
+}
+
+record_failure() {
+  echo "❌ $1"
   ERRORS=$((ERRORS + 1))
-fi
+}
 
-# ─── 2. API 端点响应 (OPTIONS preflight) ────────────────────
+echo "=== Blocking deployment smoke ==="
+echo "Environment: $ENV_NAME"
+echo "URL: $BASE_URL"
+echo ""
 
-echo -n "2. API 端点响应... "
-API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -X OPTIONS -L \
-  -H "Origin: https://example.com" \
-  -H "Access-Control-Request-Method: POST" \
-  "$BASE_URL/api/chat")
-if [[ "$API_STATUS" == "204" || "$API_STATUS" == "200" ]]; then
-  echo "✅ HTTP $API_STATUS"
+INDEX_BODY="$TEMP_DIRECTORY/index.html"
+echo -n "1. Index HTML... "
+if INDEX_STATUS="$(request_status GET "$BASE_URL/index.html" "$INDEX_BODY")"; then
+  if [[ "$INDEX_STATUS" == "200" ]] && grep -Eqi '<!doctype html|<html([[:space:]>])' "$INDEX_BODY"; then
+    echo "✅ HTTP $INDEX_STATUS"
+  else
+    record_failure "HTTP $INDEX_STATUS or missing HTML marker"
+  fi
 else
-  echo "⚠️  HTTP $API_STATUS (可能需要认证)"
+  record_failure "transport failure"
 fi
 
-# ─── 3. 静态资源加载 ────────────────────────────────────────
+ASSET_LIST="$TEMP_DIRECTORY/assets.txt"
+echo -n "2. Referenced hashed assets... "
+if "$NODE_BIN" --input-type=module - "$INDEX_BODY" >"$ASSET_LIST" <<'NODE'
+import { readFileSync } from "node:fs";
 
-echo -n "3. 静态资源加载... "
-JS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BASE_URL/modules/context.js")
-if [[ "$JS_STATUS" == "200" ]]; then
-  echo "✅ HTTP $JS_STATUS"
+const html = readFileSync(process.argv[2], "utf8");
+const references = new Set();
+const patterns = [
+  /\b(?:src|href)\s*=\s*["']([^"']+)["']/gi,
+  /\b(?:import|export)\s+(?:[^"'()]*?\s+from\s*)?["']([^"']+)["']/g,
+  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+];
+
+for (const pattern of patterns) {
+  for (const match of html.matchAll(pattern)) {
+    const candidate = match[1].split(/[?#]/, 1)[0];
+    if (!candidate.startsWith("./") || !/\.(?:js|css)$/.test(candidate)) continue;
+    if (!/^\.\/[A-Za-z0-9._/-]+\.(?:js|css)$/.test(candidate) || candidate.includes("..")) {
+      throw new Error("unsafe local asset reference");
+    }
+    references.add(candidate);
+  }
+}
+
+const hashed = [...references].filter((reference) =>
+  /^\.\/(?:modules|styles)\/[A-Za-z0-9._/-]+\.[0-9a-f]{8}\.(?:js|css)$/.test(reference),
+);
+if (references.size === 0 || hashed.length === 0) {
+  throw new Error("index does not reference content-addressed assets");
+}
+process.stdout.write(`${[...references].sort().join("\n")}\n`);
+NODE
+then
+  ASSET_FAILURES=0
+  ASSET_COUNT=0
+  while IFS= read -r asset_path; do
+    [[ -n "$asset_path" ]] || continue
+    ASSET_COUNT=$((ASSET_COUNT + 1))
+    ASSET_BODY="$TEMP_DIRECTORY/asset-$ASSET_COUNT"
+    if ASSET_STATUS="$(request_status GET "$BASE_URL/${asset_path#./}" "$ASSET_BODY")"; then
+      if [[ "$ASSET_STATUS" != "200" ]]; then
+        ASSET_FAILURES=$((ASSET_FAILURES + 1))
+      fi
+    else
+      ASSET_FAILURES=$((ASSET_FAILURES + 1))
+    fi
+  done <"$ASSET_LIST"
+  if [[ "$ASSET_COUNT" -gt 0 && "$ASSET_FAILURES" -eq 0 ]]; then
+    echo "✅ $ASSET_COUNT referenced assets"
+  else
+    record_failure "$ASSET_FAILURES of $ASSET_COUNT referenced assets failed"
+  fi
 else
-  echo "❌ HTTP $JS_STATUS"
-  ERRORS=$((ERRORS + 1))
+  record_failure "could not prove index asset closure"
 fi
 
-# ─── 4. CSS 加载 ────────────────────────────────────────────
-
-echo -n "4. CSS 加载... "
-CSS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BASE_URL/styles/main.css")
-if [[ "$CSS_STATUS" == "200" ]]; then
-  echo "✅ HTTP $CSS_STATUS"
+echo -n "3. Chat Function preflight... "
+CHAT_BODY="$TEMP_DIRECTORY/chat-options"
+if CHAT_STATUS="$(
+  request_status OPTIONS "$BASE_URL/api/chat" "$CHAT_BODY" \
+    --header "Origin: $BASE_URL" \
+    --header "Access-Control-Request-Method: POST"
+)"; then
+  if [[ "$CHAT_STATUS" == "200" || "$CHAT_STATUS" == "204" ]]; then
+    echo "✅ HTTP $CHAT_STATUS"
+  else
+    record_failure "HTTP $CHAT_STATUS"
+  fi
 else
-  echo "❌ HTTP $CSS_STATUS"
-  ERRORS=$((ERRORS + 1))
+  record_failure "transport failure"
 fi
 
-# ─── 5. 认证端点 ────────────────────────────────────────────
-
-echo -n "5. 认证端点... "
-AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BASE_URL/api/auth/status")
-if [[ "$AUTH_STATUS" == "200" ]]; then
-  echo "✅ HTTP $AUTH_STATUS"
+echo -n "4. Auth Function preflight... "
+AUTH_BODY="$TEMP_DIRECTORY/auth-options"
+if AUTH_STATUS="$(
+  request_status OPTIONS "$BASE_URL/api/auth/status" "$AUTH_BODY" \
+    --header "Origin: $BASE_URL" \
+    --header "Access-Control-Request-Method: GET"
+)"; then
+  if [[ "$AUTH_STATUS" == "200" || "$AUTH_STATUS" == "204" ]]; then
+    echo "✅ HTTP $AUTH_STATUS"
+  else
+    record_failure "HTTP $AUTH_STATUS"
+  fi
 else
-  echo "⚠️  HTTP $AUTH_STATUS (可能需要登录)"
+  record_failure "transport failure"
 fi
 
-# ─── 6. 响应时间 ────────────────────────────────────────────
-
-echo -n "6. 响应时间... "
-TOTAL_TIME=$(curl -s -o /dev/null -w "%{time_total}" --max-time 10 "$BASE_URL/index.html")
-TIME_MS=$(echo "$TOTAL_TIME * 1000" | bc | cut -d. -f1)
-if [[ "$TIME_MS" -lt 3000 ]]; then
+echo -n "5. Index response time... "
+set +e
+TOTAL_TIME="$(
+  "$CURL_BIN" "${CURL_COMMON[@]}" \
+    --output /dev/null \
+    --write-out '%{time_total}' \
+    "$BASE_URL/index.html"
+)"
+TIME_STATUS=$?
+set -e
+if [[ "$TIME_STATUS" -eq 0 ]] && awk -v seconds="$TOTAL_TIME" 'BEGIN { exit !(seconds >= 0 && seconds < 3) }'; then
+  TIME_MS="$(awk -v seconds="$TOTAL_TIME" 'BEGIN { printf "%d", seconds * 1000 }')"
   echo "✅ ${TIME_MS}ms"
 else
-  echo "⚠️  ${TIME_MS}ms (较慢)"
+  record_failure "transport failure or response time >= 3000ms"
 fi
-
-# ─── 结果 ────────────────────────────────────────────────────
 
 echo ""
 if [[ "$ERRORS" -eq 0 ]]; then
-  echo "✅ 所有检查通过"
+  echo "✅ All blocking smoke checks passed"
   exit 0
-else
-  echo "❌ $ERRORS 项检查失败"
-  exit 1
 fi
+
+echo "❌ $ERRORS blocking smoke check(s) failed"
+exit 1

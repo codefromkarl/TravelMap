@@ -3,10 +3,10 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { defineTool } from "../../tools/define-tool.js";
+import { defineTool } from "../../../tools/define-tool.js";
 
 // Mock cost-tracker
-vi.mock("../../services/cost-tracker.js", () => ({
+vi.mock("../../../services/cost-tracker.js", () => ({
   registerToolMetadata: vi.fn(),
 }));
 
@@ -89,10 +89,7 @@ describe("defineTool", () => {
       label: "测试",
       description: "测试",
       parameters: mockSchema,
-      execute: async (params) => {
-        const { city } = params as { city: string };
-        return { count: 42 };
-      },
+      execute: async () => ({ count: 42 }),
       format: () => "ok",
     });
 
@@ -109,7 +106,7 @@ describe("defineTool", () => {
       parameters: mockSchema,
       execute: async () => ({ data: [1, 2, 3] }),
       format: () => "ok",
-      details: (result, params) => ({
+      details: (_result, params) => ({
         custom: true,
         city: (params as { city: string }).city,
       }),

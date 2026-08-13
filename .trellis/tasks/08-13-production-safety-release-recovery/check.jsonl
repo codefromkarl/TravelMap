@@ -1,0 +1,9 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared quality and pre-modification rules"}
+{"file":".trellis/spec/guides/deployment-guide.md","reason":"Verify deployment compatibility and update drift"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify validation artifact deploy and smoke boundaries"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Verify one canonical artifact file-set implementation"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality and regression test expectations"}
+{"file":".trellis/spec/backend/testing-strategy.md","reason":"Scoped test execution and meaningful failure-path assertions"}
+{"file":".trellis/tasks/08-13-production-safety-release-recovery/research/pi-dependencies.md","reason":"Check dependency pins, lock integrity and isolation proof"}
+{"file":".trellis/tasks/08-13-production-safety-release-recovery/research/deploy-safety.md","reason":"Check allowlist and fail-closed acceptance"}
+{"file":".trellis/tasks/08-13-production-safety-release-recovery/research/ci-workflow.md","reason":"Check workflow DAG, permissions and evidence artifacts"}

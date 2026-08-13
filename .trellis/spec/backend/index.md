@@ -24,6 +24,7 @@ This directory contains guidelines for the `src/` TypeScript backend and server-
 | [Testing Strategy](./testing-strategy.md) | Mock routing, test layers, fixtures | ✅ Active |
 | [Logging Guidelines](./logging-guidelines.md) | Log levels, URL sanitization | ✅ Active |
 | [Pages API Security](./pages-api-security.md) | Same-origin proxy, secrets, auth, quota, and deployment contracts | ✅ Active |
+| [Release Pipeline](./release-pipeline.md) | Immutable artifacts, source identity, and fail-closed deployment | ✅ Active |
 
 ---
 

@@ -18,7 +18,7 @@
     "test:unit": "vitest run --project backend-unit",
     "test:integration": "vitest run --project backend-integration",
     "test:frontend": "vitest run --project frontend-unit",
-    "test:cross-layer": "vitest run --project cross-layer",
+    "test:cross-layer": "SKIP_PLAYWRIGHT=false vitest run --project cross-layer",
     "test:eval": "AI_E2E=true vitest run --project ai-e2e src/__tests__/evaluation",
     "test:quality": "vitest run --project backend-unit src/__tests__/quality",
     "test:ai-e2e": "AI_E2E=true vitest run --project ai-e2e",
@@ -36,8 +36,10 @@
     "test:gate": "bash scripts/quality-gate.sh",
     "test:gate:strict": "bash scripts/quality-gate.sh --strict",
     "test:impact": "bash scripts/test-impact.sh",
-    "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test --config playwright.config.ts",
+    "test:coverage": "SKIP_PLAYWRIGHT=true vitest run --coverage",
+    "test:e2e": "npm run test:e2e:full",
+    "test:e2e:pr": "playwright test web/__tests__/page-map.spec.ts --project=desktop --config playwright.config.ts",
+    "test:e2e:full": "playwright test --config playwright.config.ts",
     "test:e2e:ui": "playwright test --config playwright.config.ts --ui",
     "test:all": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -46,14 +48,18 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "file:../pi/packages/agent",
-    "@earendil-works/pi-ai": "file:../pi/packages/ai",
-    "@earendil-works/pi-web-ui": "file:../pi/packages/web-ui",
+    "@earendil-works/pi-agent-core": "0.75.3",
+    "@earendil-works/pi-ai": "0.75.3",
+    "@earendil-works/pi-web-ui": "0.75.3",
+    "@mariozechner/mini-lit": "0.2.0",
+    "@opentelemetry/api": "1.9.0",
+    "lit": "3.3.1",
     "lru-cache": "^11.4.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.5",
     "@playwright/test": "^1.52.0",
+    "@types/node": "22.19.0",
     "@types/yauzl": "^2.10.3",
     "@vitest/coverage-v8": "^3.2.1",
     "husky": "^9.1.7",
@@ -63,9 +69,14 @@
     "node-stdlib-browser": "^1.3.1",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.1"
+    "vitest": "^3.2.1",
+    "wrangler": "4.122.0"
+  },
+  "overrides": {
+    "@earendil-works/pi-ai": "0.75.3",
+    "@earendil-works/pi-tui": "0.75.3"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.19.0"
   }
 }

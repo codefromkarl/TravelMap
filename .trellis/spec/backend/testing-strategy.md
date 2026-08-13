@@ -68,6 +68,24 @@
 **位置**: `web/__tests__/`（Playwright）
 **原则**: 真实浏览器 + 真实页面
 
+### Coverage 与 E2E 的执行边界
+
+- `npm run test:coverage` 只负责 Vitest unit、integration、quality 和普通 cross-layer 覆盖率；必须设置 `SKIP_PLAYWRIGHT=true`，避免在 Vitest worker 内再次启动 Playwright。
+- `npm run test:e2e` 由独立 CI job 执行 Playwright，产出 HTML、JUnit、trace、截图与原始结果。
+- 不可变制品 job 必须同时依赖 coverage job 与 E2E job 成功；跳过嵌套 Playwright 不能降低发布门禁。
+- 开发者显式执行 `playwright-wrapper.test.ts` 且未设置 `SKIP_PLAYWRIGHT=true` 时，wrapper 行为保持可用，但它不属于 coverage 路径。
+
+```json
+{
+  "scripts": {
+    "test:coverage": "SKIP_PLAYWRIGHT=true vitest run --coverage",
+    "test:e2e": "playwright test"
+  }
+}
+```
+
+错误模式是让 coverage 内嵌 Playwright，同时 CI 又单独跑 E2E；这会重复启动 web server、放大超时，并让 coverage 结果混入浏览器基础设施失败。
+
 ---
 
 ## 前端测试规范

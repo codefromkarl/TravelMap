@@ -6,14 +6,19 @@ on:
   pull_request:
     branches: [main]
 
-# 同一分支/PR 的并发运行只保留最新的，取消旧的
+permissions:
+  contents: read
+
+env:
+  DEPLOY_ARTIFACT_PREFIX: travelmap-pages
+
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
+  static:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,35 +26,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (biome check)
+      - name: Lint
         run: npm run lint
 
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Type Check (tsc --noEmit)
+      - name: Type check
         run: npm run typecheck
 
-  test:
-    name: Unit Test + Coverage
+  tests:
+    name: Unit, Integration & Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,115 +47,200 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Quality Gate
-        run: npm run test:gate
-
-      - name: Run tests with coverage threshold check
+      # The Vitest workspace contains backend unit/integration, frontend unit,
+      # and cross-layer projects. A single coverage run avoids executing them twice.
+      - name: Run unit and integration tests with coverage
         run: npm run test:coverage
 
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: coverage-${{ github.run_id }}-${{ github.run_attempt }}
           path: coverage/
-          retention-days: 7
-
-  e2e-page-map:
-    name: E2E — Page Map
-    runs-on: ubuntu-latest
-    # push 和 PR 都运行页面地图测试（轻量级，不需要构建产物）
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-
-      - name: Run Page Map E2E tests
-        run: npx playwright test web/__tests__/page-map.spec.ts --project=desktop --reporter=list
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-page-map
-          path: playwright-report/
+          if-no-files-found: error
           retention-days: 7
 
   e2e:
-    name: E2E Tests (Full)
+    name: E2E
     runs-on: ubuntu-latest
-    # 仅 push main 时运行完整 E2E，PR 跳过（较耗时）
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: static
+    env:
+      CI: "true"
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
 
-      - name: Run E2E tests
-        run: npm run test:e2e
+      - name: Run PR-scoped Page Map E2E
+        if: github.event_name == 'pull_request'
+        run: npm run test:e2e:pr
 
-      - name: Upload Playwright report
+      - name: Run full E2E on main
+        if: github.event_name == 'push'
+        run: npm run test:e2e:full
+
+      - name: Upload Playwright reports and raw results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: error
           retention-days: 7
 
   ai-eval:
-    name: AI Evaluation Loop
+    name: AI Evaluation
     runs-on: ubuntu-latest
-    # 仅 push main 时运行 AI 评估，PR 跳过（需要 API Key）
+    needs: static
+    # Keep provider secrets entirely out of pull_request jobs. The artifact job
+    # explicitly accepts this job being skipped only for pull requests.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Detect configured AI provider
+        id: ai-config
+        shell: bash
+        run: |
+          if [[ -n "$OPENAI_API_KEY" || -n "$DEEPSEEK_API_KEY" || -n "$ANTHROPIC_API_KEY" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "### AI evaluation: enabled" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "### AI evaluation: skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "No supported AI provider secret is configured." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.ai-config.outputs.enabled == 'true'
+
+      - name: Setup Node.js
+        if: steps.ai-config.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.ai-config.outputs.enabled == 'true'
+        run: npm ci
+
+      - name: Run AI evaluation
+        if: steps.ai-config.outputs.enabled == 'true'
+        run: npm run eval:loop:ci
+
+      - name: Upload AI evaluation reports
+        if: always() && steps.ai-config.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-${{ github.run_id }}-${{ github.run_attempt }}
+          path: eval-results/
+          if-no-files-found: warn
+          retention-days: 30
+
+  build-artifact:
+    name: Build Validated Deploy Artifact
+    runs-on: ubuntu-latest
+    needs: [static, tests, e2e, ai-eval]
+    if: >-
+      always() &&
+      needs.static.result == 'success' &&
+      needs.tests.result == 'success' &&
+      needs.e2e.result == 'success' &&
+      (
+        (github.event_name == 'pull_request' && needs.ai-eval.result == 'skipped') ||
+        (github.event_name == 'push' && needs.ai-eval.result == 'success')
+      )
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run AI Evaluation
-        run: npm run eval:loop:ci
+      - name: Build allowlisted deploy artifact
+        id: artifact
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEPLOY_SOURCE_WORKFLOW: CI
+          DEPLOY_SOURCE_RUN_ID: ${{ github.run_id }}
+          DEPLOY_SOURCE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          DEPLOY_SOURCE_EVENT: ${{ github.event_name }}
+          DEPLOY_SOURCE_REPOSITORY: ${{ github.repository }}
+          DEPLOY_SOURCE_REF: ${{ github.ref }}
+          DEPLOY_SOURCE_SHA: ${{ github.sha }}
+          DEPLOY_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
+          DEPLOY_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          DEPLOY_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        shell: bash
+        run: |
+          artifact_dir="${RUNNER_TEMP}/${DEPLOY_ARTIFACT_PREFIX}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          node scripts/build-deploy-artifact.mjs "$artifact_dir"
+          ARTIFACT_DIR="$artifact_dir" node --input-type=module <<'NODE'
+          import { writeFile } from "node:fs/promises";
+          import path from "node:path";
 
-      - name: Upload evaluation reports
-        if: always()
+          const source = {
+            schema_version: 1,
+            workflow: process.env.DEPLOY_SOURCE_WORKFLOW,
+            run_id: process.env.DEPLOY_SOURCE_RUN_ID,
+            run_attempt: process.env.DEPLOY_SOURCE_RUN_ATTEMPT,
+            event: process.env.DEPLOY_SOURCE_EVENT,
+            repository: process.env.DEPLOY_SOURCE_REPOSITORY,
+            ref: process.env.DEPLOY_SOURCE_REF,
+            sha: process.env.DEPLOY_SOURCE_SHA,
+            branch: process.env.DEPLOY_SOURCE_BRANCH,
+            pr_number: process.env.DEPLOY_PR_NUMBER,
+            pr_head_sha: process.env.DEPLOY_PR_HEAD_SHA,
+          };
+          await writeFile(
+            path.join(process.env.ARTIFACT_DIR, "source.json"),
+            `${JSON.stringify(source, null, 2)}\n`,
+            { encoding: "utf8", flag: "wx" },
+          );
+          NODE
+          node scripts/validate-deploy-artifact.mjs "$artifact_dir"
+          echo "path=$artifact_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable deploy artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: eval-reports
-          path: eval-results/
-          retention-days: 30
+          name: ${{ env.DEPLOY_ARTIFACT_PREFIX }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.artifact.outputs.path }}/
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 14
+
+      - name: Record artifact identity
+        shell: bash
+        run: |
+          echo "### Deploy artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Name: \`${DEPLOY_ARTIFACT_PREFIX}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ID: \`${{ steps.upload.outputs.artifact-id }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Digest: \`${{ steps.upload.outputs.artifact-digest }}\`" >> "$GITHUB_STEP_SUMMARY"

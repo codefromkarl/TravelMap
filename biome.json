@@ -30,6 +30,13 @@
     }
   },
   "files": {
-    "includes": ["src/**/*.ts", "!!**/node_modules/", "!!**/dist/", "!!**/.trellis/"]
+    "includes": [
+      "src/**/*.ts",
+      "!!**/node_modules",
+      "!!**/dist",
+      "!!**/.trellis",
+      "!!**/.claude",
+      "!!**/.agents"
+    ]
   }
 }

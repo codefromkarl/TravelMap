@@ -3,21 +3,21 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { definePoiSearcher } from "../../services/poi-searcher.js";
+import { definePoiSearcher } from "../../../services/poi-searcher.js";
 
 // Mock 依赖
-vi.mock("../../services/config.js", () => ({
+vi.mock("../../../services/config.js", () => ({
   config: {
     amapWebKey: undefined as string | undefined,
     googleMapsApiKey: undefined as string | undefined,
   },
 }));
 
-vi.mock("../../services/dual-map-service.js", () => ({
+vi.mock("../../../services/dual-map-service.js", () => ({
   isDomesticCity: vi.fn((city: string) => city === "北京" || city === "上海"),
 }));
 
-vi.mock("../../services/logger.js", () => ({
+vi.mock("../../../services/logger.js", () => ({
   getLogger: () => ({
     child: () => ({
       debug: vi.fn(),

@@ -5,12 +5,82 @@ set -euo pipefail
 # Usage:
 #   bash scripts/deploy.sh          → 部署到 production
 #   bash scripts/deploy.sh preview  → 部署到 preview
+#   bash scripts/deploy.sh --artifact <dir> --branch <main|preview|pr-N>
 
-# 安全地 source ~/.bashrc（非交互式 shell 中 PS1 等变量可能未定义）
-if [[ -f ~/.bashrc ]]; then
-  set +u
-  source ~/.bashrc 2>/dev/null || true
-  set -u
+SCRIPT_DIRECTORY="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIRECTORY/.." && pwd -P)"
+CALLER_DIRECTORY="$PWD"
+
+usage() {
+  echo "Usage:" >&2
+  echo "  bash scripts/deploy.sh" >&2
+  echo "  bash scripts/deploy.sh preview" >&2
+  echo "  bash scripts/deploy.sh --artifact <dir> --branch <main|preview|pr-N>" >&2
+}
+
+is_valid_branch() {
+  [[ "$1" == "main" || "$1" == "preview" || "$1" =~ ^pr-[1-9][0-9]*$ ]]
+}
+
+parse_pages_deployment_url() {
+  local deploy_output="$1"
+  local pages_url_pattern='^https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?([.][A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*[.]pages[.]dev$'
+  local token
+  local candidate
+  local -a candidates=()
+
+  while IFS= read -r token; do
+    token="${token//$'\r'/}"
+    [[ "$token" == *".pages.dev"* ]] || continue
+    if [[ ! "$token" =~ $pages_url_pattern ]]; then
+      echo "❌ Wrangler 返回了非法 pages.dev URL" >&2
+      return 1
+    fi
+    for candidate in "${candidates[@]-}"; do
+      [[ "$candidate" == "$token" ]] && continue 2
+    done
+    candidates+=("$token")
+  done < <(printf '%s\n' "$deploy_output" | grep -Eo "https://[^[:space:]\"'<>]+" || true)
+
+  if [[ "${#candidates[@]}" -ne 1 ]]; then
+    echo "❌ 无法从 Wrangler 输出中唯一确定 pages.dev deployment URL" >&2
+    return 1
+  fi
+  printf '%s\n' "${candidates[0]}"
+}
+
+MODE="build"
+BRANCH="main"
+ARTIFACT_DIR=""
+
+case "$#" in
+  0)
+    ;;
+  1)
+    if [[ "$1" != "preview" ]]; then
+      usage
+      exit 2
+    fi
+    BRANCH="preview"
+    ;;
+  4)
+    if [[ "$1" != "--artifact" || "$3" != "--branch" ]]; then
+      usage
+      exit 2
+    fi
+    MODE="artifact"
+    ARTIFACT_DIR="$2"
+    BRANCH="$4"
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
+
+if ! is_valid_branch "$BRANCH"; then
+  echo "❌ 非法部署分支: $BRANCH" >&2
+  exit 2
 fi
 
 # 代理环境绕过（Cloudflare API 走直连更快）
@@ -24,99 +94,82 @@ fi
 export CLOUDFLARE_ACCOUNT_ID="df7eff124c99996394244b7e94324ffc"
 
 PROJECT="travel-agent"
-BRANCH="main"
-DIR="web"
-EXCLUDE_FILES=(
-  "config.local.example.js"
-  "_headers.bak"
-)
-
-if [[ "${1:-}" == "preview" ]]; then
-  BRANCH="preview"
-fi
-
-# ─── 构建干净的部署目录（排除敏感文件）──────────────────
-DEPLOY_DIR=$(mktemp -d)
-trap "rm -rf $DEPLOY_DIR" EXIT
-
-echo "📦 准备部署目录..."
-rsync -a --exclude='node_modules' "$DIR/" "$DEPLOY_DIR/"
-
-for f in "${EXCLUDE_FILES[@]}"; do
-  if [[ -f "$DEPLOY_DIR/$f" ]]; then
-    echo "   ⛔ 排除: $f"
-    rm "$DEPLOY_DIR/$f"
+TEMP_ARTIFACT_DIR=""
+cleanup() {
+  if [[ -n "$TEMP_ARTIFACT_DIR" ]]; then
+    rm -rf -- "$TEMP_ARTIFACT_DIR"
   fi
-done
+}
+trap cleanup EXIT
 
-# ─── 构建 _worker.js（Direct Upload 项目必须显式构建 Functions）───
-echo "🔧 构建 Pages Functions → _worker.js..."
-WORKER_BUILD_DIR=$(mktemp -d)
-if wrangler pages functions build "$DIR/functions" --outdir="$WORKER_BUILD_DIR" 2>&1; then
-  cp "$WORKER_BUILD_DIR/index.js" "$DEPLOY_DIR/_worker.js"
-  echo "   ✅ _worker.js 已生成"
+if [[ "$MODE" == "build" ]]; then
+  TEMP_ARTIFACT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/travelmap-deploy-artifact.XXXXXX")"
+  ARTIFACT_DIR="$TEMP_ARTIFACT_DIR"
+  echo "📦 构建并验证部署 artifact..."
+  node "$SCRIPT_DIRECTORY/build-deploy-artifact.mjs" "$ARTIFACT_DIR"
 else
-  echo "   ⚠️ Functions 构建失败，跳过 _worker.js"
+  if [[ "$ARTIFACT_DIR" != /* ]]; then
+    ARTIFACT_DIR="$CALLER_DIRECTORY/$ARTIFACT_DIR"
+  fi
+  echo "🔒 重验下载的部署 artifact..."
+  node "$SCRIPT_DIRECTORY/validate-deploy-artifact.mjs" "$ARTIFACT_DIR"
 fi
-rm -rf "$WORKER_BUILD_DIR"
 
-# ─── 内容哈希：为 JS/CSS 文件生成 hash 文件名 ──────────────
-echo "🔒 生成内容哈希文件名..."
-node scripts/hash-assets.js "$DEPLOY_DIR" 2>&1 || echo "   ⚠️ 哈希生成失败，使用原始文件名"
-
-# 寻找 wrangler：优先本地 node_modules，其次全局，最后回退 npx
-WRANGLER=""
-if [[ -x "./node_modules/.bin/wrangler" ]]; then
-  WRANGLER="./node_modules/.bin/wrangler"
-elif command -v wrangler &>/dev/null; then
-  WRANGLER="$(command -v wrangler)"
-else
-  WRANGLER="npx wrangler"
+WRANGLER_BIN="$REPO_ROOT/node_modules/.bin/wrangler"
+if [[ -n "${TRAVEL_TEST_WRANGLER_BIN:-}" ]]; then
+  if [[ "${TRAVEL_DEPLOY_TEST_MODE:-}" != "1" ]]; then
+    echo "❌ 测试 Wrangler 注入只能在显式 test mode 使用" >&2
+    exit 1
+  fi
+  WRANGLER_BIN="$TRAVEL_TEST_WRANGLER_BIN"
+fi
+if [[ "$WRANGLER_BIN" != /* ]]; then
+  echo "❌ Wrangler 必须是显式绝对路径" >&2
+  exit 1
+fi
+if [[ ! -x "$WRANGLER_BIN" ]]; then
+  echo "❌ 未找到本地锁定的 Wrangler: $WRANGLER_BIN" >&2
+  exit 1
 fi
 
 echo "🚀 Deploying to Cloudflare Pages..."
 echo "   Project: $PROJECT"
 echo "   Branch:  $BRANCH"
-echo "   Source:  $DIR → $DEPLOY_DIR (cleaned)"
-echo "   Wrangler: $WRANGLER"
+echo "   Source:  $ARTIFACT_DIR/site"
+echo "   Wrangler: $WRANGLER_BIN"
 echo ""
 
-$WRANGLER pages deploy "$DEPLOY_DIR" \
-  --project-name="$PROJECT" \
-  --branch="$BRANCH"
+DEPLOY_ARGUMENTS=(
+  pages deploy "$ARTIFACT_DIR/site"
+  "--project-name=$PROJECT"
+  "--branch=$BRANCH"
+)
+SOURCE_SHA="${DEPLOY_SOURCE_SHA:-}"
+if [[ -z "$SOURCE_SHA" && "$MODE" == "build" ]]; then
+  SOURCE_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+fi
+if [[ ! "$SOURCE_SHA" =~ ^[0-9a-f]{40,64}$ ]]; then
+  echo "❌ 部署必须提供合法的 source SHA（DEPLOY_SOURCE_SHA）" >&2
+  exit 1
+fi
+DEPLOY_ARGUMENTS+=("--commit-hash=$SOURCE_SHA")
 
-echo ""
-echo "✅ 部署完成!"
-echo "   Production: https://travel-agent-ebl.pages.dev"
-echo "   Custom:     https://travel.codefromkarl.xyz (需要完成域名绑定)"
-
-# ─── 部署后缓存清理 ───────────────────────────────────────
-echo ""
-echo "🧹 清理 Cloudflare CDN 缓存..."
-ZONE_ID="c404bfd5abf91163482f9a15dc1716f2"
-purge_resp=$(curl -s -X POST \
-  "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
-  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"purge_everything":true}')
-if echo "$purge_resp" | grep -q '"success":true'; then
-  echo "   ✅ CDN 缓存已清理"
-else
-  echo "   ⚠️ 缓存清理失败（可能缺少权限），用户需 Ctrl+Shift+R 强制刷新"
+set +e
+DEPLOY_OUTPUT="$(
+  NO_COLOR=1 "$WRANGLER_BIN" "${DEPLOY_ARGUMENTS[@]}" 2>&1
+)"
+DEPLOY_STATUS=$?
+set -e
+printf '%s\n' "$DEPLOY_OUTPUT"
+if [[ "$DEPLOY_STATUS" -ne 0 ]]; then
+  echo "❌ Wrangler 部署失败" >&2
+  exit "$DEPLOY_STATUS"
 fi
 
-# ─── 部署后健康检查 ───────────────────────────────────────
+DEPLOYMENT_URL="$(parse_pages_deployment_url "$DEPLOY_OUTPUT")"
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  printf 'deployment_url=%s\n' "$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+fi
 
 echo ""
-echo "🔍 等待 CDN 更新 (5s)..."
-sleep 5
-
-if [[ -f "scripts/health-check.sh" ]]; then
-  echo ""
-  bash scripts/health-check.sh "$BRANCH" || {
-    echo "⚠️  健康检查失败，请手动验证: https://travel-agent-ebl.pages.dev"
-    exit 1
-  }
-else
-  echo "⚠️  跳过健康检查 (scripts/health-check.sh 不存在)"
-fi
+echo "✅ 部署完成: $DEPLOYMENT_URL"
