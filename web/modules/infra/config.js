@@ -5,7 +5,7 @@
  * 使用方法：import { config, resolveApiKey } from '../config.js';
  */
 
-import { isProxyMode, requiresApiKey, getProviderBaseUrl } from '../infra/context.js';
+import { isProxyMode, requiresApiKey } from '../infra/context.js';
 
 const defaults = {
   deepseekLocal: {
@@ -18,7 +18,8 @@ const defaults = {
 // 加载本地配置（config.local.js 不入库，仅本地开发用）
 let localConfig = {};
 try {
-  const mod = await import('../../config.local.js');
+  const localConfigPath = ['..', '..', 'config.local.js'].join('/');
+  const mod = await import(/* @vite-ignore */ localConfigPath);
   localConfig = mod.default || {};
 } catch {
   // config.local.js 不存在，使用默认值

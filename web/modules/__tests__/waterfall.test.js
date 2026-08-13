@@ -13,21 +13,37 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock perf-trace.js
 vi.mock('../perf-trace.js', () => ({
-  getCurrentTraceId: vi.fn(() => null),
+  getWaterfallData: vi.fn(() => []),
+  getTraceSummary: vi.fn(() => ({ completedSpans: 0, totalDuration: 0 })),
+  getRecentTraceIds: vi.fn(() => []),
   exportTraceData: vi.fn(() => '{}'),
 }));
 
-// 导入被测模块
-import { showPanel, hidePanel, togglePanel } from '../waterfall.js';
+vi.mock('../logger.js', () => ({
+  getLogEntries: vi.fn(() => []),
+  createLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  })),
+}));
+
+vi.mock('../trace.js', () => ({
+  getCurrentTraceId: vi.fn(() => null),
+}));
+
+let showPanel;
+let hidePanel;
+let togglePanel;
 
 // ─── 测试 ─────────────────────────────────────────────
 
 describe('waterfall.js', () => {
-  beforeEach(() => {
-    // 设置 DOM
-    document.body.innerHTML = `
-      <div id="waterfall-panel"></div>
-    `;
+  beforeEach(async () => {
+    vi.resetModules();
+    document.body.innerHTML = '';
+    ({ showPanel, hidePanel, togglePanel } = await import('../waterfall.js'));
   });
 
   afterEach(() => {
@@ -38,65 +54,51 @@ describe('waterfall.js', () => {
     it('应显示面板', () => {
       showPanel();
 
-      const panel = document.getElementById('waterfall-panel');
-      if (panel) {
-        expect(panel.classList.contains('visible')).toBe(true);
-      }
+      const panel = document.getElementById('trace-waterfall-panel');
+      expect(panel?.classList.contains('visible')).toBe(true);
     });
 
-    it('无面板元素时不报错', () => {
-      document.body.innerHTML = '';
+    it('重复显示时应复用面板', () => {
+      showPanel();
+      showPanel();
 
-      expect(() => showPanel()).not.toThrow();
+      expect(document.querySelectorAll('#trace-waterfall-panel')).toHaveLength(1);
+      expect(document.getElementById('trace-waterfall-panel')?.classList.contains('visible')).toBe(true);
     });
   });
 
   describe('hidePanel', () => {
     it('应隐藏面板', () => {
-      const panel = document.getElementById('waterfall-panel');
-      if (panel) {
-        panel.classList.add('visible');
-      }
+      showPanel();
+      const panel = document.getElementById('trace-waterfall-panel');
 
       hidePanel();
 
-      if (panel) {
-        expect(panel.classList.contains('visible')).toBe(false);
-      }
+      expect(panel?.classList.contains('visible')).toBe(false);
     });
 
     it('无面板元素时不报错', () => {
-      document.body.innerHTML = '';
+      hidePanel();
 
-      expect(() => hidePanel()).not.toThrow();
+      expect(document.getElementById('trace-waterfall-panel')).toBeNull();
     });
   });
 
   describe('togglePanel', () => {
     it('隐藏时应显示面板', () => {
-      const panel = document.getElementById('waterfall-panel');
-      if (panel) {
-        panel.classList.remove('visible');
-      }
-
       togglePanel();
 
-      if (panel) {
-        expect(panel.classList.contains('visible')).toBe(true);
-      }
+      const panel = document.getElementById('trace-waterfall-panel');
+      expect(panel?.classList.contains('visible')).toBe(true);
     });
 
     it('显示时应隐藏面板', () => {
-      const panel = document.getElementById('waterfall-panel');
-      if (panel) {
-        panel.classList.add('visible');
-      }
+      showPanel();
+      const panel = document.getElementById('trace-waterfall-panel');
 
       togglePanel();
 
-      if (panel) {
-        expect(panel.classList.contains('visible')).toBe(false);
-      }
+      expect(panel?.classList.contains('visible')).toBe(false);
     });
   });
 });

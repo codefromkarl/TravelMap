@@ -174,6 +174,18 @@ test.describe("页面地图功能测试", () => {
     await page.goto(`http://localhost:${serverPort}${path}`, { waitUntil: "networkidle" });
   }
 
+  /** 移动端默认显示聊天；地图交互测试先显式切到地图视图。 */
+  async function ensureMapView(page: Page) {
+    const mapArea = page.locator("#map-right-area");
+    if (await mapArea.isVisible()) return;
+
+    const mobileMapButton = page.locator("#btn-mobile-map");
+    await expect(mobileMapButton).toBeVisible();
+    await mobileMapButton.click();
+    await expect(page.locator("#page-map")).toHaveClass(/mobile-map-focused/);
+    await expect(mapArea).toBeVisible();
+  }
+
   test.beforeEach(async ({ page }) => {
     consoleCleanup = () => {};
     const listener = setupConsoleListener(page);
@@ -264,11 +276,15 @@ test.describe("页面地图功能测试", () => {
   });
 
   // ── 2. 左侧面板拖拽调整宽度 ──
-  test("拖拽分割线可调整左侧面板宽度", async ({ page }) => {
+  test("拖拽分割线可调整左侧面板宽度", async ({ page }, testInfo) => {
     await gotoPage(page, "/index.html");
     await waitForMapReady(page);
 
     const resizer = await page.locator("#panel-resizer");
+    if (testInfo.project.name === "mobile") {
+      await expect(resizer).toBeHidden();
+      return;
+    }
     await expect(resizer).toBeVisible();
 
     const panel = await page.locator("#map-chat-panel");
@@ -300,6 +316,7 @@ test.describe("页面地图功能测试", () => {
   test("图层切换：标准 → 卫星 → 地形", async ({ page }) => {
     await gotoPage(page, "/index.html");
     await waitForMapReady(page);
+    await ensureMapView(page);
 
     const layerBtn = await page.locator("#btn-map-layers");
     await layerBtn.click();
@@ -333,6 +350,7 @@ test.describe("页面地图功能测试", () => {
   test("路线面板可展开和收起", async ({ page }) => {
     await gotoPage(page, "/index.html");
     await waitForMapReady(page);
+    await ensureMapView(page);
 
     const routeBtn = await page.locator("#btn-map-routes");
     const routePanel = await page.locator("#page-map-routes");
@@ -421,6 +439,7 @@ test.describe("页面地图功能测试", () => {
   test("定位按钮存在且可点击", async ({ page }) => {
     await gotoPage(page, "/index.html");
     await waitForMapReady(page);
+    await ensureMapView(page);
 
     const locateBtn = await page.locator("#btn-map-locate");
     await expect(locateBtn).toBeVisible();
@@ -436,6 +455,7 @@ test.describe("页面地图功能测试", () => {
   test("模拟行程渲染后，景点 Marker 可点击显示 Popup", async ({ page }) => {
     await gotoPage(page, "/index.html");
     await waitForMapReady(page);
+    await ensureMapView(page);
 
     // 注入模拟数据
     await injectMockTrip(page);
@@ -532,6 +552,7 @@ test.describe("页面地图功能测试", () => {
   test("POI 点击反查：放大地图后点击空白处", async ({ page }) => {
     await gotoPage(page, "/index.html");
     await waitForMapReady(page);
+    await ensureMapView(page);
 
     // 缩放到足够级别（zoom >= 12）
     await page.evaluate(() => {
@@ -558,6 +579,7 @@ test.describe("页面地图功能测试", () => {
   test("地图搜索框可输入并触发搜索", async ({ page }) => {
     await gotoPage(page, "/index.html");
     await waitForMapReady(page);
+    await ensureMapView(page);
 
     const searchInput = await page.locator("#map-search-input");
     await searchInput.fill("西湖");
@@ -579,16 +601,27 @@ test.describe("页面地图功能测试", () => {
     await waitForMapReady(page);
 
     const promptCard = await page.locator("#map-chat-welcome .quick-prompt").first();
-    await promptCard.click();
-    await page.waitForTimeout(500);
+    const expectedPrompt = "我想去旅行，帮我规划一下";
+    await expect(promptCard).toHaveAttribute("data-prompt", expectedPrompt);
 
-    // 点击后 welcome 应该隐藏
-    const welcomeVisible = await page.evaluate(() => {
-      const el = document.getElementById("map-chat-welcome");
-      return el ? el.style.display !== "none" : false;
+    await page.evaluate(() => {
+      const agentInterface = (window as any)._chatPanel?.agentInterface;
+      if (!agentInterface) throw new Error("AgentInterface 未初始化");
+
+      (window as any).__quickPromptRuns = [];
+      agentInterface.sendMessage = async (prompt: string) => {
+        (window as any).__quickPromptRuns.push(prompt);
+      };
     });
-    // 有可能还没隐藏，不强制断言
-    console.log("快捷提示点击后 welcome 显示:", welcomeVisible);
+
+    await promptCard.click();
+
+    await expect.poll(() =>
+      page.evaluate(() => (window as any).__quickPromptRuns)
+    ).toEqual([expectedPrompt]);
+    await expect(page.locator("#map-chat-welcome")).toBeHidden();
+    await expect(page.locator(".quick-prompt-user-msg")).toHaveCount(1);
+    await expect(page.locator(".quick-prompt-user-msg")).toContainText(expectedPrompt);
 
     const criticalErrors = filterCriticalErrors(consoleErrors);
     expect(criticalErrors).toEqual([]);

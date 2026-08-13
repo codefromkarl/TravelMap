@@ -12,11 +12,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock 依赖
-const mockRun = vi.fn(() => Promise.resolve());
-vi.mock('../context.js', () => ({
-  agent: { subscribe: vi.fn(), run: mockRun },
-  chatPanel: null,
+const contextMocks = vi.hoisted(() => ({
+  run: vi.fn(() => Promise.resolve()),
+  subscribe: vi.fn(),
   showToast: vi.fn(),
+}));
+
+vi.mock('../infra/context.js', () => ({
+  agent: { subscribe: contextMocks.subscribe, run: contextMocks.run },
+  chatPanel: null,
+  showToast: contextMocks.showToast,
 }));
 
 vi.mock('../location.js', () => ({
@@ -59,8 +64,7 @@ describe('welcome.js', () => {
       // 模拟点击
       card.click();
 
-      // 验证 agent.run 被调用（不再通过 DOM 模拟）
-      expect(mockRun).toHaveBeenCalledWith('规划一个杭州三日游');
+      expect(contextMocks.run).toHaveBeenCalledWith('规划一个杭州三日游');
     });
 
     it('点击快捷提示卡片应隐藏欢迎页', () => {
@@ -72,7 +76,6 @@ describe('welcome.js', () => {
       // 模拟点击
       card.click();
 
-      // 验证欢迎页被隐藏（使用 style.display）
       expect(welcomeEl.style.display).toBe('none');
     });
 
@@ -83,12 +86,10 @@ describe('welcome.js', () => {
     });
 
     it('应订阅 agent 事件隐藏欢迎页', async () => {
-      const context = await import('../context.js');
-
       initWelcome();
 
       // 验证 subscribe 被调用
-      expect(context.agent.subscribe).toHaveBeenCalled();
+      expect(contextMocks.subscribe).toHaveBeenCalled();
     });
   });
 });

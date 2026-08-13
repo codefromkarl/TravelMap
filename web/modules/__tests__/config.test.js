@@ -11,13 +11,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock 依赖
-vi.mock('../context.js', () => ({
+vi.mock('../infra/context.js', () => ({
   isProxyMode: false,
-}));
-
-// Mock config.local.js
-vi.mock('../config.local.js', () => ({
-  default: {},
+  requiresApiKey: vi.fn(() => true),
 }));
 
 // 导入被测模块

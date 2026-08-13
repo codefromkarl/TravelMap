@@ -10,13 +10,22 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock 依赖
-vi.mock('../context.js', () => ({
+const contextMocks = vi.hoisted(() => ({
   agent: null,
   showToast: vi.fn(),
+}));
+
+vi.mock('../infra/context.js', () => ({
+  get agent() {
+    return contextMocks.agent;
+  },
+  currentLang: 'zh',
+  showToast: contextMocks.showToast,
   EXPORT_STORAGE_KEY: 'travel-agent-exported-trips',
+  lastTripContent: '',
 }));
 
 // 导入被测模块
@@ -25,21 +34,23 @@ import { getLastAssistantContent, generateMarkdown } from '../export.js';
 // ─── 测试 ─────────────────────────────────────────────
 
 describe('export.js', () => {
+  beforeEach(() => {
+    contextMocks.agent = null;
+  });
+
   describe('getLastAssistantContent', () => {
     it('agent 为 null 时返回 null', () => {
       expect(getLastAssistantContent()).toBeNull();
     });
 
     it('无助手消息时返回 null', async () => {
-      const context = await import('../context.js');
-      context.agent = { state: { messages: [] } };
+      contextMocks.agent = { state: { messages: [] } };
 
       expect(getLastAssistantContent()).toBeNull();
     });
 
     it('短消息不返回', async () => {
-      const context = await import('../context.js');
-      context.agent = {
+      contextMocks.agent = {
         state: {
           messages: [
             { role: 'assistant', content: '短消息' },
@@ -52,8 +63,7 @@ describe('export.js', () => {
 
     it('长助手消息应返回', async () => {
       const longContent = 'x'.repeat(200);
-      const context = await import('../context.js');
-      context.agent = {
+      contextMocks.agent = {
         state: {
           messages: [
             { role: 'assistant', content: longContent },
@@ -65,8 +75,7 @@ describe('export.js', () => {
     });
 
     it('应返回最后一条长消息', async () => {
-      const context = await import('../context.js');
-      context.agent = {
+      contextMocks.agent = {
         state: {
           messages: [
             { role: 'assistant', content: 'x'.repeat(200) },

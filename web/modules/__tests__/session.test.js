@@ -11,10 +11,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock 依赖
-vi.mock('../context.js', () => ({
+const contextMocks = vi.hoisted(() => ({
   agent: { state: { messages: [] } },
-  currentTripId: null,
   setCurrentTripId: vi.fn(),
+}));
+
+vi.mock('../infra/context.js', () => ({
+  agent: contextMocks.agent,
+  currentTripId: null,
+  setCurrentTripId: contextMocks.setCurrentTripId,
   currentLang: 'zh',
 }));
 
@@ -49,6 +54,7 @@ describe('session.js', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    contextMocks.agent.state.messages = [];
     window._lastTripPlan = null;
     window._renderTripAnimated = vi.fn();
     window._initPageMap = vi.fn();

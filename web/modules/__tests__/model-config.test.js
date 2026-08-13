@@ -11,16 +11,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock 依赖
-vi.mock('../context.js', () => ({
-  agent: null,
-  currentLang: 'zh',
-  showToast: vi.fn(),
-  PROVIDER_MODELS: {
-    openai: ['gpt-4o', 'gpt-4o-mini'],
-    deepseek: ['deepseek-v4-flash'],
-  },
-  getAmapKey: vi.fn(() => ''),
-}));
+vi.mock('../infra/context.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    agent: null,
+    currentLang: 'zh',
+    showToast: vi.fn(),
+    getAmapKey: vi.fn(() => ''),
+  };
+});
 
 vi.mock('../i18n.js', () => ({
   I18N: {},
@@ -63,6 +63,7 @@ describe('model-config.js', () => {
       <button id="btn-open-model"></button>
       <button id="btn-close-model-modal"></button>
       <select id="cfg-provider">
+        <option value="mimo3">MiMo3</option>
         <option value="openai">OpenAI</option>
         <option value="deepseek">DeepSeek</option>
         <option value="custom">Custom</option>
@@ -110,7 +111,7 @@ describe('model-config.js', () => {
       loadModelConfig();
 
       const provSelect = document.getElementById('cfg-provider');
-      expect(provSelect.value).toBe('openai');
+      expect(provSelect.value).toBe('mimo3');
     });
 
     it('custom provider 时显示自定义配置', () => {

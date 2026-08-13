@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // ─── IndexedDB Mock ──────────────────────────────────────
 // Minimal in-memory IndexedDB implementation for testing
@@ -105,8 +105,8 @@ function createIndexedDBMock() {
 
 globalThis.indexedDB = createIndexedDBMock();
 
-// Mock context.js
-vi.mock('../context.js', () => ({
+// Mock the canonical context dependency used by infra/db.js.
+vi.mock('../infra/context.js', () => ({
   DB_NAME: 'TravelAgentDB',
   DB_VERSION: 2,
   STORE_NAME: 'trips',
