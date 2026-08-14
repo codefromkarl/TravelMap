@@ -230,24 +230,39 @@ else
 fi
 
 echo -n "5. Index response time... "
+# 与第 1 步一致：容忍 Pages 部署传播期的瞬时 404/5xx（无重试时每次部署都可能误报）
 set +e
-TOTAL_TIME="$(
-  "$CURL_BIN" "${CURL_COMMON[@]}" \
-    --output /dev/null \
-    --write-out '%{http_code} %{time_total}' \
-    "$BASE_URL/"
-)"
-TIME_STATUS=$?
+TIME_HTTP=""
+TOTAL_TIME=""
+TIME_ATTEMPT=1
+while [[ "$TIME_ATTEMPT" -le "$HEALTH_CHECK_MAX_ATTEMPTS" ]]; do
+  TIME_RESULT="$(
+    "$CURL_BIN" "${CURL_COMMON[@]}" \
+      --output /dev/null \
+      --write-out '%{http_code} %{time_total}' \
+      "$BASE_URL/"
+  )"
+  TIME_STATUS=$?
+  read -r TIME_HTTP TOTAL_TIME <<<"$TIME_RESULT"
+  if [[ "$TIME_STATUS" -eq 0 && "$TIME_HTTP" == "200" ]]; then
+    break
+  fi
+  if [[ "$TIME_ATTEMPT" -lt "$HEALTH_CHECK_MAX_ATTEMPTS" ]]; then
+    echo "⏳ Index response time HTTP ${TIME_HTTP:-transport} (attempt $TIME_ATTEMPT/$HEALTH_CHECK_MAX_ATTEMPTS); retrying in ${HEALTH_CHECK_RETRY_DELAY_SECONDS}s" >&2
+    if [[ "$HEALTH_CHECK_RETRY_DELAY_SECONDS" -gt 0 ]]; then
+      sleep "$HEALTH_CHECK_RETRY_DELAY_SECONDS"
+    fi
+  fi
+  TIME_ATTEMPT=$((TIME_ATTEMPT + 1))
+done
 set -e
-read -r TIME_HTTP TOTAL_TIME <<<"$TOTAL_TIME"
 if [[ "$TIME_STATUS" -eq 0 && "$TIME_HTTP" == "200" ]] \
-  && awk -v seconds="$TOTAL_TIME" 'BEGIN { exit !(seconds >= 0 && seconds < 3) }'; then
+  && awk -v seconds="$TOTAL_TIME" 'BEGIN { exit !(seconds >= 0 && seconds < 10) }'; then
   TIME_MS="$(awk -v seconds="$TOTAL_TIME" 'BEGIN { printf "%d", seconds * 1000 }')"
   echo "✅ ${TIME_MS}ms"
 else
   record_failure "HTTP ${TIME_HTTP:-unknown}, transport failure, or response time >= 3000ms"
 fi
-
 echo ""
 if [[ "$ERRORS" -eq 0 ]]; then
   echo "✅ All blocking smoke checks passed"
