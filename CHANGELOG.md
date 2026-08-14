@@ -4,9 +4,23 @@
 
 > **版本说明**：当前 `package.json` 版本为 `0.1.0`。下面三个并行优化批次构成一次大版本迭代，本条目暂按建议版本 **0.2.0** 撰写，最终版本号以主代理发布决策为准。
 
-## [0.2.0] 2026-08-14 — 三轮并行优化（分享/云同步/安全与离线）
+## [0.2.0] 2026-08-14 — 四轮并行优化（分享/云同步/安全与离线/合规与体验）
 
-> ⏳ 本批次仍在进行中：PWA 安装提示（beforeinstallprompt）等项待主代理合并后补充。
+### 第四批：GDPR 数据导出 / PWA 安装与更新提示 / 新功能 E2E / 文档
+
+#### 合规
+
+- 用户数据导出与账号删除（web/functions/api/account.js）：GET /api/account 导出用户与全部行程 JSON（KV 分页枚举）；DELETE /api/account 幂等清空用户数据（不触碰他人分享）；IP 限流 5 次/分
+- 历史面板新增「导出我的数据 / 删除账号数据」入口（登录可见，本地开发静默）
+
+#### 体验
+
+- PWA 安装提示（beforeinstallprompt → 浮动安装按钮，结果埋点上报）与 Service Worker 更新提示（controllerchange → 一键刷新，三语文案）
+
+#### 质量
+
+- 新增 flows/live-edit.spec.ts 10 个 E2E 用例（实时编辑按钮生命周期/保存链路/行程统计条/主题切换/空态），desktop + mobile 双跑
+- 新增 CHANGELOG.md、README 数据与隐私/安全小节、README.en 同步
 
 ### 第三批：全站 CSP / SW 预缓存 / 实时行程编辑 / 分享埋点
 
