@@ -149,6 +149,7 @@ import { buildSystemPrompt } from '../prompt.js';
 import { initWelcome } from '../welcome.js';
 import { showOnboarding } from '../ui/onboarding.js';
 import { renderTripStats, clearTripStats } from '../trip/trip-stats.js';
+import { initPlanCompare } from '../trip/plan-compare.js';
 import { initPlaceholder, applyI18n, I18N } from '../i18n.js';
 import { session, tryRestoreSession } from '../session.js';
 import { initTravelersPanel } from '../travelers.js';
@@ -741,6 +742,7 @@ export async function initApp() {
   // ─── 欢迎状态 ─────────────────────────────────────────
   initWelcome();
   initGuestDemo();
+  initPlanCompare();
 
   // ─── 新手引导（首次访问时显示） ─────────────────────────
   setTimeout(() => showOnboarding(), 800);

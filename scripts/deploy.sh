@@ -105,6 +105,8 @@ trap cleanup EXIT
 if [[ "$MODE" == "build" ]]; then
   TEMP_ARTIFACT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/travelmap-deploy-artifact.XXXXXX")"
   ARTIFACT_DIR="$TEMP_ARTIFACT_DIR"
+  echo "📊 生成公开评测报告页 (web/eval.html)..."
+  node "$SCRIPT_DIRECTORY/build-eval-page.mjs"
   echo "📦 构建并验证部署 artifact..."
   node "$SCRIPT_DIRECTORY/build-deploy-artifact.mjs" "$ARTIFACT_DIR"
 else

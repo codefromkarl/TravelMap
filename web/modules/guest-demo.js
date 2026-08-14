@@ -15,6 +15,7 @@ import { showDemoGuide } from './ui/onboarding.js';
 const RESULT_ACTION_IDS = [
   'btn-export-md', 'btn-export-pdf', 'btn-share-image', 'btn-share-link-new',
   'btn-share-qr', 'btn-map', 'btn-tts', 'btn-poster', 'btn-voice-companion',
+  'btn-compare-plans',
 ];
 
 function dictionary() {

@@ -28,6 +28,7 @@
     "eval:report": "node scripts/generate-agent-report.mjs",
     "eval:sessions": "node scripts/serve-eval-sessions.mjs",
     "eval:dashboard": "node scripts/generate-eval-dashboard.mjs",
+    "eval:page": "node scripts/build-eval-page.mjs",
     "eval:ab": "node scripts/eval-ab-test.mjs",
     "eval:loop": "bash scripts/eval-loop.sh",
     "eval:loop:ci": "bash scripts/eval-loop.sh --ci",

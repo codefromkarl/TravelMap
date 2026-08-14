@@ -11,6 +11,7 @@ export const MANIFEST_FILE_NAME = "manifest.json";
 
 export const ALLOWED_TOP_LEVEL_FILES = Object.freeze([
   "_headers",
+  "eval.html",
   "favicon.svg",
   "help.html",
   "index.html",
