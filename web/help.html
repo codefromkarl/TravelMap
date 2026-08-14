@@ -60,16 +60,16 @@
   <a class="back-link" href="/">← 返回旅图</a>
 
   <h1>❓ 帮助中心</h1>
-  <p class="subtitle">了解如何使用旅图 TravelMap，快速生成您的专属旅行计划</p>
+  <p class="subtitle">无需登录即可操作完整示例；需要专属旅行计划时再登录</p>
 
   <!-- 快速入门 -->
   <h2>🚀 快速入门</h2>
   <ol class="step-list">
-    <li><strong>打开旅图</strong> — 访问 <a href="/">travel.codefromkarl.xyz</a>，登录或使用免费体验。</li>
-    <li><strong>描述需求</strong> — 在对话框输入目的地、天数、人数、预算等信息。例如："规划一个3天杭州亲子游，带5岁小朋友"。</li>
-    <li><strong>查看行程</strong> — AI 自动生成每日行程，右侧地图实时展示路线和景点。</li>
-    <li><strong>微调优化</strong> — 继续对话微调行程，例如："第二天下午加一个博物馆"。</li>
-    <li><strong>导出分享</strong> — 支持导出 Markdown、PDF、图片、分享链接和二维码。</li>
+    <li><strong>以游客身份进入</strong> — 访问 <a href="/">travel.codefromkarl.xyz</a>，无需登录即可打开主界面。</li>
+    <li><strong>加载完整示例</strong> — 选择预设示例行程，查看每日安排、景点和路线。示例中的日期、天气与价格均为演示数据，不是实时信息。</li>
+    <li><strong>体验完整流程</strong> — 操作地图与路线、查看本地历史记录，并导出 Markdown、PDF、图片、分享链接或二维码。</li>
+    <li><strong>生成专属行程</strong> — 当您输入自己的目的地、天数、人数或预算等需求时，使用 GitHub 或 Google 登录后即可提交给 AI。</li>
+    <li><strong>AI 微调</strong> — 登录后可继续对话调整已生成的专属行程，例如："第二天下午加一个博物馆"。</li>
   </ol>
 
   <!-- 功能亮点 -->
@@ -88,23 +88,23 @@
   <h2>📋 常见问题</h2>
 
   <details class="faq-item">
-    <summary>免费体验有什么限制？</summary>
+    <summary>游客体验有什么限制？</summary>
     <div class="faq-answer">
-      未登录用户可免费体验 1 次完整行程生成 + 1 次微调。登录后可获得更多免费次数。我们仅获取您的公开头像和昵称，不收集其他个人信息。
+      游客可以加载并操作完整示例行程，包括地图、路线、本地历史记录、导出与分享；示例不会调用 AI。输入自定义需求或要求 AI 微调时，需要使用 GitHub 或 Google 登录。示例中的日期、天气和价格为演示数据，并非实时旅行信息。
     </div>
   </details>
 
   <details class="faq-item">
     <summary>需要配置 API Key 吗？</summary>
     <div class="faq-answer">
-      默认使用共享 DeepSeek 模型，无需任何配置即可使用。如果您有自己的 API Key（OpenAI、Anthropic、Google 等），可在「模型配置」中切换，获得更好的体验。
+      游客查看预设示例无需配置 API Key。在线版登录后可使用共享模型生成或微调专属行程；只有自行部署 TravelMap 时，才需要按部署说明配置自己的模型 API Key。
     </div>
   </details>
 
   <details class="faq-item">
     <summary>生成的行程可以编辑吗？</summary>
     <div class="faq-answer">
-      可以！生成行程后，继续在对话框中告诉 AI 您的修改需求，例如："把第三天的景点换成西湖"、"增加预算到 8000 元"，AI 会基于已有行程进行微调。
+      可以。使用 GitHub 或 Google 登录后，继续在对话框中告诉 AI 您的修改需求，例如："把第三天的景点换成西湖"、"增加预算到 8000 元"，AI 会基于已有行程进行微调。游客仍可继续查看、导出和分享当前示例。
     </div>
   </details>
 
@@ -159,7 +159,7 @@
   <details class="faq-item">
     <summary>我的数据安全吗？</summary>
     <div class="faq-answer">
-      您的行程数据仅存储在浏览器本地（IndexedDB），不会上传到我们的服务器。认证信息通过安全的 OAuth 方式获取，我们仅读取您的公开头像和昵称。详见 <a href="/privacy.html">隐私政策</a>。
+      行程历史保存在当前浏览器的 IndexedDB 中，不提供账号云同步。登录服务会通过 OAuth 获取头像、昵称和邮箱，用于创建与识别账户；使用 AI 生成或微调时，您的请求会发送给相应模型服务。详见 <a href="/privacy.html">隐私政策</a>。
     </div>
   </details>
 

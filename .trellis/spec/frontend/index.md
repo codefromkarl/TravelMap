@@ -22,6 +22,7 @@ This directory contains guidelines for the `web/` directory — a **vanilla JS +
 | [State Management](./state-management.md) | Module-level state, context.js, localStorage | ✅ Active |
 | [Quality Guidelines](./quality-guidelines.md) | Forbidden/required patterns, testing, review | ✅ Active |
 | [Type Safety](./type-safety.md) | JSDoc annotations, runtime validation | ✅ Active |
+| [Guest Auth Flow](./guest-auth-flow.md) | Non-blocking guest entry, preset demo, and AI auth boundary | ✅ Active |
 
 ---
 

@@ -53,6 +53,8 @@ describe("auth/login", () => {
   it.each([
     "https://attacker.example/after-login",
     "//attacker.example/after-login",
+    "/\\attacker.example/after-login",
+    "/\n/attacker.example/after-login",
   ])("拒绝外域 redirect: %s", async (redirect) => {
     const req = new Request(`https://example.com/api/auth/login?provider=github&redirect=${encodeURIComponent(redirect)}`);
     const res = await onLoginGet(mockContext(req));

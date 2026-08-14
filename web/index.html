@@ -139,7 +139,7 @@
         "name": "旅图 TravelMap 是免费的吗？",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "是的，旅图 TravelMap 提供免费使用。用户可以免费体验全部核心功能，包括行程生成、地图展示、天气查询等。"
+          "text": "旅图 TravelMap 提供免费的游客演示。无需登录即可操作完整预设行程、地图路线、本地历史、导出和分享；输入自定义需求或使用 AI 微调时需要登录。"
         }
       },
       {
@@ -262,12 +262,13 @@
     <div id="overlay"></div>
 
     <!-- 登录弹窗 -->
-    <div id="auth-overlay" style="display:none">
+    <div id="auth-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
       <div class="auth-card">
-        <h2>🌍 <span data-i18n="authTitle">旅途星辰</span></h2>
+        <button class="auth-close" id="btn-close-auth" type="button" aria-label="关闭登录提示">✕</button>
+        <h2 id="auth-dialog-title">🌍 <span data-i18n="authTitle">旅途星辰</span></h2>
         <div class="auth-subtitle">
-          <span data-i18n="authSubtitle">登录后即可免费体验 AI 旅行规划</span>
-          <div class="tier-badge" data-i18n="freeTierDesc">🎁 免费体验：10 次完整旅程 + 微调 + 详细报告</div>
+          <span data-i18n="authSubtitle">登录后生成你的专属 AI 行程</span>
+          <div class="tier-badge" data-i18n="freeTierDesc">游客仍可继续查看、导出和分享示例行程</div>
         </div>
         <a class="oauth-btn github" href="/api/auth/login?provider=github">
           <span class="oauth-icon">
@@ -281,7 +282,10 @@
           </span>
           <span data-i18n="loginGoogle">使用 Google 登录</span>
         </a>
-        <div class="auth-terms" data-i18n="authTerms">登录即表示同意我们的<a href="/terms.html" target="_blank" rel="noopener noreferrer">服务条款</a>和<a href="/privacy.html" target="_blank" rel="noopener noreferrer">隐私政策</a>。我们仅获取您的公开头像和昵称。</div>
+        <button class="auth-demo-btn" id="btn-continue-demo" type="button" data-i18n="continueDemo">继续体验示例</button>
+        <div class="auth-terms">
+          <span data-i18n="authAgreement">登录即表示同意我们的</span><a href="/terms.html" target="_blank" rel="noopener noreferrer" data-i18n="termsLink">服务条款</a><span data-i18n="andWord">和</span><a href="/privacy.html" target="_blank" rel="noopener noreferrer" data-i18n="privacyLink">隐私政策</a><span data-i18n="authDataUsage">。登录服务会获取头像、昵称和邮箱，用于创建与识别账户。</span>
+        </div>
       </div>
     </div>
     <!-- 分享预览弹窗 -->
@@ -479,17 +483,23 @@
 
       <!-- 左侧：对话面板 -->
       <div id="map-chat-panel">
-        <div id="map-chat-header">
-          <h3>🗺️ <span data-i18n="mapChatTitle">旅图助手</span> <a href="https://github.com/codefromkarl/TravelMap" target="_blank" rel="noopener noreferrer" title="GitHub" style="display:inline-flex;align-items:center;margin-left:6px;color:var(--color-text-muted);transition:color 0.15s"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg></a></h3>
-          <div style="display:flex;gap:4px;align-items:center">
-<button class="map-tool-btn" id="btn-history-map" title="历史行程" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+        <header id="map-chat-header">
+          <h1>🗺️ <span data-i18n="mapChatTitle">旅图助手</span> <a href="https://github.com/codefromkarl/TravelMap" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="GitHub" style="display:inline-flex;align-items:center;margin-left:6px;color:var(--color-text-muted);transition:color 0.15s"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg></a></h1>
+          <div class="map-chat-actions">
+            <button class="map-tool-btn map-chat-text-btn" id="travelers-btn" type="button" title="出行人群" aria-label="设置出行人群">👥 <span>旅行者</span></button>
+            <button class="map-tool-btn" id="btn-history-map" type="button" title="历史行程" aria-label="历史行程"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
             <button class="map-tool-btn" id="btn-open-model" title="模型配置" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-            <div style="display:flex;gap:1px;margin-left:4px">
-              <button class="lang-btn active" data-lang="zh" style="font-size:11px;padding:2px 6px">中</button>
-              <button class="lang-btn" data-lang="en" style="font-size:11px;padding:2px 6px">EN</button>
-              <button class="lang-btn" data-lang="ja" style="font-size:11px;padding:2px 6px">日</button>
+            <div class="map-chat-language-switcher" aria-label="语言选择">
+              <button class="lang-btn active" type="button" data-lang="zh" aria-label="切换为中文">中</button>
+              <button class="lang-btn" type="button" data-lang="en" aria-label="Switch to English">EN</button>
+              <button class="lang-btn" type="button" data-lang="ja" aria-label="日本語に切り替える">日</button>
             </div>
           </div>
+        </header>
+        <div id="guest-banner" class="guest-banner" role="status">
+          <span data-i18n="guestModeDesc">游客模式：可操作完整示例，自定义 AI 行程时再登录</span>
+          <button id="btn-guest-presets" type="button" data-i18n="browseDemo">选择示例</button>
+          <button id="btn-login" type="button" data-i18n="signIn">登录</button>
         </div>
         <div id="map-chat-body">
           <!-- 欢迎提示 -->
@@ -498,6 +508,8 @@
             <div style="font-size:15px;font-weight:600" data-i18n="mapChatWelcome">告诉我你的旅行计划</div>
             <div style="font-size:13px;color:var(--color-text-muted)" data-i18n="mapChatWelcomeDesc">我会帮你搜索景点、查询天气、规划路线、推荐美食</div>
             <div class="quick-prompts">
+              <button class="quick-prompt quick-prompt--discover" type="button" data-action="discover" data-i18n="discoverButton">🗺️ 不知道去哪？智能推荐</button>
+              <button class="quick-prompt quick-prompt--preset" id="btn-guest-demo" type="button" data-i18n="browseDemo">⚡ 一键体验完整示例</button>
               <div class="quick-prompt" data-prompt="我想去旅行，帮我规划一下">🗺️ 帮我规划一个行程</div>
               <div class="quick-prompt" data-prompt="从上海出发去杭州西湖，亲子3人，总预算3000元，明天出发，规划3日游，包含景点、美食和住宿推荐">🏞️ 杭州西湖3日游</div>
               <div class="quick-prompt" data-prompt="从上海出发去北京，亲子3人，总预算5000元，明天出发，规划5日游，包含故宫、长城、颐和园等经典景点">🏛️ 北京5日经典游</div>
@@ -720,16 +732,15 @@
     await detectProxyMode();
     await checkAuth();
 
-    // 初始化（await 确保完成后再初始化地图）
-    // ─── 移除骨架屏 ──────────────────────────────
-    const skeleton = document.getElementById('map-skeleton');
-    if (skeleton) skeleton.remove();
-
-    initApp().then(() => {
+    // 初始化完成前保留骨架屏，避免游客入口先于交互监听器变为可点击
+    try {
+      await initApp();
       initPageMap();
-    }).catch(err => {
+    } catch (err) {
       console.error('[App] 初始化失败:', err);
-    });
+    } finally {
+      document.getElementById('map-skeleton')?.remove();
+    }
   </script>
 </body>
 </html>

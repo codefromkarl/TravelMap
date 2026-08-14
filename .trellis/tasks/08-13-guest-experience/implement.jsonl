@@ -1,0 +1,13 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend package entry and pre-development guidance"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Guest banner, login dialog, i18n, and accessibility patterns"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Guest and authenticated UI state boundaries"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend error handling and scoped test requirements"}
+{"file":".trellis/spec/backend/index.md","reason":"Cloudflare Pages Functions package guidance"}
+{"file":".trellis/spec/backend/pages-api-security.md","reason":"Paid proxy authentication, quota, rate limit, and secret contracts"}
+{"file":".trellis/spec/backend/testing-strategy.md","reason":"Vitest and Playwright layer selection"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend test and value assertion requirements"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Guest identity and quota flow spans browser, auth API, KV, and chat proxy"}
+{"file":".trellis/tasks/08-13-guest-experience/prd.md","reason":"Approved product requirements and acceptance criteria"}
+{"file":".trellis/tasks/08-13-guest-experience/design.md","reason":"Guest session, quota, frontend state, and API contracts"}
+{"file":".trellis/tasks/08-13-guest-experience/implement.md","reason":"Ordered implementation and validation plan"}
+{"file": ".trellis/spec/frontend/guest-auth-flow.md", "reason": "Implement the selected non-blocking guest and AI auth boundary"}

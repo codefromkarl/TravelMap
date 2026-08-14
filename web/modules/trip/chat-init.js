@@ -57,6 +57,25 @@ import { loadSharedTrip, renderSharedTrips } from '../export.js';
 import { loadSharedTripFromHash } from '../share.js';
 import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from '../db.js';
 import { addTraceHeaders, extractTraceId } from '../trace.js';
+import { requireAuth } from '../auth/auth.js';
+import { initGuestDemo } from '../guest-demo.js';
+
+/** Resume a failed turn without duplicating its existing user message. */
+export async function retryLastMessage(agent) {
+  if (!await requireAuth()) return;
+  const msgs = agent.state.messages;
+  const failedAssistant = msgs.at(-1);
+  if (failedAssistant?.role !== 'assistant' || !failedAssistant.errorMessage) return;
+
+  msgs.pop();
+  const continuationMessage = msgs.at(-1);
+  if (continuationMessage?.role !== 'user' && continuationMessage?.role !== 'toolResult') {
+    msgs.push(failedAssistant);
+    return;
+  }
+
+  await agent.continue();
+}
 
 export async function initApp() {
   // ─── 坐标迁移：修复历史记录中的坐标系问题 ───────────
@@ -167,20 +186,6 @@ export async function initApp() {
     });
   }
 
-  /** 重试：重新发送最后一条用户消息 */
-  function retryLastMessage() {
-    const msgs = _agent.state.messages;
-    const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
-    if (lastUserMsg) {
-      const content = typeof lastUserMsg.content === 'string' ? lastUserMsg.content
-        : Array.isArray(lastUserMsg.content) ? lastUserMsg.content.filter(c => c.type === 'text').map(c => c.text).join('') : '';
-      if (content) {
-        const lastAssistant = msgs.filter(m => m.role === 'assistant').slice(-1)[0];
-        if (lastAssistant?.errorMessage) msgs.pop();
-        _agent.run(content);
-      }
-    }
-  }
   _agent.subscribe(async (event) => {
     if (event.type === "agent_end") {
       feedback.done();
@@ -207,7 +212,7 @@ export async function initApp() {
         resetToolbarAfterError();
         const errMsg = lastAssistant.errorMessage;
         console.error("[ChatInit] Agent run failure:", errMsg);
-        feedback.handleAgentError(errMsg, { onRetry: retryLastMessage });
+        feedback.handleAgentError(errMsg, { onRetry: () => retryLastMessage(_agent) });
         return;
       }
 
@@ -322,7 +327,7 @@ export async function initApp() {
       const raw = event.error?.message || event.payload?.error?.message || "";
       const errMsg = String(raw);
       if (errMsg) {
-        feedback.handleAgentError(errMsg, { onRetry: retryLastMessage });
+        feedback.handleAgentError(errMsg, { onRetry: () => retryLastMessage(_agent) });
       } else {
         feedback.error('计划生成失败，请重试');
       }
@@ -464,10 +469,13 @@ export async function initApp() {
     // ─── sendMessage 错误处理 ────────────────────────────
     const origSendMessage = panelInstance.agentInterface.sendMessage.bind(panelInstance.agentInterface);
     panelInstance.agentInterface.sendMessage = async function(input, attachments) {
+      if (!await requireAuth()) return false;
       try {
         await origSendMessage(input, attachments);
+        return true;
       } catch (err) {
         feedback.sendFailed(err.message);
+        return false;
       }
     };
 
@@ -564,6 +572,7 @@ export async function initApp() {
 
   // ─── 欢迎状态 ─────────────────────────────────────────
   initWelcome();
+  initGuestDemo();
 
   // ─── 新手引导（首次访问时显示） ─────────────────────────
   setTimeout(() => showOnboarding(), 800);

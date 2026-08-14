@@ -57,7 +57,9 @@
 
 ### Use Online (Recommended)
 
-Visit **[travel.codefromkarl.xyz](https://travel.codefromkarl.xyz)** and sign in for free access to all features.
+Visit **[travel.codefromkarl.xyz](https://travel.codefromkarl.xyz)** to load a complete preset trip without signing in. Guests can explore the daily itinerary, map and routes, local history, exports, and sharing. Dates, weather, and prices in preset trips are demonstration data, not live travel information.
+
+Sign in with GitHub or Google only when you want to enter your own travel request or ask AI to refine an itinerary. The guest preset demo does not call AI.
 
 ### Local Development
 
@@ -138,7 +140,7 @@ TravelAgent/
 
 ## 🔗 Links
 
-- [🌐 Live Demo](https://travel.codefromkarl.xyz) — Use TravelMap for free
+- [🌐 Live Demo](https://travel.codefromkarl.xyz) — Explore a complete preset trip without signing in
 - [📖 中文文档](./README.md)
 - [🤖 LLMs.txt](https://travel.codefromkarl.xyz/llms.txt) — AI-friendly description file
 - [✍️ Author's Blog](https://codefromkarl.com)
