@@ -118,6 +118,11 @@ async function makeFixtureRepo(): Promise<string> {
   await writeFixtureFile(webRoot, "styles/main.css", "body { background: #ffffff; }\n");
   await writeFixtureFile(
     webRoot,
+    "city/beijing.html",
+    '<!doctype html>\n<html lang="zh-CN">\n<head>\n  <meta charset="utf-8">\n  <title>北京旅游攻略 - 旅图 TravelMap</title>\n  <link rel="icon" type="image/svg+xml" href="../favicon.svg">\n  <link rel="stylesheet" href="../styles/main.css">\n</head>\n<body>\n  <a href="/index.html">返回首页</a>\n</body>\n</html>\n',
+  );
+  await writeFixtureFile(
+    webRoot,
     "vendor/leaflet/leaflet.js",
     "/* fixture leaflet */ export const leaflet = true;\n",
   );
@@ -191,6 +196,7 @@ describe("deploy artifact allowlist and manifest", () => {
     expect(files).toContain("modules/app.js");
     expect(files).toContain("modules/dep.js");
     expect(files).toContain("styles/main.css");
+    expect(files).toContain("city/beijing.html");
     expect(files.some((file) => /^modules\/app\.[0-9a-f]{8}\.js$/.test(file))).toBe(true);
     expect(files.some((file) => /^styles\/main\.[0-9a-f]{8}\.css$/.test(file))).toBe(true);
     expect(files).not.toContain("entry.ts");

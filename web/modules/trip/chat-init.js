@@ -2,12 +2,74 @@
 // cli-proxyapi 返回 Content-Type: text/event-stream（无 charset），
 // 浏览器按 HTTP 规范默认 ISO-8859-1 解码流，UTF-8 中文变成乱码。
 // 拦截 fetch，对 SSE 响应强制修正 Content-Type，并注入 trace headers。
+// 同时为 LLM 流式请求增加首字节超时检测：60 秒无任何响应数据则中止并提示重试。
 const _origFetch = globalThis.fetch;
+
+// ─── 流式首字节超时（毫秒） ─────────────────────────
+const STREAM_FIRST_BYTE_TIMEOUT_MS = 60000;
+
+// Agent 引用 + 超时触发标记（供 initApp 注入，避免与 agent 错误处理重复弹错）
+let _agentRef = null;
+let _streamTimeoutFired = false;
+
+function _isLlmUrl(url) {
+  return url.includes('/v1/chat/completions') || url.includes('/v1/messages') || url.includes('/api/chat');
+}
+
+// ─── 首字节守卫：包装响应 body，首个 chunk / 结束 / 出错时触发回调 ──
+function _wrapBodyFirstByte(body, onFirstByte) {
+  let notified = false;
+  const notify = () => {
+    if (notified) return;
+    notified = true;
+    onFirstByte();
+  };
+  return new ReadableStream({
+    start(controller) {
+      const reader = body.getReader();
+      (async function pump() {
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            notify();
+            if (done) {
+              controller.close();
+              return;
+            }
+            controller.enqueue(value);
+          }
+        } catch (err) {
+          notify();
+          controller.error(err);
+        }
+      })();
+    },
+    cancel(reason) {
+      return body.cancel(reason);
+    },
+  });
+}
+
+function _streamTimeoutMessage() {
+  let lang = "zh";
+  if (typeof localStorage !== "undefined") {
+    lang = localStorage.getItem("travel-agent-lang") || "zh";
+  }
+  const dict = I18N[lang] || I18N.zh;
+  return dict.streamTimeout || I18N.zh.streamTimeout;
+}
+
+function _handleStreamTimeout() {
+  if (_streamTimeoutFired) return;
+  _streamTimeoutFired = true;
+  feedback.error(_streamTimeoutMessage(), _agentRef ? () => retryLastMessage(_agentRef) : null);
+}
+
 globalThis.fetch = function fixedCharsetFetch(input, init) {
   const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
-  
+
   // ─── 注入 trace headers（仅 LLM API 请求） ─────────
-  const isLlmRequest = url.includes('/v1/chat/completions') || url.includes('/v1/messages') || url.includes('/api/chat');
+  const isLlmRequest = _isLlmUrl(url);
   if (isLlmRequest && init && typeof window !== 'undefined' && window.__traceAddHeaders) {
     try {
       const traceHeaders = window.__traceAddHeaders(init.headers || {});
@@ -16,19 +78,55 @@ globalThis.fetch = function fixedCharsetFetch(input, init) {
       // trace 模块未加载时忽略
     }
   }
-  
+
+  // ─── 流式首字节超时检测（仅 LLM 请求） ─────────────
+  let abortController = null;
+  let firstByteTimer = null;
+  if (isLlmRequest) {
+    abortController = new AbortController();
+    const callerSignal = init?.signal;
+    if (callerSignal) {
+      if (callerSignal.aborted) {
+        abortController.abort(callerSignal.reason);
+      } else {
+        callerSignal.addEventListener("abort", () => {
+          if (firstByteTimer) clearTimeout(firstByteTimer);
+          abortController.abort(callerSignal.reason);
+        }, { once: true });
+      }
+    }
+    init = { ...(init || {}), signal: abortController.signal };
+    firstByteTimer = setTimeout(() => {
+      _handleStreamTimeout();
+      abortController.abort();
+    }, STREAM_FIRST_BYTE_TIMEOUT_MS);
+  }
+
   return _origFetch.call(this, input, init).then(resp => {
-    const ct = resp.headers.get('content-type') || '';
-    if (ct.includes('text/event-stream') && !ct.includes('charset')) {
+    const ct = resp.headers.get("content-type") || "";
+    const isSse = ct.includes("text/event-stream");
+    if (isSse && !ct.includes("charset")) {
       const headers = new Headers(resp.headers);
-      headers.set('content-type', 'text/event-stream; charset=utf-8');
-      return new Response(resp.body, {
+      headers.set("content-type", "text/event-stream; charset=utf-8");
+      let body = resp.body;
+      if (body && firstByteTimer) {
+        body = _wrapBodyFirstByte(body, () => clearTimeout(firstByteTimer));
+      } else if (firstByteTimer) {
+        clearTimeout(firstByteTimer);
+      }
+      return new Response(body, {
         status: resp.status,
         statusText: resp.statusText,
         headers,
       });
     }
+    // 非 SSE 响应：响应头到达即视为已有响应数据，清除首字节定时器
+    if (firstByteTimer) clearTimeout(firstByteTimer);
     return resp;
+  }).catch(err => {
+    // fetch 自身失败（连接错误/中止）时清理定时器
+    if (firstByteTimer) clearTimeout(firstByteTimer);
+    throw err;
   });
 };
 
@@ -50,7 +148,7 @@ import { ALL_TOOLS } from '../tools/index.js';
 import { buildSystemPrompt } from '../prompt.js';
 import { initWelcome } from '../welcome.js';
 import { showOnboarding } from '../ui/onboarding.js';
-import { initPlaceholder, applyI18n } from '../i18n.js';
+import { initPlaceholder, applyI18n, I18N } from '../i18n.js';
 import { session, tryRestoreSession } from '../session.js';
 import { initTravelersPanel } from '../travelers.js';
 import { loadSharedTrip, renderSharedTrips } from '../export.js';
@@ -171,6 +269,7 @@ export async function initApp() {
     getApiKey: (prov) => resolveApiKey(prov, model),
   });
   setAgent(_agent);
+  _agentRef = _agent;
 
   // 暴露 panels 供其他模块通过 window 调用
   const panelModule = await import('../panels.js');
@@ -212,6 +311,11 @@ export async function initApp() {
         resetToolbarAfterError();
         const errMsg = lastAssistant.errorMessage;
         console.error("[ChatInit] Agent run failure:", errMsg);
+        // 流式首字节超时已通过 feedback.error 提示（含重试按钮），避免重复弹错
+        if (_streamTimeoutFired) {
+          _streamTimeoutFired = false;
+          return;
+        }
         feedback.handleAgentError(errMsg, { onRetry: () => retryLastMessage(_agent) });
         return;
       }
@@ -270,6 +374,7 @@ export async function initApp() {
       autoSaveTrip();
     }
     if (event.type === "turn_start") {
+      _streamTimeoutFired = false;
       appState.transition('planning');
       feedback.loading('正在规划行程...');
       document.getElementById("export-toolbar")?.classList.remove("visible");

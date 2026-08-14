@@ -139,6 +139,7 @@ function assertAllowedArtifactPath(relativePath) {
   if (relativePath.startsWith("modules/") && relativePath.endsWith(".js")) return;
   if (relativePath.startsWith("styles/") && relativePath.endsWith(".css")) return;
   if (relativePath.startsWith("vendor/") && /\.(?:js|css|png|jpg|jpeg|gif|webp|ico)$/.test(relativePath)) return;
+  if (relativePath.startsWith("city/") && relativePath.endsWith(".html")) return;
   fail("PATH_NOT_ALLOWLISTED", relativePath);
 }
 

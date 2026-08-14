@@ -117,6 +117,7 @@ export const I18N = {
     logout: "退出",
     quotaExhausted: "😢 免费体验次数已用完",
     loginRequired: "请先登录后继续使用",
+    streamTimeout: "响应超时，请重试",
     // ─── 分享 ───────────────────────────────────
     shareImage: "📷 分享图片",
     shareLink: "🔗 分享链接",
@@ -273,6 +274,7 @@ export const I18N = {
     logout: "Sign out",
     quotaExhausted: "😢 Free quota exhausted",
     loginRequired: "Please sign in to continue",
+    streamTimeout: "Response timed out, please retry",
     // ─── Share ──────────────────────────────────
     shareImage: "📷 Share Image",
     shareLink: "🔗 Share Link",
@@ -429,6 +431,7 @@ export const I18N = {
     logout: "ログアウト",
     quotaExhausted: "😢 無料体験回数を使い切りました",
     loginRequired: "続行するにはログインしてください",
+    streamTimeout: "応答がタイムアウトしました。再試行してください",
     // ─── 共有 ───────────────────────────────────
     shareImage: "📷 画像を共有",
     shareLink: "🔗 リンクを共有",

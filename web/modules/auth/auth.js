@@ -11,6 +11,7 @@ import { I18N } from '../i18n.js';
 import { addTraceHeaders, extractTraceId } from '../trace.js';
 import { createLogger } from '../logger.js';
 import { traceAsync } from '../perf-trace.js';
+import { initTripSync, syncTrips } from '../infra/trip-sync.js';
 
 const logger = createLogger('auth');
 
@@ -103,6 +104,10 @@ export function onAuthenticated(data) {
   if (name) name.textContent = user?.name || '';
   const bar = document.getElementById('quota-bar');
   bar?.classList.add('visible');
+
+  // 登录成功后异步触发行程云同步（不阻塞认证 UI；游客/本地由 trip-sync 内部 isLocalHost 守卫）。
+  initTripSync();
+  void syncTrips();
 }
 
 document.getElementById('btn-login')?.addEventListener('click', showAuthOverlay);

@@ -52,6 +52,7 @@ describe('I18N', () => {
     'modelConfigTitle',
     'authTitle',
     'logout',
+    'streamTimeout',
   ];
 
   for (const lang of ['zh', 'en', 'ja']) {

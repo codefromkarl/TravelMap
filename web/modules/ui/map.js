@@ -3,6 +3,7 @@ import { I18N } from '../i18n.js';
 import { loadSupplyPointsFromCache, saveSupplyPointsToCache } from '../db.js';
 import { registerMarker, scrollToAttraction, clearMarkerRegistry } from '../anchor-link.js';
 import { getCachedCoord, setCachedCoord } from '../coord-cache.js';
+import { ttlGet, ttlSet } from '../infra/ttl-cache.js';
 import { markerRegistry } from '../markers.js';
 import { routePlanner } from '../route-planner.js';
 import { matchWeatherToDay, classifyWeatherRisk, shouldShowRadar, buildWindyRadarUrl } from '../weather-planning.js';
@@ -850,6 +851,63 @@ export function hidePlanningIndicator() {
   }
 }
 
+// ─── 搜索框定位（带 TTL 缓存，降低外部 API 配额消耗） ────────
+const POI_TTL_MS = 24 * 60 * 60 * 1000; // 高德 POI 搜索缓存 24h
+const NOMINATIM_TTL_MS = 7 * 24 * 60 * 60 * 1000; // Nominatim 缓存 7 天
+
+/**
+ * 根据查询词返回地图定位结果（高德 POI 搜索 / Nominatim 备选）。
+ * 结果写入 localStorage TTL 缓存；命中缓存时直接返回，不发起网络请求。
+ * @param {string} query 查询词
+ * @param {string} [geoKey] 高德 Geo Key（存在则走高德，否则走 Nominatim）
+ * @returns {Promise<{source: string, lat: number, lng: number, name: string, address: string} | null>}
+ */
+export async function searchLocation(query, geoKey) {
+  if (geoKey) {
+    const cacheKey = `poi:${query}`;
+    const cached = ttlGet(cacheKey);
+    if (cached) return cached;
+
+    const url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&types=风景名胜|餐饮服务|住宿服务&key=${geoKey}&offset=3`;
+    const resp = await fetchWithTimeout(url, {}, 8000);
+    const data = await resp.json();
+    if (data.status === '1' && data.pois?.length > 0) {
+      const poi = data.pois.find(p => p.type?.includes('风景名胜')) || data.pois[0];
+      const loc = poi.location.split(',');
+      const result = {
+        source: 'amap',
+        lat: parseFloat(loc[1]),
+        lng: parseFloat(loc[0]),
+        name: poi.name,
+        address: poi.address || poi.cityname || '',
+      };
+      ttlSet(cacheKey, result, POI_TTL_MS);
+      return result;
+    }
+    return null;
+  }
+
+  const cacheKey = `nominatim:${query}`;
+  const cached = ttlGet(cacheKey);
+  if (cached) return cached;
+
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+  const resp = await fetchWithTimeout(url, {}, 8000);
+  const data = await resp.json();
+  if (data.length > 0) {
+    const result = {
+      source: 'nominatim',
+      lat: parseFloat(data[0].lat),
+      lng: parseFloat(data[0].lon),
+      name: data[0].display_name || query,
+      address: data[0].display_name || query,
+    };
+    ttlSet(cacheKey, result, NOMINATIM_TTL_MS);
+    return result;
+  }
+  return null;
+}
+
 function setupMapInteractions() {
   // ─── 左侧面板拖拽调整宽度 ────────────────────────────
   (function initPanelResizer() {
@@ -1028,7 +1086,7 @@ function setupMapInteractions() {
 
   document.getElementById('btn-map-back')?.addEventListener('click', () => {});
 
-  // 地图搜索功能（高德 POI 搜索 + Nominatim 备选）
+  // 地图搜索功能（高德 POI 搜索 + Nominatim 备选，带 TTL 缓存）
   const searchInput = document.getElementById('map-search-input');
   if (searchInput) {
     searchInput.addEventListener('keydown', (e) => {
@@ -1036,50 +1094,32 @@ function setupMapInteractions() {
         const query = searchInput.value.trim();
         if (query && pageMapInstance) {
           const geoKey = getAmapGeoKey();
-          if (geoKey) {
-            // 使用高德 POI 搜索（返回 GCJ-02 坐标）
-            fetchWithTimeout(`https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(query)}&types=风景名胜|餐饮服务|住宿服务&key=${geoKey}&offset=3`, {}, 8000)
-              .then(r => r.json())
-              .then(data => {
-                if (data.status === '1' && data.pois?.length > 0) {
-                  const poi = data.pois.find(p => p.type?.includes('风景名胜')) || data.pois[0];
-                  const loc = poi.location.split(',');
-                  const gcjLng = parseFloat(loc[0]);
-                  const gcjLat = parseFloat(loc[1]);
-                  // 通过 toTileCoords 转换为当前瓦片坐标系
-                  const [tileLat, tileLng] = toTileCoords(gcjLat, gcjLng);
-                  pageMapInstance.setView([tileLat, tileLng], 15);
-                  const searchMarker = L.marker([tileLat, tileLng]).addTo(pageMapInstance)
-                    .bindPopup(`<b>${poi.name}</b><br>${poi.address || poi.cityname || ''}`)
-                    .openPopup();
-                  pageMapLayers.push(searchMarker);
-                } else {
-                  showToast('未找到该地点', 2500, 'warning');
-                }
-              })
-              .catch(() => showToast('搜索失败，请稍后重试', 3000, 'error'));
-          } else {
-            // 无高德 Key 时使用 Nominatim（返回 WGS-84 坐标）
-            fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {}, 8000)
-              .then(r => r.json())
-              .then(data => {
-                if (data.length > 0) {
-                  const lat = parseFloat(data[0].lat);
-                  const lon = parseFloat(data[0].lon);
-                  // WGS-84 需先转 GCJ-02，再通过 toTileCoords 转换
-                  const gcj = wgs84ToGcj02(lat, lon);
-                  const [tileLat, tileLng] = toTileCoords(gcj.lat, gcj.lng);
-                  pageMapInstance.setView([tileLat, tileLng], 14);
-                  const searchMarker = L.marker([tileLat, tileLng]).addTo(pageMapInstance)
-                    .bindPopup(data[0].display_name || query)
-                    .openPopup();
-                  pageMapLayers.push(searchMarker);
-                } else {
-                  showToast('未找到该地点', 2500, 'warning');
-                }
-              })
-              .catch(() => showToast('搜索失败，请稍后重试', 3000, 'error'));
-          }
+          searchLocation(query, geoKey)
+            .then((result) => {
+              if (!result) {
+                showToast('未找到该地点', 2500, 'warning');
+                return;
+              }
+              if (result.source === 'nominatim') {
+                // WGS-84 需先转 GCJ-02，再通过 toTileCoords 转换
+                const gcj = wgs84ToGcj02(result.lat, result.lng);
+                const [tileLat, tileLng] = toTileCoords(gcj.lat, gcj.lng);
+                pageMapInstance.setView([tileLat, tileLng], 14);
+                const searchMarker = L.marker([tileLat, tileLng]).addTo(pageMapInstance)
+                  .bindPopup(result.address || query)
+                  .openPopup();
+                pageMapLayers.push(searchMarker);
+              } else {
+                // 高德返回 GCJ-02 坐标，通过 toTileCoords 转换为当前瓦片坐标系
+                const [tileLat, tileLng] = toTileCoords(result.lat, result.lng);
+                pageMapInstance.setView([tileLat, tileLng], 15);
+                const searchMarker = L.marker([tileLat, tileLng]).addTo(pageMapInstance)
+                  .bindPopup(`<b>${result.name}</b><br>${result.address || ''}`)
+                  .openPopup();
+                pageMapLayers.push(searchMarker);
+              }
+            })
+            .catch(() => showToast('搜索失败，请稍后重试', 3000, 'error'));
         }
       }
     });

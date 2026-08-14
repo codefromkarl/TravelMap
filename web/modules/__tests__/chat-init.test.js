@@ -13,6 +13,12 @@ const authMocks = vi.hoisted(() => ({
   requireAuth: vi.fn(),
 }));
 
+const fetchMock = vi.hoisted(() => {
+  const fn = vi.fn();
+  globalThis.fetch = fn;
+  return fn;
+});
+
 // Mock 所有依赖
 vi.mock('../context.js', () => ({
   agent: null,
@@ -76,6 +82,11 @@ vi.mock('../map.js', () => ({
 vi.mock('../i18n.js', () => ({
   initPlaceholder: vi.fn(),
   applyI18n: vi.fn(),
+  I18N: {
+    zh: { streamTimeout: "响应超时，请重试" },
+    en: { streamTimeout: "Response timed out, please retry" },
+    ja: { streamTimeout: "応答がタイムアウトしました。再試行してください" },
+  },
 }));
 
 vi.mock('../session.js', () => ({
@@ -125,6 +136,7 @@ vi.mock('../stt.js', () => ({
 }));
 
 // 导入被测模块
+import { feedback } from '../feedback.js';
 import { initApp, retryLastMessage } from '../chat-init.js';
 
 // ─── 测试 ─────────────────────────────────────────────
@@ -216,6 +228,73 @@ describe('chat-init.js', () => {
       expect(continueRun).not.toHaveBeenCalled();
       expect(run).not.toHaveBeenCalled();
       expect(messages).toHaveLength(2);
+    });
+  });
+
+  describe('流式首字节超时', () => {
+    it('60 秒无响应数据时触发超时反馈并中止请求', async () => {
+      vi.useFakeTimers();
+      const errorSpy = vi.spyOn(feedback, 'error').mockImplementation(() => {});
+      try {
+        // 永不产生数据的 SSE 响应体（模拟长时间无首字节）
+        const body = new ReadableStream({
+          start() { /* 永不 enqueue */ },
+        });
+        fetchMock.mockResolvedValue(new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        }));
+
+        const response = await fetch('/api/chat', { method: 'POST', body: '{}' });
+        expect(response).toBeInstanceOf(Response);
+
+        const call = fetchMock.mock.calls[0];
+        // MSW 将 input 归一化为 Request，因此首个参数是 Request 对象
+        expect(call[0].url).toContain('/api/chat');
+        const signal = call[1].signal;
+        expect(signal.aborted).toBe(false);
+
+        vi.advanceTimersByTime(60001);
+
+        expect(signal.aborted).toBe(true);
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        expect(errorSpy.mock.calls[0][0]).toBe('响应超时，请重试');
+      } finally {
+        errorSpy.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
+    it('首字节到达后清除超时定时器，不触发超时反馈', async () => {
+      vi.useFakeTimers();
+      const errorSpy = vi.spyOn(feedback, 'error').mockImplementation(() => {});
+      try {
+        const encoder = new TextEncoder();
+        const body = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'));
+            controller.close();
+          },
+        });
+        fetchMock.mockResolvedValue(new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        }));
+
+        const response = await fetch('/api/chat', { method: 'POST', body: '{}' });
+        const reader = response.body.getReader();
+        await reader.read();
+        await reader.read();
+
+        const signal = fetchMock.mock.calls[0][1].signal;
+        vi.advanceTimersByTime(60001);
+
+        expect(signal.aborted).toBe(false);
+        expect(errorSpy).not.toHaveBeenCalled();
+      } finally {
+        errorSpy.mockRestore();
+        vi.useRealTimers();
+      }
     });
   });
 });

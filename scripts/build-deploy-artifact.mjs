@@ -165,6 +165,7 @@ export async function buildDeployArtifact({
   await copyAllowedTree(resolvedRepoRoot, siteDirectory, "modules", ".js");
   await copyAllowedTree(resolvedRepoRoot, siteDirectory, "styles", ".css");
   await copyAllowedTree(resolvedRepoRoot, siteDirectory, "vendor", [".js", ".css", ".png"]);
+  await copyAllowedTree(resolvedRepoRoot, siteDirectory, "city", ".html");
 
   const functionsDirectory = path.join(resolvedRepoRoot, "web", "functions");
   const workerOutput = path.join(siteDirectory, "_worker.js");

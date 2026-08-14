@@ -38,6 +38,20 @@ export function openDB() {
 // ─── 行程 CRUD ────────────────────────────────────────
 
 /**
+ * 通知行程已变更（云同步监听 travelmap-trip-changed）。
+ * 仅 window 存在时派发；失败静默，不影响保存/删除返回值与既有行为。
+ */
+function notifyTripChanged(id) {
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new window.CustomEvent("travelmap-trip-changed", { detail: { id } }));
+    }
+  } catch {
+    // 静默：事件通知失败不应影响主流程
+  }
+}
+
+/**
  * 保存行程（新版本：结构化数据）
  * @param {object} trip - 完整行程对象
  */
@@ -57,7 +71,10 @@ export async function saveTripPlan(trip) {
         status: trip.status || existing?.status || "active",
       };
       const putReq = store.put(record);
-      putReq.onsuccess = () => resolve(record);
+      putReq.onsuccess = () => {
+        notifyTripChanged(record.id);
+        resolve(record);
+      };
       putReq.onerror = () => reject(putReq.error);
     };
     getReq.onerror = () => reject(getReq.error);
@@ -127,7 +144,10 @@ export async function deleteTripById(id) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const req = tx.objectStore(STORE_NAME).delete(id);
-    req.onsuccess = () => resolve();
+    req.onsuccess = () => {
+      notifyTripChanged(id);
+      resolve();
+    };
     req.onerror = () => reject(req.error);
   });
 }
