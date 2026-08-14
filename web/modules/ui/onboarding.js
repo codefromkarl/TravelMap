@@ -1,22 +1,91 @@
 /**
- * 新手引导模块
+ * 引导模块（onboarding + demo guide）
  *
- * 首次访问时显示 4 步引导：
- * 1. 输入旅行需求
- * 2. 查看生成行程
- * 3. 地图联动预览
- * 4. 分享导出
+ * - 首次访问：4 步新手引导（onboarding）
+ * - 游客加载示例后：3 步示例导览（demo guide，仅在 onboarding 完成后展示，避免叠加）
+ *
+ * 两者共用 runGuide() 渲染器：弹窗 + 高亮 + 步骤指示 + localStorage 去重。
  */
 
-const STORAGE_KEY = 'travel-agent-onboarding-done';
+import { currentLang } from '../infra/context.js';
+import { I18N } from '../i18n.js';
+
+export const ONBOARDING_STORAGE_KEY = 'travel-agent-onboarding-done';
+export const DEMO_GUIDE_STORAGE_KEY = 'travel-agent-demo-guide-done';
+
+const ONBOARDING_STEPS = [
+  {
+    icon: '💬',
+    title: '告诉我你的旅行计划',
+    desc: '输入目的地、天数、预算等需求，AI 为你生成详细行程',
+    highlight: '#map-chat-panel',
+  },
+  {
+    icon: '📋',
+    title: '查看智能行程',
+    desc: 'AI 会生成包含景点、餐饮、住宿的完整行程方案',
+    highlight: '#map-chat-body',
+  },
+  {
+    icon: '🗺️',
+    title: '地图实时预览',
+    desc: '右侧地图自动展示路线、景点标记和导航信息',
+    highlight: '#map-right-area',
+  },
+  {
+    icon: '📤',
+    title: '分享与导出',
+    desc: '生成图片、PDF 或分享链接，一键发送给旅伴',
+    highlight: '#export-toolbar',
+  },
+];
+
+function dictionary() {
+  return I18N[currentLang] || I18N.zh;
+}
+
+/** 示例导览步骤（文案走 i18n） */
+function demoGuideSteps() {
+  const d = dictionary();
+  return [
+    {
+      icon: '📍',
+      title: d.demoGuideTitle1 || '点击地图标记',
+      desc: d.demoGuideDesc1 || '查看景点详情、门票与游玩时长',
+      highlight: '#page-map-container',
+    },
+    {
+      icon: '🛤️',
+      title: d.demoGuideTitle2 || '试试路线与图层',
+      desc: d.demoGuideDesc2 || '切换每日路线、卫星地图与定位',
+      highlight: '#btn-map-routes',
+    },
+    {
+      icon: '📤',
+      title: d.demoGuideTitle3 || '导出分享行程',
+      desc: d.demoGuideDesc3 || '生成海报图片、链接或二维码发送给旅伴',
+      highlight: '#export-toolbar',
+    },
+  ];
+}
 
 /**
- * 检查是否需要显示引导
+ * 检查是否需要显示新手引导
  */
 export function shouldShowOnboarding() {
   // 已完成引导则不显示
-  if (localStorage.getItem(STORAGE_KEY)) return false;
-  // 有历史行程则不显示（非首次用户）
+  if (localStorage.getItem(ONBOARDING_STORAGE_KEY)) return false;
+  return true;
+}
+
+/**
+ * 检查是否需要显示示例导览：
+ * - 已看过则不显示
+ * - onboarding 未完成时不显示（避免两个引导叠加）
+ */
+export function shouldShowDemoGuide() {
+  if (localStorage.getItem(DEMO_GUIDE_STORAGE_KEY)) return false;
+  if (!localStorage.getItem(ONBOARDING_STORAGE_KEY)) return false;
   return true;
 }
 
@@ -25,44 +94,46 @@ export function shouldShowOnboarding() {
  */
 export function showOnboarding() {
   if (!shouldShowOnboarding()) return;
+  runGuide(ONBOARDING_STEPS, { storageKey: ONBOARDING_STORAGE_KEY });
+}
 
-  const steps = [
-    {
-      icon: '💬',
-      title: '告诉我你的旅行计划',
-      desc: '输入目的地、天数、预算等需求，AI 为你生成详细行程',
-      highlight: '#map-chat-panel',
-    },
-    {
-      icon: '📋',
-      title: '查看智能行程',
-      desc: 'AI 会生成包含景点、餐饮、住宿的完整行程方案',
-      highlight: '#map-chat-body',
-    },
-    {
-      icon: '🗺️',
-      title: '地图实时预览',
-      desc: '右侧地图自动展示路线、景点标记和导航信息',
-      highlight: '#map-right-area',
-    },
-    {
-      icon: '📤',
-      title: '分享与导出',
-      desc: '生成图片、PDF 或分享链接，一键发送给旅伴',
-      highlight: '#export-toolbar',
-    },
-  ];
+/**
+ * 显示示例导览（游客加载示例行程后调用）
+ */
+export function showDemoGuide() {
+  if (!shouldShowDemoGuide()) return;
+  runGuide(demoGuideSteps(), { storageKey: DEMO_GUIDE_STORAGE_KEY });
+}
+
+/**
+ * 通用引导渲染器：弹窗 + 高亮 + 步骤指示
+ * @param {Array<{icon: string, title: string, desc: string, highlight: string}>} steps
+ * @param {{storageKey: string}} opts
+ * @returns {{close: () => void}|null} 返回关闭句柄（供测试使用）
+ */
+function runGuide(steps, { storageKey }) {
+  if (localStorage.getItem(storageKey)) return null;
+  if (!steps || steps.length === 0) return null;
+
+  const d = dictionary();
+  const skipText = d.guideSkip || '跳过';
+  const prevText = d.guidePrev || '上一步';
+  const nextText = d.guideNext || '下一步';
+  const doneText = d.guideDone || '开始使用';
 
   let currentStep = 0;
 
   // 创建弹窗 DOM
   const overlay = document.createElement('div');
   overlay.id = 'onboarding-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', steps[0].title);
   overlay.innerHTML = `
     <div class="onboarding-card">
       <div class="onboarding-header">
         <span class="onboarding-step-indicator"></span>
-        <button class="onboarding-skip">跳过</button>
+        <button class="onboarding-skip" type="button">${skipText}</button>
       </div>
       <div class="onboarding-icon"></div>
       <div class="onboarding-title"></div>
@@ -70,8 +141,8 @@ export function showOnboarding() {
       <div class="onboarding-footer">
         <div class="onboarding-dots"></div>
         <div class="onboarding-actions">
-          <button class="onboarding-prev" style="display:none">上一步</button>
-          <button class="onboarding-next">下一步</button>
+          <button class="onboarding-prev" type="button" style="display:none">${prevText}</button>
+          <button class="onboarding-next" type="button">${nextText}</button>
         </div>
       </div>
     </div>
@@ -251,7 +322,7 @@ export function showOnboarding() {
 
     // 按钮状态
     prevBtn.style.display = currentStep === 0 ? 'none' : '';
-    nextBtn.textContent = currentStep === steps.length - 1 ? '开始使用' : '下一步';
+    nextBtn.textContent = currentStep === steps.length - 1 ? doneText : nextText;
 
     // 高亮
     setHighlight(step.highlight);
@@ -262,7 +333,7 @@ export function showOnboarding() {
     clearHighlight();
     overlay.remove();
     style.remove();
-    localStorage.setItem(STORAGE_KEY, '1');
+    localStorage.setItem(storageKey, '1');
   }
 
   // 事件绑定
@@ -288,6 +359,11 @@ export function showOnboarding() {
     if (e.target === overlay) close();
   });
 
+  overlay.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+
   // 初始化
   updateStep();
+  return { close };
 }

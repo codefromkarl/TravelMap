@@ -18,6 +18,18 @@ const contextMocks = vi.hoisted(() => ({
   showToast: vi.fn(),
 }));
 
+// 埋点 mock：分享转化漏斗只关心 track 是否按语义化事件调用
+const analyticsMocks = vi.hoisted(() => ({
+  track: vi.fn(),
+}));
+
+// 分享生成函数 mock：其余 share.js 导出（如 decodeSharedTripContent）保留真实实现
+const shareMocks = vi.hoisted(() => ({
+  generateShareImage: vi.fn(),
+  generateShareLink: vi.fn(),
+  generateQRCode: vi.fn(),
+}));
+
 vi.mock('../infra/context.js', () => ({
   get agent() {
     return contextMocks.agent;
@@ -27,6 +39,25 @@ vi.mock('../infra/context.js', () => ({
   EXPORT_STORAGE_KEY: 'travel-agent-exported-trips',
   lastTripContent: '',
 }));
+
+vi.mock('../infra/analytics.js', () => ({
+  track: analyticsMocks.track,
+  EVENT: Object.freeze({
+    SHARE_CLICK: 'share_click',
+    SHARE_GENERATED: 'share_generated',
+    THEME_TOGGLE: 'theme_toggle',
+  }),
+}));
+
+vi.mock('../share.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    generateShareImage: shareMocks.generateShareImage,
+    generateShareLink: shareMocks.generateShareLink,
+    generateQRCode: shareMocks.generateQRCode,
+  };
+});
 
 // 导入被测模块
 import { getLastAssistantContent, generateMarkdown, loadSharedTrip } from '../export.js';
@@ -177,6 +208,82 @@ describe('export.js', () => {
 
       expect(contextMocks.agent.state.messages).toHaveLength(0);
       expect(contextMocks.showToast).toHaveBeenCalledWith('未找到该分享的行程', 4000, 'warning');
+    });
+  });
+
+  // ─── 分享埋点（转化漏斗）───────────────────────────────
+  describe('分享埋点接入', () => {
+    /** 构建 export.js 顶部事件绑定所需的分享弹窗 DOM */
+    function buildShareDOM() {
+      document.body.innerHTML = [
+        '<button id="btn-share-image"></button>',
+        '<button id="btn-share-link-new"></button>',
+        '<button id="btn-share-qr"></button>',
+        '<div id="share-modal-overlay" hidden>',
+        '<div id="share-modal">',
+        '<div id="share-modal-header"><h2></h2></div>',
+        '<div id="share-preview-image"><img id="share-preview-img"></div>',
+        '<div id="share-qr-container"><img id="share-qr-img"></div>',
+        '</div>',
+        '</div>',
+      ].join('');
+    }
+
+    beforeEach(async () => {
+      vi.resetModules();
+      analyticsMocks.track.mockClear();
+      shareMocks.generateShareImage.mockReset();
+      shareMocks.generateShareLink.mockReset();
+      shareMocks.generateQRCode.mockReset();
+      buildShareDOM();
+      delete window._lastTripPlan;
+      // 重新加载模块，让按钮绑定在本次 DOM 上生效
+      await import('../export.js');
+    });
+
+    afterEach(() => {
+      document.body.innerHTML = '';
+      delete window._lastTripPlan;
+      vi.resetModules();
+    });
+
+    it('点击三个分享按钮各上报一次 share_click', () => {
+      document.getElementById('btn-share-image').click();
+      document.getElementById('btn-share-link-new').click();
+      document.getElementById('btn-share-qr').click();
+
+      expect(analyticsMocks.track.mock.calls).toEqual([
+        ['share_click', { type: 'image' }],
+        ['share_click', { type: 'link' }],
+        ['share_click', { type: 'qr' }],
+      ]);
+    });
+
+    it('图片生成成功后上报 share_generated(image)', async () => {
+      window._lastTripPlan = { city: '杭州', days: [] };
+      shareMocks.generateShareLink.mockReturnValue('https://example.com/?trip=abc');
+      shareMocks.generateQRCode.mockReturnValue('data:image/png;base64,QR');
+      shareMocks.generateShareImage.mockResolvedValue('data:image/png;base64,IMG');
+
+      document.getElementById('btn-share-image').click();
+
+      await vi.waitFor(() => {
+        expect(analyticsMocks.track).toHaveBeenCalledWith('share_generated', { type: 'image' });
+      });
+    });
+
+    it('图片生成失败不上报 share_generated', async () => {
+      window._lastTripPlan = { city: '杭州', days: [] };
+      shareMocks.generateShareLink.mockReturnValue('https://example.com/?trip=abc');
+      shareMocks.generateQRCode.mockReturnValue('data:image/png;base64,QR');
+      shareMocks.generateShareImage.mockResolvedValue(null);
+
+      document.getElementById('btn-share-image').click();
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const generatedCalls = analyticsMocks.track.mock.calls
+        .filter(([eventType]) => eventType === 'share_generated');
+      expect(generatedCalls).toHaveLength(0);
     });
   });
 });

@@ -13,6 +13,25 @@ export function initWelcome() {
       }
     });
   }
+
+  // 「我来描述需求」→ 聚焦聊天输入框
+  const composeBtn = welcomeEl.querySelector('.quick-prompt[data-action="compose"]');
+  if (composeBtn) {
+    composeBtn.addEventListener('click', () => {
+      const editor = document.querySelector('message-editor textarea')
+        || document.querySelector('#chat message-editor textarea');
+      if (editor) {
+        editor.focus({ preventScroll: false });
+        editor.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      }
+    });
+  }
+}
+
+// ─── 导出：供其他模块判断欢迎页是否仍可见 ────────────────
+export function isWelcomeVisible() {
+  const welcomeEl = document.getElementById('map-chat-welcome');
+  return !!welcomeEl && welcomeEl.style.display !== 'none';
 }
 
 // ─── 隐藏欢迎页 ────────────────────────────────────────

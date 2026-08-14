@@ -9,6 +9,8 @@ import { I18N } from './i18n.js';
 import { saveTripPlan } from './db.js';
 import { getPresetTrip, getPresetTripList } from './data/preset-trips.js';
 import { appState } from './app-state.js';
+import { renderTripStats } from './trip/trip-stats.js';
+import { showDemoGuide } from './ui/onboarding.js';
 
 const RESULT_ACTION_IDS = [
   'btn-export-md', 'btn-export-pdf', 'btn-share-image', 'btn-share-link-new',
@@ -54,6 +56,41 @@ function enableResultActions() {
   }
 }
 
+/**
+ * 巡游动画期间的「跳过」浮标
+ * 点击立即跳过动画（收尾仍会执行）；动画结束或超时后自动消失。
+ * @param {Promise<unknown>} renderPromise
+ */
+function showTourSkipChip(renderPromise) {
+  const host = document.getElementById('page-map');
+  if (!host) return;
+
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'tour-skip-chip';
+  chip.textContent = '⏩ ' + (dictionary().tourSkip || '跳过动画');
+  chip.setAttribute('aria-label', dictionary().tourSkip || '跳过动画');
+  host.appendChild(chip);
+
+  let settled = false;
+  const cleanup = () => {
+    if (settled) return;
+    settled = true;
+    chip.remove();
+  };
+
+  chip.addEventListener('click', () => {
+    if (typeof window._skipTripAnimation === 'function') {
+      window._skipTripAnimation();
+    }
+    cleanup();
+  });
+
+  Promise.resolve(renderPromise).then(cleanup, cleanup);
+  // 兜底：动画异常卡住时最多展示 15 秒
+  setTimeout(cleanup, 15000);
+}
+
 export async function loadPresetTrip(key) {
   const preset = getPresetTrip(key);
   if (!preset || !agent) return false;
@@ -77,17 +114,35 @@ export async function loadPresetTrip(key) {
   syncMessages();
   appState.transition('result');
 
+  // ── 电影感渲染选择 ────────────────────────────────────
+  // 首次体验 + 未开启「减少动态效果」时使用巡游动画，之后使用静态渲染。
+  const cinematicKey = 'travel-agent-cinematic-seen';
+  const prefersReducedMotion = typeof matchMedia === 'function'
+    && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let cinematic = false;
+  try {
+    cinematic = !prefersReducedMotion && !localStorage.getItem(cinematicKey);
+  } catch {
+    cinematic = false;
+  }
+
   let renderPromise = Promise.resolve();
-  if (typeof window._renderTripOnMap === 'function') {
-    renderPromise = Promise.resolve(window._renderTripOnMap(tripPlan));
-  } else if (typeof window._renderTripAnimated === 'function') {
+  if (cinematic && typeof window._renderTripAnimated === 'function') {
     renderPromise = Promise.resolve(window._renderTripAnimated(tripPlan));
+    showTourSkipChip(renderPromise);
+    try { localStorage.setItem(cinematicKey, '1'); } catch { /* ignore */ }
+  } else if (typeof window._renderTripOnMap === 'function') {
+    renderPromise = Promise.resolve(window._renderTripOnMap(tripPlan));
   } else if (typeof window._initPageMap === 'function') {
     window._initPageMap();
   }
   void renderPromise.catch(error => {
     console.warn('[GuestDemo] 示例地图渲染失败', error);
   });
+
+  // ── 行程统计条 + 示例导览 ─────────────────────────────
+  renderTripStats(tripPlan);
+  setTimeout(() => showDemoGuide(), 1400);
 
   try {
     await saveTripPlan({

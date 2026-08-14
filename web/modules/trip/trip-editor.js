@@ -21,6 +21,7 @@ const logger = createLogger('trip-editor');
 let editorOverlay = null;
 let currentTrip = null;
 let currentPlan = null;
+let liveTripTitle = null; // 实时编辑保存时使用的行程标题
 
 // ─── 渲染 ────────────────────────────────────────────
 
@@ -121,19 +122,33 @@ function markDirty() { dirty = true; }
 // ─── 保存 ────────────────────────────────────────────
 
 async function save() {
-  if (!currentTrip || !currentPlan) return;
+  if (!currentPlan) return;
   const dict = I18N[currentLang] || I18N.zh;
-  const updated = { ...currentTrip, tripPlan: currentPlan };
   try {
-    await saveTripPlan(updated);
+    let savedTrip;
+    if (currentTrip) {
+      // 历史行程编辑：原记录上更新
+      savedTrip = await saveTripPlan({ ...currentTrip, tripPlan: currentPlan });
+    } else {
+      // 实时编辑：无历史记录 ID，保存为新行程（db.js saveTripPlan 需要 id 字段）
+      savedTrip = await saveTripPlan({
+        id: 'live-' + Date.now(),
+        title: liveTripTitle || dict.tripEditorLiveTitle,
+        city: currentPlan.city,
+        days: currentPlan.days?.length,
+        tripPlan: currentPlan,
+        updatedAt: new Date().toISOString(),
+        summary: '',
+      });
+    }
     // 同步全局状态与地图
     window._lastTripPlan = currentPlan;
     if (typeof window._renderTripAnimated === 'function') {
       window._renderTripAnimated(currentPlan);
     }
     dirty = false;
-    showToast(dict.tripEditorSaved, 2500, 'success');
-    logger.info('行程编辑已保存', { id: currentTrip.id, days: currentPlan.days.length });
+    showToast(currentTrip ? dict.tripEditorSaved : dict.tripEditorSavedToHistory, 2500, 'success');
+    logger.info('行程编辑已保存', { id: savedTrip?.id, days: currentPlan.days.length });
   } catch (error) {
     logger.error('行程保存失败', error);
     showToast(dict.tripEditorSaveFailed + '：' + (error?.message || dict.tripEditorUnknownError), 3500, 'error');
@@ -157,7 +172,32 @@ export async function openTripEditor(tripId) {
     return;
   }
   currentTrip = trip;
+  liveTripTitle = null;
   currentPlan = JSON.parse(JSON.stringify(trip.tripPlan)); // 深拷贝，取消不落库
+  dirty = false;
+
+  if (!editorOverlay) buildOverlay();
+  render();
+  editorOverlay.classList.add('open');
+  editorOverlay.removeAttribute('hidden');
+}
+
+/**
+ * 实时行程编辑：AI 刚生成的行程（不依赖历史记录 ID）直接打开编辑器。
+ * 保存时若 window._lastTripPlan 存在则更新它并重新渲染地图，同时落库为新行程。
+ */
+export async function openTripEditorForPlan(tripPlan, { title } = {}) {
+  const dict = I18N[currentLang] || I18N.zh;
+  if (!tripPlan || !Array.isArray(tripPlan.days)) {
+    showToast(dict.tripEditorNoStructuredData, 3000, 'warning');
+    return;
+  }
+  // 重复打开时先关闭旧的，避免叠加多个编辑器
+  if (editorOverlay?.classList.contains('open')) closeTripEditor();
+
+  currentTrip = null;
+  liveTripTitle = title || null;
+  currentPlan = JSON.parse(JSON.stringify(tripPlan)); // 深拷贝，取消不落库
   dirty = false;
 
   if (!editorOverlay) buildOverlay();
@@ -172,6 +212,7 @@ export function closeTripEditor() {
   editorOverlay.setAttribute('hidden', '');
   currentTrip = null;
   currentPlan = null;
+  liveTripTitle = null;
 }
 
 function buildOverlay() {
@@ -220,3 +261,5 @@ function buildOverlay() {
 
 // 供 history.js 调用
 window._openTripEditor = openTripEditor;
+// 供 chat-init.js / E2E 调用
+window._openTripEditorForPlan = openTripEditorForPlan;

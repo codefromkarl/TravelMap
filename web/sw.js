@@ -1,24 +1,44 @@
 /**
- * TravelMap Service Worker — 运行时缓存策略
+ * TravelMap Service Worker — 运行时缓存策略 + 构建期预缓存
  *
- * 策略：
+ * 预缓存：PRECACHE_MANIFEST 由 scripts/build-deploy-artifact.mjs 在构建期注入。
+ * 仓库版本为空数组（本地开发不预缓存），部署工件中包含完整资产清单，
+ * 使首次访问即可离线可用。
+ *
+ * 运行时策略：
  * - 内容哈希资产（文件名含 .<8位hex>.js/.css）与 vendor/ 静态资源 → cache-first
  * - 页面导航 / HTML → network-first（离线时回退缓存）
  * - 其余同源 GET（API 除外）→ stale-while-revalidate
  * - /api/* 一律走网络（不缓存）
  */
 
-const CACHE_NAME = 'travelmap-v1';
+/*__PRECACHE_MANIFEST__*/
+const PRECACHE_MANIFEST = [];
+
+const CACHE_NAME = "travelmap-v1";
 
 const HASHED_ASSET = /\.[0-9a-f]{8}\.(?:js|css)$/;
 const VENDOR_ASSET = /^\/vendor\//;
 const NAVIGATION = /^\/(?:index\.html)?$/;
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting());
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // 逐项 add + catch：addAll 单项失败会整体失败，这里容忍单项失败。
+      await Promise.all(
+        PRECACHE_MANIFEST.map((asset) =>
+          cache.add(asset).catch((error) => {
+            console.warn("[sw] 预缓存失败:", asset, error);
+          }),
+        ),
+      );
+      await self.skipWaiting();
+    })(),
+  );
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
@@ -28,12 +48,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
   const { request } = event;
-  if (request.method !== 'GET') return;
+  if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return;
+  if (url.pathname.startsWith("/api/")) return;
 
   // 内容哈希资产：cache-first，几乎不会失效
   if (HASHED_ASSET.test(url.pathname) || VENDOR_ASSET.test(url.pathname)) {
@@ -54,7 +74,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // 导航 / HTML：network-first，离线回退缓存
-  if (NAVIGATION.test(url.pathname) || request.mode === 'navigate') {
+  if (NAVIGATION.test(url.pathname) || request.mode === "navigate") {
     event.respondWith(
       (async () => {
         try {
@@ -68,9 +88,9 @@ self.addEventListener('fetch', (event) => {
         } catch {
           const cached = await caches.match(request);
           if (cached) return cached;
-          const fallback = await caches.match('/');
+          const fallback = await caches.match("/");
           if (fallback) return fallback;
-          return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+          return new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } });
         }
       })(),
     );

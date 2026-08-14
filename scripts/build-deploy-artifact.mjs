@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -85,6 +85,103 @@ async function copyAllowedTree(repoRoot, siteDirectory, relativeRoot, allowedExt
   }
 
   await visit(sourceRoot, relativeRoot);
+}
+
+// 预缓存清单：构建期注入 site/sw.js，使部署工件首次访问即可离线可用。
+// 仓库内 sw.js 以 /*__PRECACHE_MANIFEST__*/ 标记 + 空数组声明作为占位；
+// 未找到占位标记时（如 fixture 测试）跳过注入，不报错。
+const PRECACHE_MANIFEST_LIMIT = 200;
+const PRECACHE_MANIFEST_DECLARATION = "const PRECACHE_MANIFEST = ";
+const PRECACHE_MANIFEST_EMPTY = `${PRECACHE_MANIFEST_DECLARATION}[];`;
+const PRECACHE_MANIFEST_MARKER_BLOCK =
+  /\/\*__PRECACHE_MANIFEST__\*\/\nconst PRECACHE_MANIFEST = \[\];/;
+const TOP_LEVEL_HASHED_SCRIPT = /^(?:pi-bundle|app\.bundle)\.[0-9a-f]{8}\.js$/;
+const TOP_LEVEL_HASHED_STYLE = /^pi-web-ui\.[0-9a-f]{8}\.css$/;
+const PRECACHE_TREE_ROOTS = ["styles", "modules", "vendor", "city"];
+
+async function collectPrecacheManifest(siteDirectory) {
+  const rootEntries = await readdir(siteDirectory, { withFileTypes: true });
+  const paths = [];
+
+  for (const entry of rootEntries) {
+    if (entry.isSymbolicLink()) throw new Error(`[PRECACHE_SYMLINK] ${entry.name}`);
+    if (
+      entry.isFile() &&
+      (TOP_LEVEL_HASHED_SCRIPT.test(entry.name) || TOP_LEVEL_HASHED_STYLE.test(entry.name))
+    ) {
+      paths.push(`/${entry.name}`);
+    }
+  }
+
+  for (const relativeRoot of PRECACHE_TREE_ROOTS) {
+    const rootPath = path.join(siteDirectory, relativeRoot);
+    let rootStats;
+    try {
+      rootStats = await lstat(rootPath);
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+    if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
+      throw new Error(`[PRECACHE_TREE_INVALID] ${relativeRoot}`);
+    }
+
+    async function visit(currentDirectory, currentRelative) {
+      const entries = await readdir(currentDirectory, { withFileTypes: true });
+      entries.sort((left, right) => comparePaths(left.name, right.name));
+
+      for (const entry of entries) {
+        const relativePath = path.posix.join(currentRelative, entry.name);
+        if (entry.isSymbolicLink()) throw new Error(`[PRECACHE_SYMLINK] ${relativePath}`);
+        if (entry.isDirectory()) {
+          await visit(path.join(currentDirectory, entry.name), relativePath);
+          continue;
+        }
+        if (!entry.isFile()) throw new Error(`[PRECACHE_NOT_FILE] ${relativePath}`);
+        paths.push(`/${relativePath}`);
+      }
+    }
+
+    await visit(rootPath, relativeRoot);
+  }
+
+  paths.sort(comparePaths);
+  return paths;
+}
+
+async function injectPrecacheManifest(siteDirectory) {
+  const manifest = await collectPrecacheManifest(siteDirectory);
+  if (manifest.length > PRECACHE_MANIFEST_LIMIT) {
+    throw new Error(`[PRECACHE_MANIFEST_LIMIT] ${manifest.length}`);
+  }
+
+  const swPath = path.join(siteDirectory, "sw.js");
+  let swContent;
+  try {
+    swContent = await readFile(swPath, "utf8");
+  } catch {
+    throw new Error("[PRECACHE_SW_MISSING] sw.js");
+  }
+
+  const injectedDeclaration = `${PRECACHE_MANIFEST_DECLARATION}${JSON.stringify(manifest)};`;
+  let injectedContent = swContent;
+  if (PRECACHE_MANIFEST_MARKER_BLOCK.test(swContent)) {
+    injectedContent = swContent.replace(PRECACHE_MANIFEST_MARKER_BLOCK, injectedDeclaration);
+  } else if (swContent.includes(PRECACHE_MANIFEST_EMPTY)) {
+    injectedContent = swContent.replace(PRECACHE_MANIFEST_EMPTY, injectedDeclaration);
+  } else {
+    console.log("precache_manifest=skipped (no /*__PRECACHE_MANIFEST__*/ marker in sw.js)");
+    return;
+  }
+
+  if (injectedContent === swContent) {
+    console.log(`precache_manifest=${manifest.length} (no-op)`);
+    return;
+  }
+  await writeFile(swPath, injectedContent, "utf8");
+  console.log(`precache_manifest=${manifest.length}`);
 }
 
 async function defaultFunctionsBuilder({ repoRoot, functionsDirectory, outputDirectory }) {
@@ -187,6 +284,7 @@ export async function buildDeployArtifact({
   }
 
   await hashAssets(siteDirectory);
+  await injectPrecacheManifest(siteDirectory);
   await createDeployManifest(resolvedArtifactDirectory);
   return validateDeployArtifact(resolvedArtifactDirectory);
 }

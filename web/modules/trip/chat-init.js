@@ -148,6 +148,7 @@ import { ALL_TOOLS } from '../tools/index.js';
 import { buildSystemPrompt } from '../prompt.js';
 import { initWelcome } from '../welcome.js';
 import { showOnboarding } from '../ui/onboarding.js';
+import { renderTripStats, clearTripStats } from '../trip/trip-stats.js';
 import { initPlaceholder, applyI18n, I18N } from '../i18n.js';
 import { session, tryRestoreSession } from '../session.js';
 import { initTravelersPanel } from '../travelers.js';
@@ -157,6 +158,55 @@ import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from '../db.js';
 import { addTraceHeaders, extractTraceId } from '../trace.js';
 import { requireAuth } from '../auth/auth.js';
 import { initGuestDemo } from '../guest-demo.js';
+
+// ─── 实时行程编辑按钮（AI 生成后可直接调整行程） ──────
+// 按钮动态创建并挂到 map-chat-header 的 .map-chat-actions 容器（btn-open-model 所在处），
+// 初始隐藏；行程就绪（finalize_complete / agent_end 且 window._lastTripPlan 存在）后显示。
+function ensureEditLiveTripButton() {
+  let btn = document.getElementById("btn-edit-live-trip");
+  if (btn) return btn;
+  const actions = document.querySelector(".map-chat-actions");
+  if (!actions) return null; // 容器不存在（如单元测试 DOM）时安全跳过
+  const dict = I18N[currentLang] || I18N.zh;
+  btn = document.createElement("button");
+  btn.id = "btn-edit-live-trip";
+  btn.type = "button";
+  btn.className = "map-tool-btn map-chat-text-btn";
+  btn.setAttribute("data-i18n", "tripEditorTitle");
+  btn.setAttribute("data-i18n-title", "tripEditorEditTitle");
+  btn.textContent = dict.tripEditorTitle || "✏️ 编辑行程";
+  btn.title = dict.tripEditorEditTitle || "编辑行程";
+  btn.setAttribute("aria-label", btn.title);
+  btn.style.display = "none";
+  actions.appendChild(btn);
+  btn.addEventListener("click", async () => {
+    const dict = I18N[currentLang] || I18N.zh;
+    const tripPlan = window._lastTripPlan;
+    if (!tripPlan) {
+      showToast(dict.tripEditorNoStructuredData, 3000, "warning");
+      return;
+    }
+    try {
+      const { openTripEditorForPlan } = await import("./trip-editor.js");
+      await openTripEditorForPlan(tripPlan);
+    } catch (error) {
+      console.error("[ChatInit] 打开实时行程编辑失败:", error);
+      showToast(dict.tripEditorLoadFailed, 2500, "error");
+    }
+  });
+  return btn;
+}
+
+function showEditLiveTripButton() {
+  if (!window._lastTripPlan) return;
+  const btn = ensureEditLiveTripButton();
+  if (btn) btn.style.display = "";
+}
+
+function hideEditLiveTripButton() {
+  const btn = document.getElementById("btn-edit-live-trip");
+  if (btn) btn.style.display = "none";
+}
 
 /** Resume a failed turn without duplicating its existing user message. */
 export async function retryLastMessage(agent) {
@@ -286,6 +336,10 @@ export async function initApp() {
   }
 
   _agent.subscribe(async (event) => {
+    // ─── 实时行程编辑按钮：行程生成完成时显示 ──────────
+    if (event.type === "finalize_complete" && window._lastTripPlan) {
+      showEditLiveTripButton();
+    }
     if (event.type === "agent_end") {
       feedback.done();
       appState.transition('result');
@@ -359,6 +413,8 @@ export async function initApp() {
                 window._renderTripAnimated(details.tripPlan);
               }
             }
+            // 行程统计条（AI 生成成功后展示关键数据）
+            renderTripStats(details.tripPlan);
             const hasSupplies = details.tripPlan.days?.some(d =>
               d.attractions?.some(a =>
                 a.routes?.some(r => r.waypoints?.some(wp => wp.supplyPoints?.length > 0))
@@ -371,12 +427,16 @@ export async function initApp() {
           }
         }
       }
+      // 行程就绪：显示实时编辑按钮
+      if (window._lastTripPlan) showEditLiveTripButton();
       autoSaveTrip();
     }
     if (event.type === "turn_start") {
       _streamTimeoutFired = false;
       appState.transition('planning');
       feedback.loading('正在规划行程...');
+      // 新一轮规划开始：行程未就绪，隐藏实时编辑按钮
+      hideEditLiveTripButton();
       document.getElementById("export-toolbar")?.classList.remove("visible");
       ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
         document.getElementById(id)?.classList.add("disabled-ghost");
@@ -657,6 +717,9 @@ export async function initApp() {
     _agent.state.systemPrompt = buildSystemPrompt(currentLang);
   }
 
+  // ─── 实时行程编辑按钮（初始隐藏，行程就绪后显示） ──────
+  ensureEditLiveTripButton();
+
   // ─── 出行人群 ─────────────────────────────────────────
   initTravelersPanel();
 
@@ -707,6 +770,7 @@ export async function initApp() {
   if (btnNewTrip) {
     btnNewTrip.addEventListener('click', () => {
       session.startFresh();
+      clearTripStats();
       showToast('已开启新行程规划', 2000, 'success');
     });
   }

@@ -2879,3 +2879,291 @@ html[data-theme="dark"] .leaflet-control-attribution a {
 }
 .trip-editor-save:hover { background: var(--color-accent-hover); }
 
+/* ════════════════════════════════════════════════════════
+   Hero 开始页（welcome 重设计）
+   ════════════════════════════════════════════════════════ */
+#map-chat-welcome {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 22px 24px 26px;
+}
+
+/* 欢迎态布局：欢迎区可见时，空的聊天面板不参与布局，
+   避免 flex 挤压导致欢迎内容溢出到游客横幅之下。
+   注：pi-chat-panel 自带 inline display:flex，需 !important 覆盖。 */
+#map-chat-body pi-chat-panel { display: none !important; }
+#map-chat-welcome[style*="display: none"] ~ pi-chat-panel {
+  display: flex !important;
+  height: 100%;
+}
+
+/* 装饰区：航线动画 + 漂浮图标 */
+.welcome-hero {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  height: 104px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+.welcome-route-svg { width: 100%; height: 100%; overflow: visible; }
+.welcome-route-path {
+  stroke: var(--color-accent-primary);
+  stroke-width: 2;
+  stroke-dasharray: 6 8;
+  stroke-linecap: round;
+  opacity: 0.75;
+  animation: welcomeRouteDash 1.6s linear infinite;
+}
+.welcome-route-dot {
+  fill: var(--color-accent-primary);
+  animation: welcomeDotPulse 1.6s ease-in-out infinite;
+}
+.welcome-route-plane {
+  animation: welcomePlaneFly 4.2s linear infinite;
+  transform-box: fill-box;
+}
+@keyframes welcomeRouteDash { to { stroke-dashoffset: -28; } }
+@keyframes welcomeDotPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@keyframes welcomePlaneFly {
+  0% { transform: translate(0, 0); opacity: 1; }
+  78% { transform: translate(206px, -56px); opacity: 1; }
+  100% { transform: translate(206px, -56px); opacity: 0; }
+}
+.welcome-float-chip {
+  position: absolute;
+  font-size: 19px;
+  opacity: 0.9;
+  animation: welcomeFloat 5s ease-in-out infinite;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.18));
+  pointer-events: none;
+}
+.welcome-float-chip.c1 { top: 2px; left: 2px; }
+.welcome-float-chip.c2 { top: 16px; right: 0; animation-delay: 0.9s; }
+.welcome-float-chip.c3 { bottom: 0; left: 26px; animation-delay: 1.7s; }
+.welcome-float-chip.c4 { bottom: 6px; right: 22px; animation-delay: 2.5s; }
+.welcome-float-chip.c5 { top: -4px; left: 48%; animation-delay: 3.3s; }
+@keyframes welcomeFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* 品牌 + 标题 */
+.welcome-brand {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+.welcome-title {
+  font-size: 21px;
+  font-weight: 700;
+  margin: 4px 0 0;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+.welcome-tagline {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+  max-width: 330px;
+  line-height: 1.6;
+}
+
+/* 三张动作卡片 */
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+  flex-shrink: 0;
+}
+#map-chat-welcome .welcome-action-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 62px;
+  padding: 10px 14px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+#map-chat-welcome .welcome-action-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 8px 22px rgba(79, 142, 247, 0.16);
+}
+#map-chat-welcome .welcome-action-card:active { transform: translateY(0) scale(0.99); }
+/* 覆盖旧的 quick-prompt 渐变样式，统一为 surface 卡片 */
+#map-chat-welcome .welcome-action-card.quick-prompt--discover,
+#map-chat-welcome .welcome-action-card.quick-prompt--preset {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  font-weight: 400;
+}
+#map-chat-welcome .welcome-action-card.quick-prompt--discover:hover,
+#map-chat-welcome .welcome-action-card.quick-prompt--preset:hover {
+  opacity: 1;
+  border-color: var(--color-accent-primary);
+}
+.welcome-action-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  flex-shrink: 0;
+}
+.welcome-action--demo .welcome-action-icon { background: linear-gradient(135deg, #fbbf24, #f97316); }
+.welcome-action--discover .welcome-action-icon { background: linear-gradient(135deg, #93c5fd, #6366f1); }
+.welcome-action--compose .welcome-action-icon { background: linear-gradient(135deg, #6ee7b7, #10b981); }
+.welcome-action-main { display: block; font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
+.welcome-action-hint { display: block; font-size: 11.5px; color: var(--color-text-muted); margin-top: 2px; }
+
+/* 快捷提示 chips */
+#map-chat-welcome .quick-prompts {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+#map-chat-welcome .quick-prompt[data-prompt] {
+  flex: 1 1 auto;
+  width: auto;
+  padding: 7px 12px;
+  font-size: 12px;
+  min-height: 0;
+  text-align: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  border: 1px solid transparent;
+  color: var(--color-text-secondary);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+#map-chat-welcome .quick-prompt[data-prompt]:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-subtle);
+  background: var(--color-bg-surface);
+}
+.welcome-trust {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  margin-top: 14px;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════════════════════
+   行程统计条
+   ════════════════════════════════════════════════════════ */
+.trip-stats-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  animation: statsSlideDown 0.35s ease-out;
+  flex-shrink: 0;
+}
+.trip-stats-bar[hidden] { display: none; }
+@keyframes statsSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+.trip-stats-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.trip-stats-chip b { color: var(--color-text-primary); font-weight: 700; }
+.trip-stats-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 2px 8px;
+  border-radius: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+.trip-stats-close:hover { background: var(--color-bg-elevated); color: var(--color-text-primary); }
+
+/* ════════════════════════════════════════════════════════
+   巡游动画跳过按钮
+   ════════════════════════════════════════════════════════ */
+.tour-skip-chip {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 1100;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  animation: statsSlideDown 0.3s ease-out;
+  transition: border-color 0.15s;
+}
+.tour-skip-chip:hover { border-color: var(--color-accent-primary); }
+
+/* 移动端：Hero 紧凑化 */
+@media (max-width: 768px) {
+  #map-chat-welcome { padding: 18px 14px 22px; }
+  .welcome-hero { height: 84px; margin-bottom: 0; }
+  .welcome-title { font-size: 18px; }
+  #map-chat-welcome .welcome-action-card { min-height: 56px; padding: 8px 12px; }
+  .welcome-actions { margin-top: 10px; gap: 8px; }
+  /* 约束高度链：面板收缩到视口内，欢迎区内部滚动，避免内容被游客横幅遮挡 */
+  #map-chat-panel { flex-shrink: 1; min-height: 0; }
+  #map-chat-body { min-height: 0; }
+  #map-chat-welcome {
+    max-height: calc(100vh - 160px);
+    max-height: calc(100dvh - 160px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-route-path,
+  .welcome-route-plane,
+  .welcome-route-dot,
+  .welcome-float-chip,
+  .trip-stats-bar,
+  .tour-skip-chip {
+    animation: none !important;
+  }
+}
+
+

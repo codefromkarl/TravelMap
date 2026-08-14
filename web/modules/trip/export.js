@@ -5,6 +5,7 @@ import {
   downloadImage, loadSharedTripFromHash,
   createServerShareId, decodeSharedTripContent
 } from '../share.js';
+import { track, EVENT } from "../infra/analytics.js";
 
 // QR 码生成器懒加载
 let _generateQRCode = null;
@@ -286,6 +287,7 @@ async function openShareModal(type) {
       overlay.removeAttribute('hidden');
       overlay.classList.add('open');
       showToast(dict.shareImageGenerated || '✅ 分享图片已生成', 2500, 'success');
+      track(EVENT.SHARE_GENERATED, { type: "image" });
     }
   } else if (type === 'qr') {
     let qrDataUrl = null;
@@ -331,6 +333,7 @@ async function openShareModal(type) {
       };
       overlay.classList.add('open');
       showToast(dict.shareQRGenerated || '✅ 二维码已生成', 2500, 'success');
+      track(EVENT.SHARE_GENERATED, { type: "qr" });
     } else {
       showToast(dict.shareLoadError || '⚠️ 二维码生成失败，链接过长', 2500, 'warning');
     }
@@ -390,11 +393,13 @@ function closeShareModal() {
 
 // 分享图片
 document.getElementById('btn-share-image')?.addEventListener('click', () => {
+  track(EVENT.SHARE_CLICK, { type: "image" });
   openShareModal('image');
 });
 
 // 分享链接（新）
 document.getElementById('btn-share-link-new')?.addEventListener('click', () => {
+  track(EVENT.SHARE_CLICK, { type: "link" });
   const tripPlan = getShareTripPlan();
   if (!tripPlan) {
     const dict = I18N[currentLang] || I18N.zh;
@@ -423,6 +428,7 @@ document.getElementById('btn-share-link-new')?.addEventListener('click', () => {
 
 // 二维码
 document.getElementById('btn-share-qr')?.addEventListener('click', () => {
+  track(EVENT.SHARE_CLICK, { type: "qr" });
   openShareModal('qr');
 });
 

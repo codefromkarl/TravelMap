@@ -504,19 +504,50 @@
           <button id="btn-login" type="button" data-i18n="signIn">登录</button>
         </div>
         <div id="map-chat-body">
-          <!-- 欢迎提示 -->
+          <!-- 行程统计条（行程加载后显示） -->
+          <div id="trip-stats-bar" class="trip-stats-bar" hidden></div>
+          <!-- 欢迎提示 / Hero 开始页 -->
           <div id="map-chat-welcome">
-            <div style="font-size:36px">✈️</div>
-            <div style="font-size:15px;font-weight:600" data-i18n="mapChatWelcome">告诉我你的旅行计划</div>
-            <div style="font-size:13px;color:var(--color-text-muted)" data-i18n="mapChatWelcomeDesc">我会帮你搜索景点、查询天气、规划路线、推荐美食</div>
+            <div class="welcome-hero" aria-hidden="true">
+              <svg class="welcome-route-svg" viewBox="0 0 300 110" fill="none" focusable="false">
+                <path class="welcome-route-path" d="M16 88 Q 60 34 108 62 T 210 40 T 284 22" />
+                <circle class="welcome-route-dot" cx="16" cy="88" r="5" />
+                <circle class="welcome-route-dot" cx="284" cy="22" r="5" />
+                <text class="welcome-route-plane" x="46" y="70" font-size="18">✈️</text>
+              </svg>
+              <span class="welcome-float-chip c1">🌤️</span>
+              <span class="welcome-float-chip c2">🗺️</span>
+              <span class="welcome-float-chip c3">🏝️</span>
+              <span class="welcome-float-chip c4">🍜</span>
+              <span class="welcome-float-chip c5">💰</span>
+            </div>
+            <div class="welcome-brand">✈️ <span data-i18n="mapChatTitle">旅图助手</span></div>
+            <h2 class="welcome-title" data-i18n="mapChatWelcome">告诉我你的旅行计划</h2>
+            <p class="welcome-tagline" data-i18n="welcomeHeroTagline">AI 驱动的智能旅行规划 · 秒级生成带地图的完整行程</p>
+            <div class="welcome-actions">
+              <button class="quick-prompt quick-prompt--discover welcome-action-card welcome-action--discover" type="button" data-action="discover">
+                <span class="welcome-action-icon">🗺️</span>
+                <span class="welcome-action-main" data-i18n="discoverButton">不知道去哪？智能推荐</span>
+                <span class="welcome-action-hint" data-i18n="welcomeActionDiscoverHint">推荐适合你的目的地</span>
+              </button>
+              <button class="quick-prompt quick-prompt--preset welcome-action-card welcome-action--demo" id="btn-guest-demo" type="button">
+                <span class="welcome-action-icon">⚡</span>
+                <span class="welcome-action-main" data-i18n="browseDemo">一键体验完整示例</span>
+                <span class="welcome-action-hint" data-i18n="welcomeActionDemoHint">无需登录，秒载完整行程</span>
+              </button>
+              <button class="quick-prompt welcome-action-card welcome-action--compose" type="button" data-action="compose">
+                <span class="welcome-action-icon">✍️</span>
+                <span class="welcome-action-main" data-i18n="welcomeActionCompose">我来描述需求</span>
+                <span class="welcome-action-hint" data-i18n="welcomeActionComposeHint">目的地、天数、预算… 自由输入</span>
+              </button>
+            </div>
             <div class="quick-prompts">
-              <button class="quick-prompt quick-prompt--discover" type="button" data-action="discover" data-i18n="discoverButton">🗺️ 不知道去哪？智能推荐</button>
-              <button class="quick-prompt quick-prompt--preset" id="btn-guest-demo" type="button" data-i18n="browseDemo">⚡ 一键体验完整示例</button>
               <div class="quick-prompt" data-prompt="我想去旅行，帮我规划一下">🗺️ 帮我规划一个行程</div>
               <div class="quick-prompt" data-prompt="从上海出发去杭州西湖，亲子3人，总预算3000元，明天出发，规划3日游，包含景点、美食和住宿推荐">🏞️ 杭州西湖3日游</div>
               <div class="quick-prompt" data-prompt="从上海出发去北京，亲子3人，总预算5000元，明天出发，规划5日游，包含故宫、长城、颐和园等经典景点">🏛️ 北京5日经典游</div>
               <div class="quick-prompt" data-prompt="从上海出发去上海迪士尼，亲子3人，总预算3000元，明天出发，规划3日游，包含外滩、迪士尼、豫园等景点">🌃 上海3日游</div>
             </div>
+            <div class="welcome-trust" data-i18n="welcomeTrustChips">🌤 实时天气 · 💰 预算评估 · 🍜 美食推荐 · 📤 一键分享</div>
           </div>
           <!-- 主对话面板（绑定 Agent） -->
           <pi-chat-panel id="chat"></pi-chat-panel>

@@ -4,6 +4,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(self), geolocation=(self), payment=()
   X-XSS-Protection: 1; mode=block
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.amap.com https://*.is.autonavi.com https://*.tile.openstreetmap.org https://server.arcgisonline.com https://*.tile.opentopomap.org https://avatars.githubusercontent.com https://lh3.googleusercontent.com; connect-src 'self' https://restapi.amap.com https://*.amap.com https://nominatim.openstreetmap.org https://api.open-meteo.com data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
 
 /*.html
   Cache-Control: no-cache, no-store, must-revalidate

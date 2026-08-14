@@ -1388,6 +1388,18 @@ async function renderTripOnPageMap(tripPlan) {
 
 // ─── 逐步动画渲染 ──────────────────────────────────────
 let _animAbort = false; // 用于取消正在进行的动画
+let _animRunning = false; // 动画是否正在执行（供跳过按钮轮询）
+
+/**
+ * 跳过当前巡游动画（外部调用）
+ * 动画会尽快中断，并仍然执行收尾（fitBounds / 状态栏 / 路线面板）。
+ */
+window._skipTripAnimation = () => {
+  _animAbort = true;
+};
+
+/** 巡游动画是否正在执行 */
+window._isTripAnimationRunning = () => _animRunning;
 
 /**
  * 逐步动画渲染行程到地图上
@@ -1407,6 +1419,7 @@ async function renderTripAnimated(tripPlan) {
   _animAbort = true;
   await delay(50);
   _animAbort = false;
+  _animRunning = true;
 
   // 清除旧图层
   for (const layer of pageMapLayers) pageMapInstance.removeLayer(layer);
@@ -1456,8 +1469,8 @@ async function renderTripAnimated(tripPlan) {
     }
   }
 
-  for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
-    if (_animAbort) return;
+  dayLoop: for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
+    if (_animAbort) break dayLoop;
     const day = tripPlan.days[dayIdx];
     const dayCity = day.city || tripPlan.city;
     const dayAttrItems = [];
@@ -1488,7 +1501,7 @@ async function renderTripAnimated(tripPlan) {
 
     // ── 景点 markers ────────────────────────────────────
     for (let attrIdx = 0; attrIdx < (day.attractions || []).length; attrIdx++) {
-      if (_animAbort) return;
+      if (_animAbort) break dayLoop;
       const attr = day.attractions[attrIdx];
       const loc = attr.location;
       const globalSeqNum = attrOffset + attrIdx + 1; // 全局连续序号
@@ -1533,7 +1546,7 @@ async function renderTripAnimated(tripPlan) {
 
       // ── 路线 polyline + waypoints ────────────────────────
       if (attr.routes && attr.selectedRouteId) {
-        if (_animAbort) return;
+        if (_animAbort) break dayLoop;
         const route = attr.routes.find(r => r.id === attr.selectedRouteId);
         if (route && route.waypoints && route.waypoints.length > 1) {
           const path = route.waypoints
@@ -1623,7 +1636,7 @@ async function renderTripAnimated(tripPlan) {
     // ── 餐厅 markers ─────────────────────────────────────
     let restaurantCount = 0;
     for (const meal of (day.meals || [])) {
-      if (_animAbort) return;
+      if (_animAbort) break dayLoop;
       const r = meal.restaurant;
       if (r && r.location && r.location.latitude && r.location.longitude) {
         const rIcon = L.divIcon({
@@ -1686,6 +1699,9 @@ async function renderTripAnimated(tripPlan) {
       await delay(routeDelay);
     }
   }
+
+  // ── 动画结束标记（正常结束或被跳过都会走到这里）───────
+  _animRunning = false;
 
   // ── 最终 fitBounds ─────────────────────────────────────
   if (allCoords.length > 0) {

@@ -5,7 +5,10 @@ const productionLikeUrl = 'http://travelmap.localhost:3456/';
 test.describe('guest preset experience', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
+      // 固定新功能状态：跳过首访巡游动画与示例导览，保证流程确定性
       localStorage.setItem('travel-agent-onboarding-done', '1');
+      localStorage.setItem('travel-agent-cinematic-seen', '1');
+      localStorage.setItem('travel-agent-demo-guide-done', '1');
     });
     await page.route('**/api/auth/status', route => route.fulfill({
       status: 401,
