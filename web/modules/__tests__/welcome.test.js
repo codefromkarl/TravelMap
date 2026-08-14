@@ -56,7 +56,7 @@ describe('welcome.js', () => {
       expect(() => initWelcome()).not.toThrow();
     });
 
-    it('点击快捷提示卡片应通过 agent.run 发送消息', () => {
+    it('不在 welcome 模块重复绑定快捷提示发送', () => {
       initWelcome();
 
       const card = document.querySelector('.quick-prompt[data-prompt]');
@@ -64,10 +64,10 @@ describe('welcome.js', () => {
       // 模拟点击
       card.click();
 
-      expect(contextMocks.run).toHaveBeenCalledWith('规划一个杭州三日游');
+      expect(contextMocks.run).not.toHaveBeenCalled();
     });
 
-    it('点击快捷提示卡片应隐藏欢迎页', () => {
+    it('点击快捷提示卡片时等待地图发送边界处理欢迎状态', () => {
       initWelcome();
 
       const card = document.querySelector('.quick-prompt[data-prompt]');
@@ -76,7 +76,7 @@ describe('welcome.js', () => {
       // 模拟点击
       card.click();
 
-      expect(welcomeEl.style.display).toBe('none');
+      expect(welcomeEl.style.display).toBe('');
     });
 
     it('无 welcome 元素时不报错', () => {

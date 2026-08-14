@@ -269,6 +269,10 @@ export const session = {
       if (new URLSearchParams(window.location.search).get("trip")) return false;
 
       const latest = trips[0];
+      // The current trip may have just been saved (for example after loading a
+      // guest preset) while the delayed startup restore check is still pending.
+      // Never ask the user to restore the trip that is already open.
+      if (currentTripId && latest.id === currentTripId) return false;
       const timeDiff = Date.now() - new Date(latest.updatedAt).getTime();
       // 只恢复 24 小时内的行程
       if (timeDiff >= 24 * 60 * 60 * 1000) return false;

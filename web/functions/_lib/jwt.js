@@ -62,5 +62,12 @@ export function extractToken(request) {
 
 /** 仅允许站内绝对路径，禁止 scheme-relative 和外域 URL。 */
 export function isSafeRedirectPath(value) {
-  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//");
+  if (typeof value !== "string" || !value.startsWith("/") || value.includes("\\")) return false;
+  try {
+    const baseOrigin = "https://travelmap.invalid";
+    const parsed = new URL(value, baseOrigin);
+    return parsed.origin === baseOrigin && parsed.pathname.startsWith("/");
+  } catch {
+    return false;
+  }
 }

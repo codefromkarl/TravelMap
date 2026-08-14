@@ -139,7 +139,7 @@
         "name": "旅图 TravelMap 是免费的吗？",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "是的，旅图 TravelMap 提供免费使用。用户可以免费体验全部核心功能，包括行程生成、地图展示、天气查询等。"
+          "text": "旅图 TravelMap 提供免费的游客演示。无需登录即可操作完整预设行程、地图路线、本地历史、导出和分享；输入自定义需求或使用 AI 微调时需要登录。"
         }
       },
       {
@@ -262,12 +262,13 @@
     <div id="overlay"></div>
 
     <!-- 登录弹窗 -->
-    <div id="auth-overlay" style="display:none">
+    <div id="auth-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
       <div class="auth-card">
-        <h2>🌍 <span data-i18n="authTitle">旅途星辰</span></h2>
+        <button class="auth-close" id="btn-close-auth" type="button" aria-label="关闭登录提示">✕</button>
+        <h2 id="auth-dialog-title">🌍 <span data-i18n="authTitle">旅途星辰</span></h2>
         <div class="auth-subtitle">
-          <span data-i18n="authSubtitle">登录后即可免费体验 AI 旅行规划</span>
-          <div class="tier-badge" data-i18n="freeTierDesc">🎁 免费体验：10 次完整旅程 + 微调 + 详细报告</div>
+          <span data-i18n="authSubtitle">登录后生成你的专属 AI 行程</span>
+          <div class="tier-badge" data-i18n="freeTierDesc">游客仍可继续查看、导出和分享示例行程</div>
         </div>
         <a class="oauth-btn github" href="/api/auth/login?provider=github">
           <span class="oauth-icon">
@@ -281,7 +282,10 @@
           </span>
           <span data-i18n="loginGoogle">使用 Google 登录</span>
         </a>
-        <div class="auth-terms" data-i18n="authTerms">登录即表示同意我们的<a href="/terms.html" target="_blank" rel="noopener noreferrer">服务条款</a>和<a href="/privacy.html" target="_blank" rel="noopener noreferrer">隐私政策</a>。我们仅获取您的公开头像和昵称。</div>
+        <button class="auth-demo-btn" id="btn-continue-demo" type="button" data-i18n="continueDemo">继续体验示例</button>
+        <div class="auth-terms">
+          <span data-i18n="authAgreement">登录即表示同意我们的</span><a href="/terms.html" target="_blank" rel="noopener noreferrer" data-i18n="termsLink">服务条款</a><span data-i18n="andWord">和</span><a href="/privacy.html" target="_blank" rel="noopener noreferrer" data-i18n="privacyLink">隐私政策</a><span data-i18n="authDataUsage">。登录服务会获取头像、昵称和邮箱，用于创建与识别账户。</span>
+        </div>
       </div>
     </div>
     <!-- 分享预览弹窗 -->
@@ -491,6 +495,11 @@
             </div>
           </div>
         </div>
+        <div id="guest-banner" class="guest-banner" role="status">
+          <span data-i18n="guestModeDesc">游客模式：可操作完整示例，自定义 AI 行程时再登录</span>
+          <button id="btn-guest-presets" type="button" data-i18n="browseDemo">选择示例</button>
+          <button id="btn-login" type="button" data-i18n="signIn">登录</button>
+        </div>
         <div id="map-chat-body">
           <!-- 欢迎提示 -->
           <div id="map-chat-welcome">
@@ -498,6 +507,7 @@
             <div style="font-size:15px;font-weight:600" data-i18n="mapChatWelcome">告诉我你的旅行计划</div>
             <div style="font-size:13px;color:var(--color-text-muted)" data-i18n="mapChatWelcomeDesc">我会帮你搜索景点、查询天气、规划路线、推荐美食</div>
             <div class="quick-prompts">
+              <button class="quick-prompt quick-prompt--preset" id="btn-guest-demo" type="button" data-i18n="browseDemo">⚡ 一键体验完整示例</button>
               <div class="quick-prompt" data-prompt="我想去旅行，帮我规划一下">🗺️ 帮我规划一个行程</div>
               <div class="quick-prompt" data-prompt="从上海出发去杭州西湖，亲子3人，总预算3000元，明天出发，规划3日游，包含景点、美食和住宿推荐">🏞️ 杭州西湖3日游</div>
               <div class="quick-prompt" data-prompt="从上海出发去北京，亲子3人，总预算5000元，明天出发，规划5日游，包含故宫、长城、颐和园等经典景点">🏛️ 北京5日经典游</div>
@@ -720,16 +730,21 @@
     await detectProxyMode();
     await checkAuth();
 
-    // 初始化（await 确保完成后再初始化地图）
-    // ─── 移除骨架屏 ──────────────────────────────
-    const skeleton = document.getElementById('map-skeleton');
-    if (skeleton) skeleton.remove();
-
-    initApp().then(() => {
+    // 初始化完成前保留骨架屏，避免游客入口先于交互监听器变为可点击
+    try {
+      await initApp();
       initPageMap();
-    }).catch(err => {
+      // initPageMap installs prompt listeners inside its deferred Leaflet setup.
+      // Keep the skeleton above the guest controls until that callback finishes.
+      const mapReadyDeadline = Date.now() + 2000;
+      while (!window._pageMapInstance && Date.now() < mapReadyDeadline) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+    } catch (err) {
       console.error('[App] 初始化失败:', err);
-    });
+    } finally {
+      document.getElementById('map-skeleton')?.remove();
+    }
   </script>
 </body>
 </html>

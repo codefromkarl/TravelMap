@@ -57,7 +57,9 @@
 
 ### 在线使用（推荐）
 
-直接访问 **[travel.codefromkarl.xyz](https://travel.codefromkarl.xyz)**，登录后即可免费体验全部功能。
+直接访问 **[travel.codefromkarl.xyz](https://travel.codefromkarl.xyz)**。无需登录即可加载完整预设示例，并体验每日行程、地图路线、本地历史记录、导出与分享。示例中的日期、天气和价格均为演示数据，并非实时旅行信息。
+
+当您输入自己的旅行需求或要求 AI 微调时，再使用 GitHub 或 Google 登录。游客预设演示不会调用 AI。
 
 ### 本地开发
 
@@ -138,7 +140,7 @@ TravelAgent/
 
 ## 🔗 相关链接
 
-- [🌐 在线体验](https://travel.codefromkarl.xyz) — 免费使用旅图 TravelMap
+- [🌐 在线体验](https://travel.codefromkarl.xyz) — 无需登录即可操作完整示例行程
 - [📖 English README](./README.en.md)
 - [🤖 LLMs.txt](https://travel.codefromkarl.xyz/llms.txt) — AI 友好描述文件
 - [✍️ 作者博客](https://codefromkarl.com)

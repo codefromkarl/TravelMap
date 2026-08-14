@@ -57,6 +57,8 @@ import { loadSharedTrip, renderSharedTrips } from '../export.js';
 import { loadSharedTripFromHash } from '../share.js';
 import { saveTripPlan, listTrips, migrateCoordinatesToGcj02 } from '../db.js';
 import { addTraceHeaders, extractTraceId } from '../trace.js';
+import { requireAuth } from '../auth/auth.js';
+import { initGuestDemo } from '../guest-demo.js';
 
 export async function initApp() {
   // ─── 坐标迁移：修复历史记录中的坐标系问题 ───────────
@@ -168,7 +170,8 @@ export async function initApp() {
   }
 
   /** 重试：重新发送最后一条用户消息 */
-  function retryLastMessage() {
+  async function retryLastMessage() {
+    if (!await requireAuth()) return;
     const msgs = _agent.state.messages;
     const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
     if (lastUserMsg) {
@@ -464,10 +467,13 @@ export async function initApp() {
     // ─── sendMessage 错误处理 ────────────────────────────
     const origSendMessage = panelInstance.agentInterface.sendMessage.bind(panelInstance.agentInterface);
     panelInstance.agentInterface.sendMessage = async function(input, attachments) {
+      if (!await requireAuth()) return false;
       try {
         await origSendMessage(input, attachments);
+        return true;
       } catch (err) {
         feedback.sendFailed(err.message);
+        return false;
       }
     };
 
@@ -564,6 +570,7 @@ export async function initApp() {
 
   // ─── 欢迎状态 ─────────────────────────────────────────
   initWelcome();
+  initGuestDemo();
 
   // ─── 新手引导（首次访问时显示） ─────────────────────────
   setTimeout(() => showOnboarding(), 800);

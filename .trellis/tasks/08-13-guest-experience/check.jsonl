@@ -1,0 +1,9 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify frontend behavior, i18n, and test quality"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify UI consistency and accessibility"}
+{"file":".trellis/spec/backend/pages-api-security.md","reason":"Verify guest access does not weaken paid proxy security"}
+{"file":".trellis/spec/backend/testing-strategy.md","reason":"Verify correct scoped test layers and browser evidence"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify substantive assertions and failure paths"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify end-to-end identity and quota flow"}
+{"file":".trellis/tasks/08-13-guest-experience/prd.md","reason":"Check implementation against acceptance criteria"}
+{"file":".trellis/tasks/08-13-guest-experience/design.md","reason":"Check implementation against security and API design"}
+{"file": ".trellis/spec/frontend/guest-auth-flow.md", "reason": "Verify guest entry and custom AI auth gating against the durable contract"}
