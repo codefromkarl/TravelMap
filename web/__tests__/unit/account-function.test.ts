@@ -81,7 +81,7 @@ async function createContext(options: {
   }
 
   const method = options.method || "GET";
-  const request = new Request("https://example.com" + (options.path || "/api/account/export"), {
+  const request = new Request("https://example.com" + (options.path || "/api/account"), {
     method,
     headers,
     body: options.rawBody !== undefined ? options.rawBody : undefined,
@@ -142,8 +142,8 @@ describe("authentication", () => {
 });
 
 describe("routing", () => {
-  it("returns 404 for GET /api/account without the export path", async () => {
-    const response = await onRequest(await createContext({ method: "GET", path: "/api/account" }));
+  it("rejects unknown GET sub-paths (Pages exact routing: export lives on the root path)", async () => {
+    const response = await onRequest(await createContext({ method: "GET", path: "/api/account/export" }));
     expect(response.status).toBe(404);
     expect((await response.json()).code).toBe("NOT_FOUND");
   });
@@ -155,7 +155,7 @@ describe("routing", () => {
   });
 });
 
-describe("GET /api/account/export", () => {
+describe("GET /api/account (data export)", () => {
   it("exports user and all trips across paginated KV list", async () => {
     const kv = createMockKv();
     const tripA = makeTrip({ id: "a1" });
@@ -251,7 +251,7 @@ describe("DELETE /api/account", () => {
 
 describe("rate limiting", () => {
   it.each([
-    ["GET /api/account/export", "GET", "/api/account/export"],
+    ["GET /api/account", "GET", "/api/account"],
     ["DELETE /api/account", "DELETE", "/api/account"],
   ])("returns 429 for %s when the IP limit is exhausted", async (_label, method, path) => {
     const kv = createMockKv();

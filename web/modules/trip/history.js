@@ -213,7 +213,7 @@ async function exportMyData() {
     return;
   }
   try {
-    const res = await fetch("/api/account/export", {
+    const res = await fetch("/api/account", {
       credentials: "same-origin",
       cache: "no-store",
       headers: { Accept: "application/json" },

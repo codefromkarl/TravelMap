@@ -1,8 +1,10 @@
 /**
  * 账号数据导出与删除（GDPR 合规）— Cloudflare Pages Function
  *
- * GET    /api/account/export -> 导出当前用户完整数据 { user: {id,name,email,createdAt}, trips: [...], exportedAt }
- * DELETE /api/account         -> 删除当前用户全部数据 { deleted: { user: true, trips: N } }
+ * GET    /api/account -> 导出当前用户完整数据 { user: {id,name,email,createdAt}, trips: [...], exportedAt }
+ * DELETE /api/account -> 删除当前用户全部数据 { deleted: { user: true, trips: N } }
+ * 注意：Pages Functions 中 account.js 只路由 /api/account 精确路径，
+ * 子路径（如 /api/account/export）会落入 SPA 回退，因此导出不走子路径。
  *
  * 需要 JWT 认证（auth_token Cookie）。两个端点都受 IP 限流保护（每 IP 每分钟 ≤ 5 次）。
  * 安全模式对齐 chat.js / trips.js：same-origin 校验、no-store 响应头、稳定错误码。
@@ -166,8 +168,8 @@ function parseAccountPath(request) {
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts.length < 2 || parts[0] !== "api" || parts[1] !== "account") return undefined;
+    // Pages Functions 精确路由：仅 /api/account 命中本文件；子路径（含 export）不在此处理
     if (parts.length === 2) return null;
-    if (parts.length === 3 && parts[2] === "export") return "export";
     return undefined;
   } catch {
     return undefined;
@@ -216,7 +218,7 @@ export async function onRequest(context) {
   if (accountPath === undefined) {
     return jsonResponse(404, "NOT_FOUND", "Not found");
   }
-  if (request.method === "GET" && accountPath !== "export") {
+  if (request.method === "GET" && accountPath !== null) {
     return jsonResponse(404, "NOT_FOUND", "Not found");
   }
   if (request.method === "DELETE" && accountPath !== null) {

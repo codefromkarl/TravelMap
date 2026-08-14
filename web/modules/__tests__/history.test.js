@@ -336,7 +336,7 @@ describe('账号数据操作按钮', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('导出按钮点击调用 /api/account/export 并触发下载', async () => {
+  it('导出按钮点击调用 /api/account 并触发下载', async () => {
     useRemoteLocation();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -356,7 +356,7 @@ describe('账号数据操作按钮', () => {
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
-    expect(fetchMock).toHaveBeenCalledWith('/api/account/export', expect.objectContaining({
+    expect(fetchMock).toHaveBeenCalledWith('/api/account', expect.objectContaining({
       credentials: 'same-origin',
     }));
     await vi.waitFor(() => {
