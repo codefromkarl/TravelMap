@@ -8,7 +8,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 
 // Mock 依赖
 vi.mock('../context.js', () => ({
@@ -240,3 +240,175 @@ describe('日期格式化逻辑', () => {
     expect(diffDay).toBe(3);
   });
 });
+// ─── 账号数据操作按钮（GDPR 合规）────────────────────
+describe('账号数据操作按钮', () => {
+  let originalLocationDescriptor;
+  let originalConfirmDescriptor;
+
+  beforeAll(() => {
+    originalLocationDescriptor = Object.getOwnPropertyDescriptor(window, 'location');
+    originalConfirmDescriptor = Object.getOwnPropertyDescriptor(window, 'confirm');
+  });
+
+  beforeEach(async () => {
+    vi.resetModules();
+    document.body.innerHTML = '<div id="history-panel"><div id="history-list"></div></div>';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    try { delete URL.createObjectURL; } catch { /* ignore */ }
+    try { delete URL.revokeObjectURL; } catch { /* ignore */ }
+    if (originalLocationDescriptor) {
+      Object.defineProperty(window, 'location', originalLocationDescriptor);
+    } else {
+      try { delete window.location; } catch { /* ignore */ }
+    }
+    if (originalConfirmDescriptor) {
+      Object.defineProperty(window, 'confirm', originalConfirmDescriptor);
+    }
+  });
+
+  function useRemoteLocation() {
+    const locationMock = { hostname: 'travel.codefromkarl.xyz', reload: vi.fn() };
+    Object.defineProperty(window, 'location', {
+      value: locationMock,
+      configurable: true,
+      writable: true,
+    });
+    return locationMock;
+  }
+
+  function useConfirm(value) {
+    Object.defineProperty(window, 'confirm', {
+      value: vi.fn(() => value),
+      configurable: true,
+      writable: true,
+    });
+  }
+
+  it('历史面板底部渲染导出与删除按钮，未登录时隐藏', async () => {
+    const module = await import('../history.js');
+    const container = document.getElementById('account-actions');
+    expect(container).toBeTruthy();
+    expect(container.querySelector('#btn-export-my-data')).toBeTruthy();
+    expect(container.querySelector('#btn-delete-account')).toBeTruthy();
+    expect(container.querySelector('#btn-export-my-data').textContent).toBe('导出我的数据');
+    expect(container.querySelector('#btn-delete-account').textContent).toBe('删除账号数据');
+    expect(container.style.display).toBe('none');
+    // 按钮容器位于 history-list 之后、面板底部
+    expect(module.historyList.nextElementSibling).toBe(container);
+  });
+
+  it('登录后显示按钮', async () => {
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'u1', name: '测试用户' });
+    await import('../history.js');
+    const container = document.getElementById('account-actions');
+    expect(container.style.display).toBe('flex');
+  });
+
+  it('打开历史面板时按当前登录态刷新按钮', async () => {
+    const module = await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    const { listTrips } = await import('../db.js');
+    const container = document.getElementById('account-actions');
+    expect(container.style.display).toBe('none');
+
+    ctx.setCurrentUser({ id: 'u1' });
+    listTrips.mockResolvedValue([]);
+    await module.renderHistory();
+    expect(container.style.display).toBe('flex');
+
+    ctx.setCurrentUser(null);
+    await module.renderHistory();
+    expect(container.style.display).toBe('none');
+  });
+
+  it('本地开发环境不发起云端导出请求（isLocalHost 守卫）', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'u1' });
+    document.getElementById('btn-export-my-data').click();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('导出按钮点击调用 /api/account/export 并触发下载', async () => {
+    useRemoteLocation();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ user: { id: 'u1' }, trips: [], exportedAt: '2026-01-01T00:00:00.000Z' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const createObjectURL = vi.fn(() => 'blob:mock-export');
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'u1' });
+    document.getElementById('btn-export-my-data').click();
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/account/export', expect.objectContaining({
+      credentials: 'same-origin',
+    }));
+    await vi.waitFor(() => {
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+    clickSpy.mockRestore();
+  });
+
+  it('删除按钮：确认后调用 DELETE 并清空本地行程', async () => {
+    const locationMock = useRemoteLocation();
+    useConfirm(true);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ deleted: { user: true, trips: 2 } }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'u1' });
+    const { listTrips, deleteTripById } = await import('../db.js');
+    listTrips.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
+    deleteTripById.mockResolvedValue();
+
+    document.getElementById('btn-delete-account').click();
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/account', expect.objectContaining({
+      method: 'DELETE',
+      credentials: 'same-origin',
+    }));
+    expect(window.confirm).toHaveBeenCalledWith('此操作将永久删除你的账号数据（行程、设置等），且不可恢复。确定继续吗？');
+    await vi.waitFor(() => {
+      expect(deleteTripById).toHaveBeenCalledTimes(2);
+    });
+    expect(deleteTripById).toHaveBeenCalledWith('t1');
+    expect(deleteTripById).toHaveBeenCalledWith('t2');
+    expect(locationMock.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('删除按钮：取消确认时不发起请求', async () => {
+    useRemoteLocation();
+    useConfirm(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'u1' });
+    document.getElementById('btn-delete-account').click();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+

@@ -56,6 +56,11 @@ initErrorReporting();
 import { initAnalytics } from './infra/analytics.js';
 initAnalytics();
 
+// ─── PWA 安装提示 + Service Worker 更新提示 ──────────
+import { setupInstallPrompt, setupUpdatePrompt } from './infra/pwa.js';
+setupInstallPrompt();
+setupUpdatePrompt();
+
 // ─── 自初始化模块（执行 side-effect）───────────────
 import './infra/storage.js';
 import './ui/panels.js';

@@ -195,6 +195,9 @@ export const I18N = {
     tripEditorEditTitle: "编辑行程（调整景点顺序）",
     tripEditorSavedToHistory: "✅ 已保存到历史行程",
     tripEditorLiveTitle: "实时编辑行程",
+    // ─── PWA ────────────────────────────────────
+    installPwa: "安装到主屏幕",
+    updateReady: "新版本已就绪，点击刷新",
   },
   en: {
     subtitle: "AI Travel Planner",
@@ -389,6 +392,9 @@ export const I18N = {
     tripEditorEditTitle: "Edit itinerary (reorder attractions)",
     tripEditorSavedToHistory: "✅ Saved to itinerary history",
     tripEditorLiveTitle: "Live Edited Trip",
+    // ─── PWA ────────────────────────────────────
+    installPwa: "Install to Home Screen",
+    updateReady: "New version ready, tap to refresh",
   },
   ja: {
     subtitle: "AI旅行プランナー",
@@ -583,6 +589,9 @@ export const I18N = {
     tripEditorEditTitle: "旅程を編集（観光スポットの順序調整）",
     tripEditorSavedToHistory: "✅ 旅程履歴に保存しました",
     tripEditorLiveTitle: "リアルタイム編集の旅程",
+    // ─── PWA ────────────────────────────────────
+    installPwa: "ホーム画面に追加",
+    updateReady: "新しいバージョンが準備できました。タップして更新",
   },
 };
 

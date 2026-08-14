@@ -1,4 +1,4 @@
-import { agent, currentLang, currentTripId, setCurrentTripId, showToast } from '../infra/context.js';
+import { agent, currentLang, currentTripId, currentUser, setCurrentTripId, showToast } from '../infra/context.js';
 import { listTrips, loadTripById, deleteTripById } from '../db.js';
 import { I18N } from '../infra/i18n.js';
 
@@ -77,6 +77,7 @@ function renderTripCard(trip) {
 export const historyList = document.getElementById("history-list");
 
 export async function renderHistory() {
+  updateAccountActions();
   try {
     const trips = await listTrips();
     if (trips.length === 0) {
@@ -193,4 +194,110 @@ document.getElementById("btn-close-history")?.addEventListener("click", () => {
   const { closePanel } = window._panels || {};
   closePanel?.("history-panel");
 });// deploy test 2026年 05月 22日 星期五 10:51:56 CST
+// ─── 账号数据导出与删除（GDPR 合规）─────────────────────
+// 本地开发 / E2E 的静态服务器没有 /api/account 路由（与 analytics.js 的 isLocalHost 策略一致）。
+function isLocalHost() {
+  if (typeof location === "undefined") return true;
+  return ["localhost", "127.0.0.1"].includes(location.hostname);
+}
+
+function updateAccountActions() {
+  const container = document.getElementById("account-actions");
+  if (!container) return;
+  container.style.display = currentUser ? "flex" : "none";
+}
+
+async function exportMyData() {
+  if (isLocalHost() || !currentUser) {
+    showToast("云端数据导出仅对登录用户开放", 2500, 'warning');
+    return;
+  }
+  try {
+    const res = await fetch("/api/account/export", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      showToast("导出失败，请稍后重试", 2500, 'error');
+      return;
+    }
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const dateStr = new Date().toISOString().split("T")[0];
+    a.href = url;
+    a.download = `travelmap-data-${dateStr}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("我的数据已导出", 2500, 'success');
+  } catch {
+    showToast("导出失败，请检查网络后重试", 2500, 'error');
+  }
+}
+
+async function deleteAccountData() {
+  if (isLocalHost() || !currentUser) {
+    showToast("云端数据删除仅对登录用户开放", 2500, 'warning');
+    return;
+  }
+  if (!window.confirm("此操作将永久删除你的账号数据（行程、设置等），且不可恢复。确定继续吗？")) {
+    return;
+  }
+  try {
+    const res = await fetch("/api/account", {
+      method: "DELETE",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      showToast("删除失败，请稍后重试", 2500, 'error');
+      return;
+    }
+    showToast("账号数据已删除", 2500, 'success');
+    // 清空本地 IndexedDB 中的行程：复用 db.js 现有 API，避免改动 db.js
+    try {
+      const trips = await listTrips();
+      for (const trip of trips) await deleteTripById(trip.id);
+    } catch {
+      // 本地清理失败不阻塞页面刷新
+    }
+    window.location.reload();
+  } catch {
+    showToast("删除失败，请检查网络后重试", 2500, 'error');
+  }
+}
+
+function ensureAccountActions() {
+  const panel = document.getElementById("history-panel");
+  if (!panel || document.getElementById("account-actions")) return;
+
+  const container = document.createElement("div");
+  container.id = "account-actions";
+  container.style.cssText = "padding:12px;gap:8px;border-top:1px solid var(--color-border-subtle);";
+
+  const exportBtn = document.createElement("button");
+  exportBtn.id = "btn-export-my-data";
+  exportBtn.type = "button";
+  exportBtn.textContent = "导出我的数据";
+  exportBtn.style.cssText = "flex:1;font-size:12px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-border-default);background:var(--color-bg-elevated);color:var(--color-text-secondary);cursor:pointer;";
+  exportBtn.addEventListener("click", exportMyData);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.id = "btn-delete-account";
+  deleteBtn.type = "button";
+  deleteBtn.textContent = "删除账号数据";
+  deleteBtn.style.cssText = "flex:1;font-size:12px;padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-danger);background:var(--color-bg-elevated);color:var(--color-danger);cursor:pointer;";
+  deleteBtn.addEventListener("click", deleteAccountData);
+
+  container.appendChild(exportBtn);
+  container.appendChild(deleteBtn);
+  panel.appendChild(container);
+  updateAccountActions();
+}
+
+ensureAccountActions();
+
 // FORCE REDEPLOY 1779428250

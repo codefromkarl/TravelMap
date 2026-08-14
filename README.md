@@ -26,22 +26,25 @@
 | **🌤️ 实时天气 & 风险评估** | 查询目的地天气，评估路线安全和出行适宜度 | 旅行天气查询、出行安全评估 |
 | **👥 多人群适配** | 根据成人/老人/儿童/孕妇等人群特征优化推荐 | 亲子游规划、家庭旅行助手 |
 | **🔗 行动链接** | 一键生成景点预约、酒店比价、交通搜索等实用链接 | 旅行预订助手 |
-| **📤 多格式导出 & 分享** | 支持 Markdown / PDF 导出，以及**行程图片/链接/二维码分享 + 移动端原生分享（Web Share API）** | 行程分享、旅行社交分享 |
-| **✏️ 行程编辑** | 历史行程可直接调整景点顺序、跨天移动、删除整天，保存后地图实时更新 | 行程微调、旅行计划调整 |
+| **📤 多格式导出 & 分享** | 支持 Markdown / PDF 导出，以及**行程图片/链接/二维码分享 + 移动端原生分享（Web Share API）**；分享短链云端存储（KV 30 天），跨设备可用 | 行程分享、旅行社交分享 |
+| **✏️ 行程编辑** | AI 生成后即时编辑与历史行程编辑：景点排序、跨天移动、删除整天，保存即更新地图并存入历史 | 行程微调、旅行计划调整 |
+| **☁️ 行程云同步** | 登录后行程自动同步至云端（KV），按更新时间双向合并，多设备一致；仅生产环境启用 | 行程同步、多设备旅行规划 |
 | **⚖️ 方案对比** | 同一需求一键生成第二版不同侧重的行程，A/B 卡片切换地图与统计，AI 输出差异对比表 | 行程对比、多方案选择 |
 | **📊 公开评测报告** | 多维度自动评测（结构/语义/实用/安全/体验），[在线报告页](/eval.html) 展示得分趋势与迭代记录 | 评估驱动开发 |
+| **🏙️ SEO 城市落地页** | 北京/上海/广州/深圳/成都/杭州/西安/重庆/南京/武汉 10 城落地页，SEO meta + OG + JSON-LD，收录 sitemap | 城市旅游攻略、目的地页面 |
+| **🛡️ 安全防护** | 全站 CSP、JWT 认证、API 速率限制（详见[安全](#安全)小节） | 旅行数据安全、隐私保护 |
 | **🌙 暗黑模式** | 手动切换 + 跟随系统 | 夜间使用、深色主题 |
-| **📱 PWA 支持** | 可安装到主屏，Service Worker 离线缓存 | 离线旅行、添加到主屏幕 |
+| **📱 PWA 支持** | 可安装到主屏，Service Worker 构建期预缓存核心资源（约 100 项哈希资产），真正离线可用 | 离线旅行、添加到主屏幕 |
 | **🌏 多语言界面** | 中文 / English / 日本語 | multilingual travel planner |
 
 ---
 
-## 🆕 行程分享（新增）
+## 🆕 行程分享
 
 🎉 **前端已内置零依赖分享引擎** `web/modules/share.js`：
 
 - **📸 分享图片** — Canvas 绘制 900×1200 px 精美行程卡片，适合发朋友圈/小红书
-- **🔗 分享链接** — LZ-String 压缩行程数据，生成只读短链接（`#share=`）
+- **🔗 分享链接** — 行程数据压缩为只读短链接（`#share=`）；长行程自动上传云端 KV（30 天 TTL），链接跨设备可用
 - **📱 二维码** — 内联 QR 码算法，256×256 px，扫码即达行程页
 
 > 所有分享功能零外部依赖（无 html2canvas、无 qrcode.js），纯原生 API 实现。移动端支持系统原生分享面板（Web Share API）。
@@ -53,8 +56,28 @@
 - **JS 体积减半** — pi 运行时 bundle 经 esbuild minify（10.4MB → 5.1MB），应用逻辑单独打包（app.bundle.js ~260KB）
 - **内容哈希缓存** — 部署时所有 JS/CSS 自动生成 `.<hash>.js/css` 文件并重写引用，配合 `Cache-Control: immutable` 长缓存，二次访问近乎瞬时
 - **Leaflet 自托管** — 不再依赖 unpkg CDN，地图库（JS/CSS，图片内联）随站点部署，国内访问更稳定
+- **SW 预缓存** — 构建期注入约 100 项哈希资产清单，Service Worker 逐项预缓存，核心资源真正离线可用
+- **API TTL 缓存** — 高德 POI 搜索 24h / Nominatim 7 天前端缓存（上限 200 条），搜索命中零请求
 - **Bundle 门禁** — CI 强制校验提交的 bundle 与源码一致（防漂移）并限制体积上限
 - **本地构建** — `npm run build:bundle` 一键重建，`npm run verify:bundle` 校验 bundle 与源码一致性
+
+---
+
+## 🔐 数据与隐私
+
+- **行程云同步** — 登录后行程自动同步至云端（Cloudflare KV，90 天 TTL），按更新时间双向合并；同步仅在生产环境启用，本地开发与 E2E 测试不发送任何数据（isLocalHost 守卫）
+- **数据导出与删除** — 历史面板提供完整导出入口（Markdown / PDF / 分享图片 / 短链 / 二维码），每条行程可一键删除，从本地历史与云端同步移除
+- **分享短链存储** — 分享数据存于 KV，30 天 TTL 自动过期；单条 32KB 上限 + IP 限流（10/min）防止滥用
+- **轻量埋点** — 仅采集 page_view 等匿名事件，批量节流上报、meta 脱敏，不采集个人身份信息；本地开发/E2E 静默
+
+---
+
+## 🛡️ 安全
+
+- **JWT OAuth 认证** — GitHub / Google 登录签发 JWT（HttpOnly Cookie 承载），API 按用户隔离数据（`web/functions/_lib/jwt.js`）
+- **速率限制** — 所有 `/api/*` 端点按 IP 限流（分享 10/min、埋点 20/min）；Provider 故障转移链上配额/限流只消费一次
+- **全站 CSP** — `_headers` 下发 Content-Security-Policy：`default-src 'self'` + script/style/img/connect 精确白名单，`object-src 'none'`、`frame-ancestors 'self'`
+- **密钥扫描与依赖审计** — 部署工件校验内置密钥模式扫描（私钥/API Key 一律拦截，`scripts/validate-deploy-artifact.mjs`）；CI 执行 `npm audit --audit-level=high` 门禁
 
 ---
 
@@ -119,7 +142,8 @@ TravelAgent/
 ├── web/                     # Cloudflare Pages 前端部署
 │   ├── index.html           # 主页面（SPA）
 │   ├── modules/             # 前端模块（地图/导出/分享/国际化等）
-│   ├── functions/           # Cloudflare Functions（认证/聊天/配额）
+│   ├── functions/           # Cloudflare Functions（认证/聊天/配额/云同步/分享/埋点）
+│   ├── city/                # SEO 城市落地页（10 城）
 │   ├── robots.txt & sitemap.xml  # SEO 配置
 │   └── _headers             # 安全 & 缓存策略
 ├── .github/workflows/       # CI/CD（自动检查 + 部署）
@@ -143,7 +167,8 @@ TravelAgent/
 |------|------|
 | [小红书免费数据源部署指南](./docs/xhs-crawler-deployment.md) | 如何自建 MediaCrawler 作为零成本小红书数据源 |
 | [前端开发规范](./.trellis/spec/frontend/component-guidelines.md) | 组件、样式、i18n、面板系统规范 |
-| [CHANGELOG](./CHANGELOG.md) | 版本更新日志（如有） |
+| [产品展示优化规划](./docs/product-polish-plan.md) | 产品展示/体验优化路线图 |
+| [CHANGELOG](./CHANGELOG.md) | 版本更新日志 |
 
 ---
 

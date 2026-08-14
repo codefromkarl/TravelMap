@@ -26,20 +26,57 @@
 | **🌤️ Live Weather & Risk Assessment** | Destination weather queries, route safety and travel suitability evaluation | travel weather, trip safety assessment |
 | **👥 Group-Aware** | Optimizes recommendations for adults, seniors, children, pregnant travelers, etc. | family trip planner, group travel assistant |
 | **🔗 Action Links** | One-click generation of booking links, hotel comparisons, and transport search | travel booking assistant |
-| **📤 Multi-Format Export & Share** | Markdown / PDF export, plus **trip image/link/QR code sharing** (new) | trip sharing, social travel sharing |
+| **📤 Multi-Format Export & Share** | Markdown / PDF export, plus **trip image/link/QR code sharing**; share links stored in cloud KV (30-day TTL), work across devices | trip sharing, social travel sharing |
+| **✏️ Trip Editing** | Edit right after AI generation or from trip history: reorder attractions, move across days, delete days; map updates instantly on save | itinerary tweaks, plan adjustment |
+| **☁️ Cloud Sync** | Trips auto-sync to the cloud after sign-in (KV), merged bidirectionally by update time; production only | trip sync, multi-device travel planning |
+| **⚖️ Plan Comparison** | One-click second itinerary with a different focus from the same request; A/B cards switch map & stats, AI output diff table | itinerary comparison, multi-plan selection |
+| **📊 Public Eval Report** | Automated multi-dimension evaluation (structure/semantics/usability/safety/UX), [online report page](/eval.html) with score trends | evaluation-driven development |
+| **🏙️ SEO City Pages** | 10 city landing pages (Beijing/Shanghai/Guangzhou/Shenzhen/Chengdu/Hangzhou/Xi'an/Chongqing/Nanjing/Wuhan) with SEO meta + OG + JSON-LD, listed in sitemap | city travel guide, destination pages |
+| **🛡️ Security** | Site-wide CSP, JWT auth, API rate limiting (see [Security](#security) section) | travel data safety, privacy protection |
+| **🌙 Dark Mode** | Manual toggle + follow system | night use, dark theme |
+| **📱 PWA Support** | Installable to home screen; Service Worker precaches core assets (~100 hashed files) at build time for true offline use | offline travel, add to home screen |
 | **🌏 Multilingual UI** | 中文 / English / 日本語 | multilingual travel planner |
 
 ---
 
-## 🆕 Trip Sharing (New)
+## 🆕 Trip Sharing
 
 🎉 **Zero-dependency sharing engine built in** at `web/modules/share.js`:
 
 - **📸 Share Image** — Canvas-drawn 900×1200 px trip cards, perfect for social feeds
-- **🔗 Share Link** — LZ-String compressed trip data, read-only short link (`#share=`)
+- **🔗 Share Link** — Trip data compressed into a read-only short link (`#share=`); long trips are uploaded to cloud KV (30-day TTL), so links work across devices
 - **📱 QR Code** — Inline QR algorithm, 256×256 px, scan to open trip page
 
 > All sharing features use zero external dependencies (no html2canvas, no qrcode.js). Pure native API implementation.
+
+---
+
+## ⚡ Performance
+
+- **Smaller JS bundles** — pi runtime minified with esbuild (10.4MB → 5.1MB), app logic bundled separately (app.bundle.js ~260KB)
+- **Content-hashed caching** — all JS/CSS assets get `.<hash>.js/css` names at deploy time with `Cache-Control: immutable` long caching
+- **Self-hosted Leaflet** — no unpkg CDN dependency; the map library (JS/CSS, inlined images) ships with the site for better stability in China
+- **SW precache** — ~100 hashed assets injected into the Service Worker precache manifest at build time, so core resources work truly offline
+- **API TTL cache** — Amap POI search 24h / Nominatim 7-day frontend cache (up to 200 entries), zero requests on cache hits
+- **Bundle gate** — CI verifies committed bundles match source (anti-drift) and enforces size limits
+
+---
+
+## 🔐 Data & Privacy
+
+- **Trip Cloud Sync** — After sign-in, trips auto-sync to the cloud (Cloudflare KV, 90-day TTL) and merge bidirectionally by update time; sync runs in production only — local dev and E2E tests send no data (isLocalHost guard)
+- **Export & Delete** — The history panel offers full export options (Markdown / PDF / share image / short link / QR code); any trip can be deleted with one click and is removed from local history and the cloud
+- **Share Link Storage** — Shared data lives in KV with a 30-day TTL; a 32KB size cap and IP rate limiting (10/min) prevent abuse
+- **Lightweight Analytics** — Only anonymous events like page_view are collected, batched and throttled, with metadata sanitized — no personally identifiable information; silent in local dev and E2E
+
+---
+
+## 🛡️ Security
+
+- **JWT OAuth** — GitHub / Google sign-in issues a JWT (HttpOnly cookie); APIs isolate data per user (`web/functions/_lib/jwt.js`)
+- **Rate Limiting** — All `/api/*` endpoints are IP rate-limited (share 10/min, analytics 20/min); quota/rate limits are consumed only once across the provider failover chain
+- **Site-wide CSP** — `_headers` sends a Content-Security-Policy: `default-src 'self'` plus precise script/style/img/connect allowlists, `object-src 'none'`, `frame-ancestors 'self'`
+- **Secret Scanning & Dependency Audit** — Deploy artifact validation scans for secret patterns (private keys / API keys are blocked, `scripts/validate-deploy-artifact.mjs`); CI runs `npm audit --audit-level=high`
 
 ---
 
@@ -104,7 +141,8 @@ TravelAgent/
 ├── web/                     # Cloudflare Pages frontend deployment
 │   ├── index.html           # Main page (SPA)
 │   ├── modules/             # Frontend modules (map/export/share/i18n)
-│   ├── functions/           # Cloudflare Functions (auth/chat/quota)
+│   ├── functions/           # Cloudflare Functions (auth/chat/quota/cloud-sync/share/analytics)
+│   ├── city/                # SEO city landing pages (10 cities)
 │   ├── robots.txt & sitemap.xml  # SEO configuration
 │   └── _headers             # Security & cache policies
 ├── .github/workflows/       # CI/CD (auto checks + deploy)
@@ -128,7 +166,8 @@ TravelAgent/
 |----------|-------------|
 | [Xiaohongshu Free Data Source Deployment Guide](./docs/xhs-crawler-deployment.md) | How to self-host MediaCrawler as a zero-cost Xiaohongshu data source |
 | [Frontend Development Guidelines](./.trellis/spec/frontend/component-guidelines.md) | Component, styling, i18n, and panel system conventions |
-| [CHANGELOG](./CHANGELOG.md) | Release notes (if available) |
+| [Product Polish Plan](./docs/product-polish-plan.md) | Product presentation & UX optimization roadmap |
+| [CHANGELOG](./CHANGELOG.md) | Release notes |
 
 ---
 
