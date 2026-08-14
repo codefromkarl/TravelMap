@@ -18,7 +18,7 @@ vi.mock('lz-string', () => ({
 }));
 
 // 导入被测模块
-import { generateShareLink, loadSharedTripFromHash, downloadImage } from '../share.js';
+import { generateShareLink, loadSharedTripFromHash, downloadImage, createServerShareId, decodeSharedTripContent } from '../share.js';
 
 // ─── 测试数据 ─────────────────────────────────────────
 
@@ -104,6 +104,71 @@ describe('share.js', () => {
 
     it('无文件名时使用默认名', () => {
       expect(() => downloadImage('data:image/png;base64,test')).not.toThrow();
+    });
+  });
+
+  describe('createServerShareId', () => {
+    beforeEach(() => {
+      vi.stubGlobal('fetch', vi.fn());
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('POST 到 /api/share 并返回 id', async () => {
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 'share-abc' }),
+      });
+
+      const id = await createServerShareId(MOCK_TRIP_PLAN);
+      expect(id).toBe('share-abc');
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      const [url, init] = globalThis.fetch.mock.calls[0];
+      expect(url).toBe('/api/share');
+      expect(init.method).toBe('POST');
+      const body = JSON.parse(init.body);
+      expect(typeof body.content).toBe('string');
+      expect(body.content.length).toBeGreaterThan(0);
+    });
+
+    it('服务端返回错误时抛错', async () => {
+      globalThis.fetch.mockResolvedValue({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: 'Too many requests', code: 'RATE_LIMITED' }),
+      });
+
+      await expect(createServerShareId(MOCK_TRIP_PLAN)).rejects.toThrow('Too many requests');
+    });
+
+    it('网络错误时抛错', async () => {
+      globalThis.fetch.mockRejectedValue(new Error('network'));
+
+      await expect(createServerShareId(MOCK_TRIP_PLAN)).rejects.toThrow('network');
+    });
+  });
+
+  describe('decodeSharedTripContent', () => {
+    it('还原压缩内容为结构化数据', () => {
+      const shareData = {
+        c: '杭州',
+        s: '2025-06-01',
+        e: '2025-06-03',
+        d: [{ i: 1, a: [{ n: '西湖' }] }],
+      };
+      const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
+      const data = decodeSharedTripContent(compressed);
+      expect(data).toBeTruthy();
+      expect(data.c).toBe('杭州');
+      expect(data.d).toHaveLength(1);
+    });
+
+    it('无效内容返回 null', () => {
+      expect(decodeSharedTripContent('')).toBeNull();
+      expect(decodeSharedTripContent(null)).toBeNull();
+      expect(decodeSharedTripContent('not-valid-base64!!!')).toBeNull();
     });
   });
 });

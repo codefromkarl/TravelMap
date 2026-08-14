@@ -38,6 +38,9 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Audit production dependencies
+        run: npm audit --audit-level=high
+
   tests:
     name: Unit, Integration & Coverage
     runs-on: ubuntu-latest

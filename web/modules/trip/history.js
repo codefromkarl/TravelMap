@@ -1,5 +1,6 @@
-import { agent, currentTripId, setCurrentTripId, showToast } from '../infra/context.js';
+import { agent, currentLang, currentTripId, setCurrentTripId, showToast } from '../infra/context.js';
 import { listTrips, loadTripById, deleteTripById } from '../db.js';
+import { I18N } from '../infra/i18n.js';
 
 // ─── 格式化日期 ────────────────────────────────────────
 function formatDate(iso) {
@@ -20,6 +21,7 @@ function formatDate(iso) {
 
 // ─── 生成行程卡片 HTML ──────────────────────────────────
 function renderTripCard(trip) {
+  const dict = I18N[currentLang] || I18N.zh;
   const date = formatDate(trip.updatedAt);
   const city = trip.city || "";
   const days = trip.days || 0;
@@ -63,7 +65,7 @@ function renderTripCard(trip) {
         <span class="item-date">${date}</span>
         <div class="item-actions">
           <button class="restore-btn" data-id="${trip.id}">恢复</button>
-          <button class="edit-btn" data-id="${trip.id}" title="编辑行程（调整景点顺序）">编辑</button>
+          <button class="edit-btn" data-id="${trip.id}" title="${dict.tripEditorEditTitle}">编辑</button>
           <button class="delete-btn" data-id="${trip.id}">删除</button>
         </div>
       </div>

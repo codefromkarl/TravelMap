@@ -2,7 +2,8 @@ import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } fr
 import { I18N } from '../i18n.js';
 import {
   generateShareImage, generateShareLink,
-  downloadImage, loadSharedTripFromHash
+  downloadImage, loadSharedTripFromHash,
+  createServerShareId, decodeSharedTripContent
 } from '../share.js';
 
 // QR 码生成器懒加载
@@ -77,25 +78,86 @@ ${html}`;
 }
 
 // ─── 分享链接加载 ─────────────────────────────────────
-export function loadSharedTrip() {
+export async function loadSharedTrip() {
   const params = new URLSearchParams(window.location.search);
   const tripId = params.get("trip");
   if (!tripId) return;
-  const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || "{}");
+
+  let stored = {};
+  try {
+    stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || "{}");
+  } catch { /* ignore */ }
+
   const trip = stored[tripId];
-  if (!trip) {
-    showToast("未找到该分享的行程", 4000, 'warning');
+  if (trip) {
+    renderSharedTrip(trip.content);
     return;
   }
+
+  // 本地未命中，尝试从服务端获取
+  try {
+    const res = await fetch("/api/share?id=" + encodeURIComponent(tripId));
+    if (!res.ok) {
+      showToast("未找到该分享的行程", 4000, "warning");
+      return;
+    }
+    const data = await res.json();
+    if (!data || typeof data.content !== "string" || !data.content) {
+      showToast("未找到该分享的行程", 4000, "warning");
+      return;
+    }
+    const tripData = decodeSharedTripContent(data.content);
+    if (!tripData) {
+      showToast("未找到该分享的行程", 4000, "warning");
+      return;
+    }
+    const markdown = formatSharedTripMarkdown(tripData);
+    if (!markdown) {
+      showToast("未找到该分享的行程", 4000, "warning");
+      return;
+    }
+    renderSharedTrip(markdown);
+  } catch {
+    showToast("未找到该分享的行程", 4000, "warning");
+  }
+}
+
+function renderSharedTrip(content) {
   const msg = {
     role: "assistant",
-    content: `# 📋 分享的旅行计划\n\n${trip.content}`,
+    content: "# 📋 分享的旅行计划\n\n" + content,
     timestamp: Date.now(),
   };
   if (agent) {
     agent.state.messages = [...agent.state.messages, msg];
-    showToast("已加载分享的行程", 3000, 'success');
+    showToast("已加载分享的行程", 3000, "success");
   }
+}
+
+function formatSharedTripMarkdown(data) {
+  if (!data || typeof data !== "object") return null;
+  const lines = [];
+  const city = data.c || "旅行计划";
+  lines.push("### " + city);
+  if (data.s && data.e) lines.push("**日期**：" + data.s + " ~ " + data.e);
+  lines.push("");
+  const days = Array.isArray(data.d) ? data.d : [];
+  days.forEach((day, idx) => {
+    const dayNum = day.i ?? idx + 1;
+    const dateLabel = day.dt || "";
+    const cityLabel = day.ci || "";
+    lines.push("**Day " + dayNum + (dateLabel ? " · " + dateLabel : "") + (cityLabel ? " · " + cityLabel : "") + "**");
+    const attractions = Array.isArray(day.a) ? day.a : [];
+    if (attractions.length) {
+      attractions.forEach((attr) => {
+        lines.push("- 📍 " + (attr.n || ""));
+      });
+    } else if (day.tr) {
+      lines.push("- 🚗 " + day.tr);
+    }
+    lines.push("");
+  });
+  return lines.join("\n").trim();
 }
 
 export function renderSharedTrips() {
@@ -236,19 +298,26 @@ async function openShareModal(type) {
     } catch (e) { /* ignore */ }
 
     if (!qrDataUrl && linkUrl) {
-      // QR 容量不足，回退到短链接模式
-      const tripId = crypto.randomUUID();
-      const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || '{}');
-      stored[tripId] = {
-        content: linkUrl,
-        title: `旅行计划`,
-        createdAt: new Date().toISOString(),
-      };
-      localStorage.setItem(EXPORT_STORAGE_KEY, JSON.stringify(stored));
-      const shortUrl = new URL(window.location.href);
-      shortUrl.searchParams.set('trip', tripId);
-      qrDataUrl = generateQRCode(shortUrl.toString());
-      showToast('行程较长，已使用短链接生成二维码', 3000, 'warning');
+      // QR 容量不足，优先使用服务端短链，失败时回退到本地方案
+      try {
+        const id = await createServerShareId(tripPlan);
+        const shortUrl = window.location.origin + "/?trip=" + encodeURIComponent(id);
+        qrDataUrl = generateQRCode(shortUrl);
+        showToast("行程较长，已使用服务端短链接生成二维码", 3000, "warning");
+      } catch {
+        const tripId = crypto.randomUUID();
+        const stored = JSON.parse(localStorage.getItem(EXPORT_STORAGE_KEY) || "{}");
+        stored[tripId] = {
+          content: linkUrl,
+          title: "旅行计划",
+          createdAt: new Date().toISOString(),
+        };
+        localStorage.setItem(EXPORT_STORAGE_KEY, JSON.stringify(stored));
+        const shortUrl = new URL(window.location.href);
+        shortUrl.searchParams.set("trip", tripId);
+        qrDataUrl = generateQRCode(shortUrl.toString());
+        showToast("行程较长，已使用本地短链接生成二维码", 3000, "warning");
+      }
     }
     header.textContent = dict.shareQR || '📱 二维码';
     if (qrDataUrl) {

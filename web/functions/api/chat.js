@@ -5,6 +5,7 @@
 
 import { extractToken, verifyJwt } from "../_lib/jwt.js";
 import { consumeQuota, getUser } from "../_lib/quota.js";
+import { parseFallbackChain, resolveFallbackModel } from "../_lib/provider-chain.js";
 
 const PROVIDERS = Object.freeze({
   openai: {
@@ -121,6 +122,67 @@ async function checkRateLimit(kv, key, limit) {
   }
 }
 
+async function forwardUpstream({ providerName, model, env, cleanBody, responseHeaders }) {
+  const provider = PROVIDERS[providerName];
+  const apiKey = provider ? env[provider.keyEnv] || env.LLM_API_KEY : "";
+  if (!provider || !apiKey) {
+    console.error(`[ChatProxy] upstream_skipped provider=${providerName} reason=missing_config`);
+    return null;
+  }
+
+  const upstreamBody = { ...cleanBody, model };
+  const upstreamPath = provider.pathFn ? provider.pathFn(model) : provider.path;
+  const upstreamUrl = `${provider.baseUrl}${upstreamPath}`;
+  const upstreamHeaders = {
+    "Content-Type": "application/json",
+    [provider.authHeader]: `${provider.authPrefix}${apiKey}`,
+    ...(provider.extraHeaders || {}),
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: upstreamHeaders,
+      body: JSON.stringify(upstreamBody),
+      redirect: "manual",
+      signal: controller.signal,
+    });
+
+    if (!upstream.ok) {
+      console.error(`[ChatProxy] upstream_failed provider=${providerName} status=${upstream.status}`);
+      return null;
+    }
+
+    if (upstreamBody.stream && upstream.body) {
+      return new Response(upstream.body, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no",
+          ...responseHeaders,
+        },
+      });
+    }
+
+    return new Response(await upstream.text(), {
+      status: 200,
+      headers: {
+        "Content-Type": upstream.headers.get("Content-Type") || "application/json; charset=utf-8",
+        ...responseHeaders,
+      },
+    });
+  } catch (error) {
+    const reason = error && typeof error === "object" && error.name === "AbortError" ? "timeout" : "network";
+    console.error(`[ChatProxy] upstream_unavailable provider=${providerName} reason=${reason}`);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export function onRequestOptions(context) {
   if (context?.request && !hasAllowedOrigin(context.request)) {
     return jsonResponse(403, "FORBIDDEN_ORIGIN", "Cross-origin requests are not allowed");
@@ -215,59 +277,27 @@ export async function onRequest(context) {
     cleanBody.max_completion_tokens = Math.min(Math.max(1, cleanBody.max_completion_tokens), 8192);
   }
 
-  const upstreamPath = provider.pathFn ? provider.pathFn(model) : provider.path;
-  const upstreamUrl = `${provider.baseUrl}${upstreamPath}`;
-  const upstreamHeaders = {
-    "Content-Type": "application/json",
-    [provider.authHeader]: `${provider.authPrefix}${apiKey}`,
-    ...(provider.extraHeaders || {}),
-  };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   const responseHeaders = {
     ...RESPONSE_HEADERS,
     "X-Quota-Remaining": String(quota.remaining),
   };
 
-  try {
-    const upstream = await fetch(upstreamUrl, {
-      method: "POST",
-      headers: upstreamHeaders,
-      body: JSON.stringify(cleanBody),
-      redirect: "manual",
-      signal: controller.signal,
-    });
-
-    if (!upstream.ok) {
-      console.error(`[ChatProxy] upstream_failed provider=${providerName} status=${upstream.status}`);
-      return jsonResponse(502, "UPSTREAM_ERROR", "Chat provider request failed", responseHeaders);
-    }
-
-    if (cleanBody.stream && upstream.body) {
-      return new Response(upstream.body, {
-        status: 200,
-        headers: {
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          "X-Accel-Buffering": "no",
-          ...responseHeaders,
-        },
-      });
-    }
-
-    return new Response(await upstream.text(), {
-      status: 200,
-      headers: {
-        "Content-Type": upstream.headers.get("Content-Type") || "application/json; charset=utf-8",
-        ...responseHeaders,
-      },
-    });
-  } catch (error) {
-    const reason = error && typeof error === "object" && error.name === "AbortError" ? "timeout" : "network";
-    console.error(`[ChatProxy] upstream_unavailable provider=${providerName} reason=${reason}`);
-    return jsonResponse(502, "UPSTREAM_ERROR", "Chat provider request failed", responseHeaders);
-  } finally {
-    clearTimeout(timeoutId);
+  const attempts = [{ name: providerName, model }];
+  for (const fallbackName of parseFallbackChain(env)) {
+    attempts.push({ name: fallbackName, model: resolveFallbackModel(fallbackName, env) });
   }
+
+  for (const attempt of attempts) {
+    const response = await forwardUpstream({
+      providerName: attempt.name,
+      model: attempt.model,
+      env,
+      cleanBody,
+      responseHeaders,
+    });
+    if (response) return response;
+  }
+
+  console.error(`[ChatProxy] all_providers_failed chain=${attempts.map((attempt) => attempt.name).join(",")}`);
+  return jsonResponse(502, "UPSTREAM_ERROR", "Chat provider request failed", responseHeaders);
 }

@@ -801,10 +801,10 @@ window._generateTripPoster = generateTripPoster;
  * @param {Object} tripPlan - TripPlan 对象
  * @returns {string} 分享 URL
  */
-export function generateShareLink(tripPlan) {
-  if (!tripPlan) return "";
-
-  // 提取可分享的数据（精简，避免过大）
+/**
+ * 提取可分享的压缩内容（精简字段，供 hash 链接与服务端短链共用）
+ */
+function buildShareContent(tripPlan) {
   const shareData = {
     c: tripPlan.city,
     s: tripPlan.startDate,
@@ -820,9 +820,14 @@ export function generateShareLink(tripPlan) {
       })),
     })),
   };
+  return LZ_STRING.compressToBase64(JSON.stringify(shareData));
+}
 
-  const json = JSON.stringify(shareData);
-  const compressed = LZ_STRING.compressToBase64(json);
+export function generateShareLink(tripPlan) {
+  if (!tripPlan) return "";
+
+  // 提取可分享的数据（精简，避免过大）
+  const compressed = buildShareContent(tripPlan);
 
   const baseUrl = "https://travel.codefromkarl.xyz";
   const shareUrl = `${baseUrl}/#share=${encodeURIComponent(compressed)}`;
@@ -868,6 +873,55 @@ export function loadSharedTripFromHash() {
     return JSON.parse(json);
   } catch (e) {
     console.warn("[Share] 解析分享链接失败:", e);
+    return null;
+  }
+}
+
+/**
+ * 将行程压缩后上传到服务端分享存储，返回短链 id。
+ * 失败时抛错，由调用方降级到本地方案。
+ * @param {Object} tripPlan - TripPlan 对象
+ * @returns {Promise<string>} 分享短链 id
+ */
+export async function createServerShareId(tripPlan) {
+  if (!tripPlan) throw new Error("没有可分享的行程");
+  const content = buildShareContent(tripPlan);
+
+  const res = await fetch("/api/share", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!res.ok) {
+    let message = "HTTP " + res.status;
+    try {
+      const data = await res.json();
+      if (data && typeof data.error === "string" && data.error) message = data.error;
+    } catch { /* ignore */ }
+    throw new Error(message);
+  }
+
+  const data = await res.json();
+  if (!data || typeof data.id !== "string" || !data.id) {
+    throw new Error("分享服务返回异常");
+  }
+  return data.id;
+}
+
+/**
+ * 解码服务端分享内容（LZ 压缩数据）为结构化行程数据。
+ * @param {string} content - LZ 压缩的分享数据
+ * @returns {Object|null} 解析后的行程数据
+ */
+export function decodeSharedTripContent(content) {
+  if (!content) return null;
+  try {
+    const json = LZ_STRING.decompressFromBase64(content);
+    if (!json) return null;
+    return JSON.parse(json);
+  } catch (e) {
+    console.warn("[Share] 解析服务端分享数据失败:", e);
     return null;
   }
 }

@@ -10,7 +10,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock 依赖
 const contextMocks = vi.hoisted(() => ({
@@ -29,7 +29,7 @@ vi.mock('../infra/context.js', () => ({
 }));
 
 // 导入被测模块
-import { getLastAssistantContent, generateMarkdown } from '../export.js';
+import { getLastAssistantContent, generateMarkdown, loadSharedTrip } from '../export.js';
 
 // ─── 测试 ─────────────────────────────────────────────
 
@@ -120,6 +120,63 @@ describe('export.js', () => {
 
       expect(md).toContain('TravelMap');
       expect(md).toContain('AI');
+    });
+  });
+
+  describe('loadSharedTrip 服务端路径', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      vi.clearAllMocks();
+      contextMocks.agent = null;
+      vi.stubGlobal('fetch', vi.fn());
+      Object.defineProperty(window, 'location', {
+        value: {
+          search: '?trip=server-id',
+          origin: 'https://example.com',
+          hash: '',
+          pathname: '/',
+        },
+        configurable: true,
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('本地未命中时从服务端获取并渲染', async () => {
+      const compressed = btoa(encodeURIComponent(JSON.stringify({
+        c: '杭州',
+        s: '2025-06-01',
+        e: '2025-06-03',
+        d: [{ i: 1, a: [{ n: '西湖' }] }],
+      })));
+      contextMocks.agent = { state: { messages: [] } };
+      globalThis.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ content: compressed }),
+      });
+
+      await loadSharedTrip();
+
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/share?id=server-id');
+      expect(contextMocks.agent.state.messages).toHaveLength(1);
+      expect(contextMocks.agent.state.messages[0].content).toContain('杭州');
+      expect(contextMocks.showToast).toHaveBeenCalledWith('已加载分享的行程', 3000, 'success');
+    });
+
+    it('服务端 404 时不渲染并提示', async () => {
+      contextMocks.agent = { state: { messages: [] } };
+      globalThis.fetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'Share not found' }),
+      });
+
+      await loadSharedTrip();
+
+      expect(contextMocks.agent.state.messages).toHaveLength(0);
+      expect(contextMocks.showToast).toHaveBeenCalledWith('未找到该分享的行程', 4000, 'warning');
     });
   });
 });

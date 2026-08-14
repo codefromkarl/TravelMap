@@ -52,6 +52,10 @@ initTheme();
 import { initErrorReporting } from './infra/error-report.js';
 initErrorReporting();
 
+// ─── 前端轻量埋点 ──────────────────────────────────
+import { initAnalytics } from './infra/analytics.js';
+initAnalytics();
+
 // ─── 自初始化模块（执行 side-effect）───────────────
 import './infra/storage.js';
 import './ui/panels.js';
