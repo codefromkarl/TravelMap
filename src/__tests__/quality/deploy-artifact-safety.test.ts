@@ -116,6 +116,16 @@ async function makeFixtureRepo(): Promise<string> {
     "throw new Error('not runtime');\n",
   );
   await writeFixtureFile(webRoot, "styles/main.css", "body { background: #ffffff; }\n");
+  await writeFixtureFile(
+    webRoot,
+    "vendor/leaflet/leaflet.js",
+    "/* fixture leaflet */ export const leaflet = true;\n",
+  );
+  await writeFixtureFile(
+    webRoot,
+    "vendor/leaflet/leaflet.css",
+    "/* fixture leaflet css */ .leaflet-container { color: #123456; }\n",
+  );
   await writeFixtureFile(webRoot, "functions/api/chat.js", "export function onRequest() {}\n");
   await writeFixtureFile(webRoot, "entry.ts", "throw new Error('development only');\n");
   await writeFixtureFile(webRoot, "unknown-top-level.txt", "must not deploy\n");

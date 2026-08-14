@@ -7,6 +7,7 @@ import { markerRegistry } from '../markers.js';
 import { routePlanner } from '../route-planner.js';
 import { matchWeatherToDay, classifyWeatherRisk, shouldShowRadar, buildWindyRadarUrl } from '../weather-planning.js';
 import { requireAuth } from '../auth/auth.js';
+import { getUserLocation, buildDiscoverPrompt } from '../location.js';
 
 // ─── XSS 防护：HTML 转义 ──────────────────────────────
 function escapeHtml(str) {
@@ -980,13 +981,26 @@ function setupMapInteractions() {
   // 快捷提示点击
   document.querySelectorAll('#map-chat-welcome .quick-prompt').forEach(el => {
     el.addEventListener('click', async () => {
-      const prompt = el.dataset.prompt;
-      if (!prompt) return;
+      let prompt = el.dataset.prompt;
+      const isDiscover = el.dataset.action === 'discover';
+      if (!prompt && !isDiscover) return;
       if (!chatPanel?.agentInterface) {
         showToast('聊天组件未初始化，请刷新页面', 3000, 'error');
         return;
       }
       if (!await requireAuth()) return;
+
+      if (isDiscover) {
+        try {
+          showToast('正在获取您的位置...', 2000, 'info');
+          const location = await getUserLocation();
+          prompt = buildDiscoverPrompt(location, { maxTravelHours: 3, duration: 'weekend' });
+        } catch (err) {
+          console.error('[Discover] 失败:', err);
+          showToast(err.message || '定位失败，请手动输入位置', 3000, 'error');
+          return;
+        }
+      }
 
       // 1. 立即隐藏欢迎区
       const welcome = document.getElementById('map-chat-welcome');
@@ -1010,12 +1024,6 @@ function setupMapInteractions() {
         showToast(`发送失败: ${err.message}`, 3000, 'error');
       }
     });
-  });
-
-  // 出行人群按钮（地图页面版）
-  document.getElementById('travelers-btn-map')?.addEventListener('click', () => {
-    const panel = document.getElementById('travelers-panel');
-    if (panel) panel.classList.toggle('open');
   });
 
   document.getElementById('btn-map-back')?.addEventListener('click', () => {});

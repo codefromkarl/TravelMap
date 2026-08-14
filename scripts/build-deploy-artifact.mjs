@@ -51,12 +51,17 @@ async function copyRequiredFile(repoRoot, siteDirectory, relativePath) {
   await copyFile(sourcePath, destinationPath);
 }
 
-async function copyAllowedTree(repoRoot, siteDirectory, relativeRoot, allowedExtension) {
+async function copyAllowedTree(repoRoot, siteDirectory, relativeRoot, allowedExtensions) {
   const sourceRoot = path.join(repoRoot, "web", relativeRoot);
   const rootStats = await lstat(sourceRoot);
   if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
     throw new Error(`[SOURCE_TREE_INVALID] web/${relativeRoot}`);
   }
+  const extensionSet = new Set(
+    (Array.isArray(allowedExtensions) ? allowedExtensions : [allowedExtensions]).map((extension) =>
+      extension.startsWith(".") ? extension.toLowerCase() : `.${extension.toLowerCase()}`,
+    ),
+  );
 
   async function visit(currentSource, currentRelative) {
     const entries = await readdir(currentSource, { withFileTypes: true });
@@ -72,7 +77,7 @@ async function copyAllowedTree(repoRoot, siteDirectory, relativeRoot, allowedExt
         continue;
       }
       if (!entry.isFile()) throw new Error(`[SOURCE_NOT_FILE] web/${relativePath}`);
-      if (path.posix.extname(entry.name).toLowerCase() !== allowedExtension) continue;
+      if (!extensionSet.has(path.posix.extname(entry.name).toLowerCase())) continue;
       const destinationPath = path.join(siteDirectory, ...relativePath.split("/"));
       await mkdir(path.dirname(destinationPath), { recursive: true });
       await copyFile(sourcePath, destinationPath);
@@ -159,6 +164,7 @@ export async function buildDeployArtifact({
   }
   await copyAllowedTree(resolvedRepoRoot, siteDirectory, "modules", ".js");
   await copyAllowedTree(resolvedRepoRoot, siteDirectory, "styles", ".css");
+  await copyAllowedTree(resolvedRepoRoot, siteDirectory, "vendor", [".js", ".css", ".png"]);
 
   const functionsDirectory = path.join(resolvedRepoRoot, "web", "functions");
   const workerOutput = path.join(siteDirectory, "_worker.js");

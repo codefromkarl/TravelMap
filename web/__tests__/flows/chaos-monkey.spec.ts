@@ -11,7 +11,7 @@
  * 目标：发现未知崩溃点和异常状态
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, gotoApp, test } from "../fixtures/app";
 
 // 收集页面错误
 function setupErrorCollector(page: import("@playwright/test").Page) {
@@ -34,7 +34,7 @@ async function assertPageHealthy(page: import("@playwright/test").Page) {
 test.describe("Chaos Monkey — 随机点击", () => {
   test("应能在随机点击 30 次后保持页面健康", async ({ page }) => {
     const errors = setupErrorCollector(page);
-    await page.goto("index.html");
+    await gotoApp(page);
 
     for (let i = 0; i < 30; i++) {
       const clickable = await page.evaluate(() => {
@@ -84,7 +84,7 @@ test.describe("Chaos Monkey — 随机键盘", () => {
 
   test("应能在随机键盘操作 50 次后保持页面健康", async ({ page }) => {
     const errors = setupErrorCollector(page);
-    await page.goto("index.html");
+    await gotoApp(page);
 
     for (let i = 0; i < 50; i++) {
       const key = keys[Math.floor(Math.random() * keys.length)];
@@ -106,7 +106,7 @@ test.describe("Chaos Monkey — 随机键盘", () => {
 
   test("连续快速 Enter 不应崩溃", async ({ page }) => {
     const errors = setupErrorCollector(page);
-    await page.goto("index.html");
+    await gotoApp(page);
 
     for (let i = 0; i < 20; i++) {
       await page.keyboard.press("Enter");
@@ -132,7 +132,7 @@ test.describe("Chaos Monkey — 随机输入文字", () => {
 
   test("各种异常输入不应导致页面崩溃", async ({ page }) => {
     const errors = setupErrorCollector(page);
-    await page.goto("index.html");
+    await gotoApp(page);
 
     for (const input of testInputs) {
       await page.keyboard.press("Tab");
@@ -166,7 +166,7 @@ test.describe("Chaos Monkey — 视口变化", () => {
   test("各种视口尺寸下页面不应崩溃", async ({ page }) => {
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.w, height: vp.h });
-      await page.goto("index.html");
+      await gotoApp(page);
 
       await assertPageHealthy(page);
 
@@ -182,7 +182,7 @@ test.describe("Chaos Monkey — 视口变化", () => {
   });
 
   test("运行时动态缩放视口不应崩溃", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page);
 
     for (let i = 0; i < 10; i++) {
       const w = 320 + Math.floor(Math.random() * 1600);

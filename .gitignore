@@ -21,3 +21,4 @@ web/config.local.js
 test-results/
 .wrangler/
 eval-results/
+playwright-report/

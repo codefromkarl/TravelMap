@@ -595,12 +595,12 @@ test.describe("页面地图功能测试", () => {
   });
 
   // ── 10. 快捷提示点击 ──
-  test("快捷提示卡片可点击并填入输入框", async ({ page }) => {
+  test("快捷提示卡片一次点击只发送一次请求", async ({ page }) => {
     await gotoPage(page, "/index.html");
     await waitForAppReady(page, 20000);
     await waitForMapReady(page);
 
-    const promptCard = await page.locator("#map-chat-welcome .quick-prompt").first();
+    const promptCard = page.locator("#map-chat-welcome .quick-prompt[data-prompt]").first();
     const expectedPrompt = "我想去旅行，帮我规划一下";
     await expect(promptCard).toHaveAttribute("data-prompt", expectedPrompt);
 
@@ -625,5 +625,38 @@ test.describe("页面地图功能测试", () => {
 
     const criticalErrors = filterCriticalErrors(consoleErrors);
     expect(criticalErrors).toEqual([]);
+  });
+
+  test("智能推荐定位成功后一次点击只发送一次请求", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("travel-agent-location", JSON.stringify({
+        latitude: 31.23,
+        longitude: 121.47,
+        city: "上海",
+        timestamp: Date.now(),
+      }));
+    });
+    await gotoPage(page, "/index.html");
+    await waitForAppReady(page, 20000);
+
+    await page.evaluate(() => {
+      const agentInterface = (window as any)._chatPanel?.agentInterface;
+      if (!agentInterface) throw new Error("AgentInterface 未初始化");
+
+      (window as any).__discoverPromptRuns = [];
+      agentInterface.sendMessage = async (prompt: string) => {
+        (window as any).__discoverPromptRuns.push(prompt);
+      };
+    });
+
+    await page.locator('#map-chat-welcome .quick-prompt[data-action="discover"]').click();
+
+    await expect.poll(() =>
+      page.evaluate(() => (window as any).__discoverPromptRuns)
+    ).toHaveLength(1);
+    const [prompt] = await page.evaluate(() => (window as any).__discoverPromptRuns);
+    expect(prompt).toContain("**我的位置**: 上海");
+    await expect(page.locator("#map-chat-welcome")).toBeHidden();
+    await expect(page.locator(".quick-prompt-user-msg")).toHaveCount(1);
   });
 });

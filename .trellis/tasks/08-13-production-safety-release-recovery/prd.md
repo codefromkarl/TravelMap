@@ -49,6 +49,14 @@
 - 先运行与改动直接相关的单元/脚本/配置验证，再运行 typecheck；E2E 仅运行本轮关联的 page-map 或 smoke 范围，除非修复证据要求扩大。
 - 报告 local green、GitHub hosted CI、部署、密钥轮换、CDN 清理为不同状态。
 
+### R5 续作：浏览器发布门禁最小恢复
+
+- 只处理完整 Playwright 已确认的确定性缺陷与共享前置状态，不通过放宽业务断言制造绿灯。
+- 修复固定版 `pi-agent-core` 下不存在的 `_agent.run()` 重试调用，并增加直接回归测试。
+- 修复 E2E 自身的 `mododalClosed` typo；可选本地配置、游客/onboarding 和 mobile map 前置必须由统一 fixture 或真实状态切换表达。
+- 先运行直接相关的六个 spec；只有这些 spec 收敛后才允许再次运行完整 380 条 E2E。
+- 与 weather-aware、guest-experience 的并行 WIP 重叠时保留其改动；无法安全合并的路径停止并记录，不重置共享工作树。
+
 ## 验收标准
 
 1. `git ls-files .dev.vars` 不再返回文件，忽略规则阻止重新加入，且仓库测试能验证部署 staging 不包含秘密文件。
@@ -59,10 +67,12 @@
 6. Playwright 配置和 workflow 同时保存 HTML、JUnit、trace、截图与 `test-results`。
 7. Preview 标识包含 PR 编号，生产部署只依赖已通过的 immutable artifact。
 8. `trellis-check` 子代理复核通过；所有实际运行的命令和未验证边界被记录。
+9. `_agent.run` 与 E2E typo 均有可复现的回归保护；本地可选配置缺失不会伪装成产品控制台错误。
+10. `accessibility.spec.ts`、`e2e-chat-map.spec.ts`、`flows/chaos-monkey.spec.ts`、`interaction.spec.ts`、`page-load.spec.ts`、`page-map.spec.ts` 的失败按真实产品缺陷和测试前置分别处置并记录准确结果。
 
 ## 非目标
 
-- 本轮不统一 `src/` 与 `web/` Agent，不实现 TripPlan schema/provenance，不修复全部 Page Map/Full E2E，不做结构化编辑器或跨设备分享。
+- 本轮不统一 `src/` 与 `web/` Agent，不实现 TripPlan schema/provenance，不承诺一次性修复全部 Full E2E，不做结构化编辑器或跨设备分享。
 - 不修改云端 WAF、Access、账单、供应商密钥、GitHub branch protection 或 Cloudflare 项目状态。
 - 不提交、推送、部署或创建 PR。
 

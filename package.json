@@ -10,6 +10,8 @@
     "trellis:idle-explorer": "tsx src/bin/trellis-idle-explorer.ts",
     "start": "node dist/index.js",
     "check": "biome check --write . && tsc --noEmit",
+    "build:bundle": "node scripts/build-bundle.cjs && node scripts/build-app-bundle.cjs",
+    "verify:bundle": "node scripts/verify-bundles.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",

@@ -1,0 +1,26 @@
+{
+  "name": "旅图 TravelMap — AI 旅行规划助手",
+  "short_name": "旅图",
+  "description": "AI 驱动的智能旅行规划助手：输入目的地与偏好，秒级生成带地图的精美行程，支持一键分享。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#4f8ef7",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/og-image.svg",
+      "sizes": "1200x630",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

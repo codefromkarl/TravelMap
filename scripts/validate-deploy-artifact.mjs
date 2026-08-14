@@ -15,12 +15,15 @@ export const ALLOWED_TOP_LEVEL_FILES = Object.freeze([
   "help.html",
   "index.html",
   "llms.txt",
+  "app.bundle.js",
+  "manifest.json",
   "og-image.svg",
   "pi-bundle.js",
   "pi-web-ui.css",
   "privacy.html",
   "robots.txt",
   "sitemap.xml",
+  "sw.js",
   "terms.html",
 ]);
 
@@ -33,9 +36,15 @@ const FORBIDDEN_SEGMENTS = new Set([
 ]);
 const FORBIDDEN_SECRET_EXTENSIONS = new Set([".jks", ".key", ".p12", ".pem", ".pfx"]);
 const OPTIONAL_MISSING_REFERENCES = new Map([
-  // This module deliberately catches a failed local-only config import in production.
+  // These modules deliberately catch a failed local-only config import in production.
   ["modules/infra/config.js", new Set(["config.local.js"])],
+  ["app.bundle.js", new Set(["config.local.js"])],
 ]);
+
+// Bundled/vendored artifacts are excluded from static reference closure validation:
+// their internal import graph is produced by the bundler and is not part of the
+// artifact's own file references (e.g. dynamic import of config.local.js).
+const IGNORED_REFERENCE_SOURCES = new Set(["app.bundle.js", "pi-bundle.js"]);
 
 const SECRET_PATTERNS = Object.freeze([
   ["SECRET_PRIVATE_KEY", /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/i],
@@ -118,6 +127,9 @@ function assertAllowedArtifactPath(relativePath) {
   }
 
   if (!relativePath.includes("/")) {
+    // 内容哈希后的顶层 bundle（部署时由 hash-assets 生成）
+    if (/^(?:pi-bundle|app\.bundle)\.[0-9a-f]{8}\.js$/.test(relativePath)) return;
+    if (/^pi-web-ui\.[0-9a-f]{8}\.css$/.test(relativePath)) return;
     if (!ALLOWED_ROOT_FILES.has(relativePath)) {
       fail("PATH_NOT_ALLOWLISTED", relativePath);
     }
@@ -126,6 +138,7 @@ function assertAllowedArtifactPath(relativePath) {
 
   if (relativePath.startsWith("modules/") && relativePath.endsWith(".js")) return;
   if (relativePath.startsWith("styles/") && relativePath.endsWith(".css")) return;
+  if (relativePath.startsWith("vendor/") && /\.(?:js|css|png|jpg|jpeg|gif|webp|ico)$/.test(relativePath)) return;
   fail("PATH_NOT_ALLOWLISTED", relativePath);
 }
 
@@ -180,6 +193,9 @@ async function listRegularFiles(rootDirectory) {
 }
 
 function scanContent(relativePath, content) {
+  // 自托管第三方静态图片（vendor/images/*.png）为二进制内容，不做文本扫描；
+  // 其路径已受 assertAllowedArtifactPath 的 vendor/ 白名单约束。
+  if (/^vendor\/.*\.(?:png|jpg|jpeg|gif|webp|ico)$/i.test(relativePath)) return;
   if (content.includes("\0")) fail("CONTENT_BINARY", relativePath);
 
   if (relativePath === "_worker.js") {
@@ -309,6 +325,7 @@ function validateReferenceClosure(contentsByPath) {
   const availablePaths = new Set(contentsByPath.keys());
 
   for (const [sourcePath, content] of contentsByPath) {
+    if (IGNORED_REFERENCE_SOURCES.has(sourcePath)) continue;
     for (const rawReference of extractLocalReferences(sourcePath, content)) {
       const resolved = resolveLocalReference(sourcePath, rawReference);
       if (resolved === null || availablePaths.has(resolved)) continue;

@@ -3,6 +3,11 @@
 {"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CI artifact to deploy consumer boundary"}
 {"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Keep build and deploy artifact file-set logic single-sourced"}
 {"file":".trellis/spec/backend/testing-strategy.md","reason":"Scoped Vitest quality and failure-path tests"}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend package entrypoint and applicable vanilla JS contracts"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Panel, mobile view reveal and accessibility contracts"}
+{"file":".trellis/spec/frontend/hook-guidelines.md","reason":"ES module and delegated event patterns"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend regression-test and error-handling requirements"}
+{"file":".trellis/spec/frontend/guest-auth-flow.md","reason":"Guest startup and custom AI authentication boundary"}
 {"file":".trellis/tasks/08-13-production-safety-release-recovery/research/pi-dependencies.md","reason":"Immutable dependency choice, engine constraint and isolation checks"}
 {"file":".trellis/tasks/08-13-production-safety-release-recovery/research/deploy-safety.md","reason":"Allowlist artifact, fail-closed validator and deployment risks"}
 {"file":".trellis/tasks/08-13-production-safety-release-recovery/research/ci-workflow.md","reason":"Target CI/deploy DAG, reporter artifacts and GitHub permission traps"}

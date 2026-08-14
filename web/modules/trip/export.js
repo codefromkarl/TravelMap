@@ -197,6 +197,27 @@ async function openShareModal(type) {
         downloadImage(dataUrl, `旅行计划-${tripPlan.city || 'travel'}.png`);
         showToast(dict.shareImageDownloaded || '✅ 图片已下载', 2500, 'success');
       };
+      // 原生分享按钮（移动端）
+      let nativeBtn = document.getElementById('btn-share-native');
+      if (!nativeBtn) {
+        nativeBtn = document.createElement('button');
+        nativeBtn.id = 'btn-share-native';
+        nativeBtn.className = 'share-action-btn';
+        nativeBtn.setAttribute('data-i18n', 'shareNative');
+        nativeBtn.textContent = dict.shareNative || '📲 分享到...';
+        const footerEl = document.getElementById('share-modal-footer');
+        footerEl?.insertBefore(nativeBtn, downloadBtn);
+      }
+      nativeBtn.style.display = (typeof navigator.share === 'function') ? 'inline-block' : 'none';
+      nativeBtn.onclick = async () => {
+        const shared = await shareImageNative(dataUrl, `旅行计划-${tripPlan.city || 'travel'}.png`);
+        if (shared) {
+          closeShareModal();
+          showToast(dict.shareImageDownloaded || '✅ 分享成功', 2500, 'success');
+        } else {
+          showToast(dict.shareNativeUnavailable || '当前浏览器不支持原生分享，请使用下载', 2500, 'warning');
+        }
+      };
       // 显示 footer
       const footer = document.getElementById('share-modal-footer');
       if (footer) footer.style.display = 'flex';
@@ -250,6 +271,43 @@ async function openShareModal(type) {
   }
 }
 
+// ─── 原生分享（Web Share API）───────────────────────────
+function dataUrlToBlob(dataUrl) {
+  return fetch(dataUrl).then((response) => response.blob()).catch(() => null);
+}
+
+/**
+ * 图片原生分享：优先 navigator.share({ files })，不支持时返回 false
+ */
+async function shareImageNative(dataUrl, filename) {
+  if (typeof navigator.share !== 'function') return false;
+  try {
+    const blob = await dataUrlToBlob(dataUrl);
+    if (!blob) return false;
+    const file = new File([blob], filename, { type: 'image/png' });
+    if (navigator.canShare && !navigator.canShare({ files: [file] })) return false;
+    await navigator.share({ files: [file], title: '旅行计划' });
+    return true;
+  } catch (error) {
+    if (error && error.name === 'AbortError') return true; // 用户取消视为已处理
+    return false;
+  }
+}
+
+/**
+ * 链接原生分享：优先 navigator.share({ url })，不支持或取消时返回 false
+ */
+async function shareLinkNative(url, text) {
+  if (typeof navigator.share !== 'function') return false;
+  try {
+    await navigator.share({ title: '旅图 TravelMap', text, url });
+    return true;
+  } catch (error) {
+    if (error && error.name === 'AbortError') return true;
+    return false;
+  }
+}
+
 function closeShareModal() {
   const overlay = document.getElementById('share-modal-overlay');
   if (overlay) {
@@ -276,18 +334,20 @@ document.getElementById('btn-share-link-new')?.addEventListener('click', () => {
   }
   const url = generateShareLink(tripPlan);
   if (url) {
-    navigator.clipboard.writeText(url).then(() => {
-      const dict = I18N[currentLang] || I18N.zh;
-      showToast(dict.shareLinkCopied || '🔗 链接已复制到剪贴板', 2500, 'success');
-    }).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = url;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      const dict = I18N[currentLang] || I18N.zh;
-      showToast(dict.shareLinkCopied || '🔗 链接已复制到剪贴板', 2500, 'success');
+    const dict = I18N[currentLang] || I18N.zh;
+    void shareLinkNative(url, dict.shareLinkText || '看看我的 AI 旅行计划！').then((shared) => {
+      if (shared) return;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast(dict.shareLinkCopied || '🔗 链接已复制到剪贴板', 2500, 'success');
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(dict.shareLinkCopied || '🔗 链接已复制到剪贴板', 2500, 'success');
+      });
     });
   }
 });

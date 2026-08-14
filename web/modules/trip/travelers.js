@@ -133,8 +133,6 @@ document.getElementById("travelers-save")?.addEventListener("click", () => {
   document.getElementById("preferences-summary").textContent = formatPreferencesText(p);
   updateSystemPromptWithPreferences();
 
-  document.getElementById("travelers-panel").classList.remove("open");
-  setActivePanel(null);
-  document.getElementById("overlay")?.classList.remove("visible");
+  window._panels?.closePanel?.("travelers-panel");
   showToast(`已保存：${formatTravelersText(t)} ${formatPreferencesText(p)}`, 2500, 'success');
 });

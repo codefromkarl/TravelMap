@@ -15,7 +15,7 @@
  *  11. 错误恢复
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, gotoApp, showMapView, test } from "./fixtures/app";
 
 // ─── 辅助函数 ─────────────────────────────────────────────
 
@@ -468,21 +468,17 @@ test.describe("出行人群面板", () => {
   });
 
   test("保存出行人群应持久化到 localStorage", async ({ page }) => {
-    await page.goto("index.html");
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await gotoApp(page, { readiness: "agent" });
 
-    const jsLoaded = await waitForJsModules(page);
-    if (!jsLoaded) {
-      console.log("[SKIP] JS 模块未加载");
-      return;
-    }
-
-    // 设置出行人群数据
-    await page.evaluate(() => {
-      localStorage.setItem("travel-agent-travelers", JSON.stringify({
-        adults: 2, seniors: 1, children: 1, infants: 0,
-        pregnant: false, mobilityImpaired: false,
-      }));
-    });
+    await page.locator("#travelers-btn").click();
+    await expect(page.locator("#travelers-panel")).toHaveClass(/open/);
+    await page.locator("#t-adults").fill("2");
+    await page.locator("#t-seniors").fill("1");
+    await page.locator("#t-children").fill("1");
+    await page.locator("#t-infants").fill("0");
+    await page.locator("#travelers-save").click();
 
     const travelers = await page.evaluate(() => {
       const raw = localStorage.getItem("travel-agent-travelers");
@@ -493,6 +489,9 @@ test.describe("出行人群面板", () => {
     expect(travelers.adults).toBe(2);
     expect(travelers.seniors).toBe(1);
     expect(travelers.children).toBe(1);
+    await expect(page.locator("#travelers-panel")).not.toHaveClass(/open/);
+    await expect(page.locator("#overlay")).not.toHaveClass(/visible/);
+    expect(errors).toEqual([]);
   });
 });
 
@@ -668,9 +667,10 @@ test.describe("地图功能", () => {
   });
 
   test("点击路线按钮应切换路线面板", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page, { readiness: "agent" });
     const jsLoaded = await waitForJsModules(page);
     if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+    await showMapView(page);
 
     // 点击路线按钮
     const btn = page.locator("#btn-map-routes");
@@ -702,9 +702,10 @@ test.describe("地图功能", () => {
   });
 
   test("点击图层按钮应切换图层选择器", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page, { readiness: "agent" });
     const jsLoaded = await waitForJsModules(page);
     if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+    await showMapView(page);
 
     // 点击图层按钮
     const btn = page.locator("#btn-map-layers");
@@ -772,7 +773,7 @@ test.describe("模型配置弹窗", () => {
       return !overlay?.classList.contains("open");
     });
 
-    expect(mododalClosed).toBe(true);
+    expect(modalClosed).toBe(true);
   });
 
   test("点击遮罩层应关闭弹窗", async ({ page }) => {
@@ -1119,9 +1120,10 @@ test.describe("图层选项", () => {
   });
 
   test("点击卫星图层选项应切换激活状态", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page, { readiness: "agent" });
     const jsLoaded = await waitForJsModules(page);
     if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+    await showMapView(page);
 
     // 先打开图层选择器
     const layersBtn = page.locator("#btn-map-layers");
@@ -1161,7 +1163,7 @@ test.describe("反馈功能", () => {
   });
 
   test("点击反馈按钮应打开反馈弹窗", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page);
     const jsLoaded = await waitForJsModules(page);
     if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
     await page.waitForTimeout(2000);
@@ -1229,9 +1231,10 @@ test.describe("路线面板最小化", () => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
 
-    await page.goto("index.html");
+    await gotoApp(page, { readiness: "agent" });
     const jsLoaded = await waitForJsModules(page);
     if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+    await showMapView(page);
 
     // 先打开路线面板
     const routesBtn = page.locator("#btn-map-routes");
@@ -1533,7 +1536,7 @@ test.describe("移动端按钮点击", () => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
 
-    await page.goto("index.html");
+    await gotoApp(page);
     const jsLoaded = await waitForJsModules(page);
     if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
 
@@ -1551,9 +1554,10 @@ test.describe("移动端按钮点击", () => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
 
-    await page.goto("index.html");
+    await gotoApp(page);
     const jsLoaded = await waitForJsModules(page);
     if (!jsLoaded) { console.log("[SKIP] JS 模块未加载"); return; }
+    await showMapView(page);
 
     const btn = page.locator("#btn-mobile-chat");
     if (await btn.count() > 0) {

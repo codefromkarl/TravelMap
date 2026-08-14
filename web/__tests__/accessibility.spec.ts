@@ -1,207 +1,200 @@
 /**
- * 按钮可点击性验证测试
+ * 活动界面交互可用性验证
  *
- * 遍历页面所有 button[id] 元素，验证：
- * 1. 按钮未被其他元素遮挡（z-index/overflow）
- * 2. 按钮有事件监听器绑定
- * 3. 按钮可见（非 display:none / visibility:hidden）
+ * 只检查真实处于活动 DOM、与视口相交的交互目标。隐藏兼容容器、关闭的
+ * off-canvas 面板以及祖先不可见的元素不属于当前用户可操作界面。
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+const INTERACTIVE_SELECTOR = [
+  "button",
+  '[role="button"]',
+  "a[href]",
+  'input:not([type="hidden"])',
+  "select",
+  "textarea",
+  ".quick-prompt[data-prompt]",
+].join(", ");
+
+interface InteractiveState {
+  name: string;
+  visible: boolean;
+  obscured: boolean;
+  disabled: boolean;
+  width: number;
+  height: number;
+}
 
 /** 等待 JS 模块加载完成 */
-async function waitForJsModules(page: import("@playwright/test").Page, timeout = 15000): Promise<boolean> {
+async function waitForJsModules(page: Page, timeout = 15000): Promise<boolean> {
   try {
-    await page.waitForFunction(() => {
-      const panel = document.querySelector("pi-chat-panel");
-      return panel && panel.constructor.name !== "HTMLElement";
-    }, { timeout });
+    await page.waitForFunction(
+      () => {
+        const panel = document.querySelector("pi-chat-panel");
+        return panel && panel.constructor.name !== "HTMLElement";
+      },
+      { timeout },
+    );
     return true;
   } catch {
     return false;
   }
 }
 
-test.describe("按钮可点击性验证", () => {
-  test("所有 button[id] 元素应无遮挡且可交互", async ({ page }) => {
-    await page.goto("index.html");
-    const jsLoaded = await waitForJsModules(page);
-    if (!jsLoaded) {
-      console.log("[SKIP] JS 模块未加载");
-      return;
-    }
-
-    // 收集所有 button[id] 元素的状态
-    const buttonStates = await page.evaluate(() => {
-      const buttons = document.querySelectorAll("button[id]");
-      const results: Array<{
-        id: string;
-        visible: boolean;
-        obscured: boolean;
-        hasClickListener: boolean;
-        disabled: boolean;
-        display: string;
-        visibility: string;
-      }> = [];
-
-      for (const btn of buttons) {
-        const id = btn.id;
-        const style = getComputedStyle(btn);
-        const rect = btn.getBoundingClientRect();
-
-        // 检查可见性
-        const visible =
-          style.display !== "none" &&
-          style.visibility !== "hidden" &&
-          rect.width > 0 &&
-          rect.height > 0;
-
-        // 检查是否被遮挡（通过 elementFromPoint）
-        let obscured = false;
-        if (visible) {
-          const centerX = rect.left + rect.width / 2;
-          const centerY = rect.top + rect.height / 2;
-          const topElement = document.elementFromPoint(centerX, centerY);
-          obscured = topElement !== btn && !btn.contains(topElement);
-        }
-
-        // 检查事件监听器（通过 onclick 属性或 data 属性推断）
-        const hasClickListener =
-          btn.onclick !== null ||
-          btn.hasAttribute("onclick") ||
-          btn.getAttribute("role") === "button" ||
-          btn.tagName === "BUTTON"; // button 标签默认可点击
-
-        results.push({
-          id,
-          visible,
-          obscured,
-          hasClickListener,
-          disabled: btn.classList.contains("disabled-ghost") || (btn as HTMLButtonElement).disabled,
-          display: style.display,
-          visibility: style.visibility,
-        });
-      }
-
-      return results;
-    });
-
-    // 验证每个按钮
-    expect(buttonStates.length).toBeGreaterThan(0);
-
-    // 统计
-    const visibleButtons = buttonStates.filter((b) => b.visible);
-    const obscuredButtons = visibleButtons.filter((b) => b.obscured && !b.disabled);
-
-    // 输出详细信息用于调试
-    if (obscuredButtons.length > 0) {
-      console.log(
-        "被遮挡的按钮:",
-        obscuredButtons.map((b) => b.id),
-      );
-    }
-
-    // 可见且非 disabled 的按钮不应被遮挡
-    expect(
-      obscuredButtons.length,
-      `以下按钮被遮挡: ${obscuredButtons.map((b) => b.id).join(", ")}`,
-    ).toBe(0);
-  });
-
-  test("可见按钮应有合理的尺寸（可触达）", async ({ page }) => {
-    await page.goto("index.html");
-    const jsLoaded = await waitForJsModules(page);
-    if (!jsLoaded) {
-      console.log("[SKIP] JS 模块未加载");
-      return;
-    }
-
-    const smallButtons = await page.evaluate(() => {
-      const buttons = document.querySelectorAll("button[id]");
-      const tooSmall: Array<{ id: string; width: number; height: number }> = [];
-
-      for (const btn of buttons) {
-        const style = getComputedStyle(btn);
-        if (style.display === "none" || style.visibility === "hidden") continue;
-
-        const rect = btn.getBoundingClientRect();
-        // 最小触达尺寸 24x24（宽松标准，移动端建议 44x44）
-        if (rect.width < 24 || rect.height < 24) {
-          tooSmall.push({
-            id: btn.id,
-            width: Math.round(rect.width),
-            height: Math.round(rect.height),
-          });
+async function collectInteractiveStates(
+  page: Page,
+  selector = INTERACTIVE_SELECTOR,
+): Promise<InteractiveState[]> {
+  return page.locator(selector).evaluateAll((elements) => {
+    const hasInvisibleAncestor = (element: Element): boolean => {
+      for (let current: Element | null = element; current; current = current.parentElement) {
+        const style = getComputedStyle(current);
+        if (
+          current.hasAttribute("hidden") ||
+          current.getAttribute("aria-hidden") === "true" ||
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.visibility === "collapse" ||
+          style.contentVisibility === "hidden" ||
+          Number.parseFloat(style.opacity) === 0
+        ) {
+          return true;
         }
       }
+      return false;
+    };
 
-      return tooSmall;
+    const describe = (element: Element): string => {
+      const htmlElement = element as HTMLElement;
+      const accessibleName =
+        element.getAttribute("aria-label") ||
+        element.getAttribute("title") ||
+        element.getAttribute("data-i18n") ||
+        htmlElement.innerText?.trim().replace(/\s+/g, " ").slice(0, 40);
+      const className = [...element.classList].slice(0, 2).join(".");
+      return element.id || accessibleName || `${element.tagName.toLowerCase()}${className ? `.${className}` : ""}`;
+    };
+
+    return elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      const hasLayoutBox = element.getClientRects().length > 0 && rect.width > 0 && rect.height > 0;
+      const intersectsViewport =
+        rect.right > 0 &&
+        rect.bottom > 0 &&
+        rect.left < window.innerWidth &&
+        rect.top < window.innerHeight;
+      const visible = !hasInvisibleAncestor(element) && hasLayoutBox && intersectsViewport;
+      const disabled =
+        (element as HTMLButtonElement | HTMLInputElement).disabled === true ||
+        element.getAttribute("aria-disabled") === "true" ||
+        element.classList.contains("disabled-ghost");
+
+      let obscured = false;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const centerInViewport =
+        centerX >= 0 && centerY >= 0 && centerX < window.innerWidth && centerY < window.innerHeight;
+      if (visible && centerInViewport) {
+        const topElement = document.elementFromPoint(centerX, centerY);
+        obscured = topElement !== element && !element.contains(topElement);
+      }
+
+      return {
+        name: describe(element),
+        visible,
+        obscured,
+        disabled,
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
     });
+  });
+}
 
-    // 输出小按钮信息（警告而非失败）
-    if (smallButtons.length > 0) {
-      console.log(
-        "尺寸过小的按钮:",
-        smallButtons.map((b) => `${b.id}(${b.width}x${b.height})`),
-      );
-    }
-
-    // 允许少量小按钮存在（如关闭按钮），但不应太多
-    expect(
-      smallButtons.length,
-      `${smallButtons.length} 个按钮尺寸过小: ${smallButtons.map((b) => b.id).join(", ")}`,
-    ).toBeLessThanOrEqual(3);
+test.describe("活动界面交互可用性", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/config.local.js", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        body: "export default {};",
+      });
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem("travel-agent-onboarding-done", "true");
+    });
   });
 
-  test("disabled-ghost 按钮移除禁用类后应可点击", async ({ page }) => {
+  test("所有可见交互目标应无遮挡", async ({ page }) => {
     await page.goto("index.html");
     const jsLoaded = await waitForJsModules(page);
-    if (!jsLoaded) {
-      console.log("[SKIP] JS 模块未加载");
-      return;
-    }
+    expect(jsLoaded, "JS 模块应成功加载，不能把加载失败当作无障碍测试通过").toBe(true);
 
-    // 找到一个 disabled-ghost 按钮
-    const disabledBtnId = await page.evaluate(() => {
-      const btn = document.querySelector("button.disabled-ghost[id]");
-      return btn?.id || null;
-    });
+    const states = await collectInteractiveStates(page);
+    const visibleTargets = states.filter((state) => state.visible);
+    const obscuredTargets = visibleTargets.filter((state) => state.obscured && !state.disabled);
 
-    if (!disabledBtnId) {
-      console.log("[SKIP] 未找到 disabled-ghost 按钮");
-      return;
-    }
+    expect(visibleTargets.length).toBeGreaterThan(0);
+    expect(
+      obscuredTargets,
+      `以下活动交互目标被遮挡: ${obscuredTargets.map((state) => state.name).join(", ")}`,
+    ).toEqual([]);
+  });
 
-    // 移除 disabled-ghost 类
-    await page.evaluate((id: string) => {
-      document.getElementById(id)?.classList.remove("disabled-ghost");
-    }, disabledBtnId);
+  test("可见且启用的交互目标应至少为 44x44", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    expect(jsLoaded, "JS 模块应成功加载，不能把加载失败当作触摸目标测试通过").toBe(true);
 
-    // 验证按钮不再有 disabled-ghost 类
-    const isEnabled = await page.evaluate((id: string) => {
-      return !document.getElementById(id)?.classList.contains("disabled-ghost");
-    }, disabledBtnId);
+    const states = await collectInteractiveStates(page);
+    const smallTargets = states.filter(
+      (state) =>
+        state.visible && !state.disabled && (state.width < 44 || state.height < 44),
+    );
 
-    expect(isEnabled).toBe(true);
+    expect(
+      smallTargets,
+      `以下活动交互目标小于 44x44: ${smallTargets
+        .map((state) => `${state.name}(${state.width}x${state.height})`)
+        .join(", ")}`,
+    ).toEqual([]);
+  });
 
-    // 点击不应抛出错误
-    const errors: string[] = [];
-    page.on("pageerror", (err) => errors.push(err.message));
+  test("可见 disabled-ghost 按钮移除禁用类后应可点击", async ({ page }) => {
+    await page.goto("index.html");
+    const jsLoaded = await waitForJsModules(page);
+    expect(jsLoaded, "JS 模块应成功加载，不能把加载失败当作交互测试通过").toBe(true);
 
+    const states = await collectInteractiveStates(page, "button.disabled-ghost[id]");
+    const visibleCandidate = states.find((state) => state.visible);
+    test.skip(!visibleCandidate, "活动界面中没有可见的 disabled-ghost 按钮");
+
+    const disabledBtnId = visibleCandidate?.name;
+    expect(disabledBtnId).toBeTruthy();
     const btn = page.locator(`#${disabledBtnId}`);
+    await btn.evaluate((element) => element.classList.remove("disabled-ghost"));
+    await expect(btn).not.toHaveClass(/disabled-ghost/);
+
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+
     await btn.click();
     await page.waitForTimeout(500);
 
     const criticalErrors = errors.filter(
-      (e) =>
-        !e.includes("Failed to resolve module specifier") &&
-        !e.includes("esm.sh") &&
-        !e.includes("Failed to fetch") &&
-        !e.includes("net::ERR") &&
-        !e.includes("Cross-Origin") &&
-        !e.includes("CORS"),
+      (error) =>
+        !error.includes("Failed to resolve module specifier") &&
+        !error.includes("esm.sh") &&
+        !error.includes("Failed to fetch") &&
+        !error.includes("net::ERR") &&
+        !error.includes("Cross-Origin") &&
+        !error.includes("CORS"),
     );
 
-    expect(criticalErrors, `点击 ${disabledBtnId} 后出现错误: ${criticalErrors.join(", ")}`).toEqual([]);
+    expect(
+      criticalErrors,
+      `点击 ${disabledBtnId} 后出现错误: ${criticalErrors.join(", ")}`,
+    ).toEqual([]);
   });
 });

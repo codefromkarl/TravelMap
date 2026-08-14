@@ -12,11 +12,11 @@
  *       JS 相关测试使用较长超时和宽松断言。
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, gotoApp, test } from "./fixtures/app";
 
 test.describe("页面加载验证", () => {
   test("应正确加载页面标题和主要结构", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page);
 
     await expect(page).toHaveTitle(/TravelMap/);
 
@@ -30,7 +30,7 @@ test.describe("页面加载验证", () => {
   });
 
   test("应渲染 pi-chat-panel 自定义元素", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page);
 
     const chatPanel = page.locator("pi-chat-panel");
     // HTML 中声明了 <pi-chat-panel>，即使 JS 未加载也应该 attached
@@ -38,7 +38,7 @@ test.describe("页面加载验证", () => {
   });
 
   test("loading 提示在 JS 执行后应消失", async ({ page }) => {
-    await page.goto("index.html");
+    await gotoApp(page);
 
     const loading = page.locator("#loading");
     // JS 会执行 document.getElementById("loading")?.remove()

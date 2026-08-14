@@ -63,6 +63,7 @@ function renderTripCard(trip) {
         <span class="item-date">${date}</span>
         <div class="item-actions">
           <button class="restore-btn" data-id="${trip.id}">恢复</button>
+          <button class="edit-btn" data-id="${trip.id}" title="编辑行程（调整景点顺序）">编辑</button>
           <button class="delete-btn" data-id="${trip.id}">删除</button>
         </div>
       </div>
@@ -81,6 +82,15 @@ export async function renderHistory() {
       return;
     }
     historyList.innerHTML = trips.map(renderTripCard).join("");
+
+    historyList.querySelectorAll(".edit-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const { openTripEditor } = await import('./trip-editor.js');
+        openTripEditor(id);
+      });
+    });
 
     historyList.querySelectorAll(".restore-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {

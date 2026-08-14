@@ -9,6 +9,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const authMocks = vi.hoisted(() => ({
+  requireAuth: vi.fn(),
+}));
+
 // Mock 所有依赖
 vi.mock('../context.js', () => ({
   agent: null,
@@ -41,8 +45,12 @@ vi.mock('@earendil-works/pi-agent-core', () => ({
   Agent: vi.fn().mockImplementation(() => ({
     subscribe: vi.fn(),
     state: { messages: [] },
-    run: vi.fn(),
+    prompt: vi.fn(),
   })),
+}));
+
+vi.mock('../auth/auth.js', () => ({
+  requireAuth: authMocks.requireAuth,
 }));
 
 vi.mock('@earendil-works/pi-ai', () => ({
@@ -90,6 +98,7 @@ vi.mock('../share.js', () => ({
 vi.mock('../db.js', () => ({
   saveTripPlan: vi.fn(),
   listTrips: vi.fn(),
+  migrateCoordinatesToGcj02: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../trace.js', () => ({
@@ -116,12 +125,15 @@ vi.mock('../stt.js', () => ({
 }));
 
 // 导入被测模块
-import { initApp } from '../chat-init.js';
+import { initApp, retryLastMessage } from '../chat-init.js';
 
 // ─── 测试 ─────────────────────────────────────────────
 
 describe('chat-init.js', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    authMocks.requireAuth.mockResolvedValue(true);
+
     // 设置 DOM
     document.body.innerHTML = `
       <div id="chat-container"></div>
@@ -159,6 +171,51 @@ describe('chat-init.js', () => {
         // 某些 DOM 元素缺失可能导致错误，这是可以接受的
         console.warn('initApp error (expected in test):', e.message);
       }
+    });
+  });
+
+  describe('retryLastMessage', () => {
+    it('continues the failed turn without duplicating its user message', async () => {
+      const prompt = vi.fn().mockResolvedValue(undefined);
+      const continueRun = vi.fn().mockImplementation(async () => {
+        messages.push({ role: 'assistant', content: '新的行程结果' });
+      });
+      const run = vi.fn();
+      const messages = [
+        { role: 'user', content: [{ type: 'text', text: '重新规划杭州行程' }] },
+        { role: 'assistant', content: '', errorMessage: 'provider failed' },
+      ];
+
+      await retryLastMessage({ state: { messages }, prompt, continue: continueRun, run });
+
+      expect(authMocks.requireAuth).toHaveBeenCalledTimes(1);
+      expect(continueRun).toHaveBeenCalledTimes(1);
+      expect(prompt).not.toHaveBeenCalled();
+      expect(run).not.toHaveBeenCalled();
+      expect(messages.filter(message => message.role === 'user')).toHaveLength(1);
+      expect(messages).toEqual([
+        { role: 'user', content: [{ type: 'text', text: '重新规划杭州行程' }] },
+        { role: 'assistant', content: '新的行程结果' },
+      ]);
+    });
+
+    it('does not retry or alter messages when authentication fails', async () => {
+      authMocks.requireAuth.mockResolvedValue(false);
+      const prompt = vi.fn();
+      const continueRun = vi.fn();
+      const run = vi.fn();
+      const messages = [
+        { role: 'user', content: '保留这条消息' },
+        { role: 'assistant', content: '', errorMessage: 'provider failed' },
+      ];
+
+      await retryLastMessage({ state: { messages }, prompt, continue: continueRun, run });
+
+      expect(authMocks.requireAuth).toHaveBeenCalledTimes(1);
+      expect(prompt).not.toHaveBeenCalled();
+      expect(continueRun).not.toHaveBeenCalled();
+      expect(run).not.toHaveBeenCalled();
+      expect(messages).toHaveLength(2);
     });
   });
 });

@@ -64,13 +64,32 @@ const buildPlugin = {
   },
 };
 
-esbuild.build({
-  entryPoints: ["web/entry.ts"],
-  bundle: true,
-  format: "esm",
-  outfile: "web/pi-bundle.js",
-  platform: "browser",
-  target: "es2022",
-  plugins: [buildPlugin],
-  logLevel: "info",
-}).catch(e => { console.error(e); process.exit(1); });
+/** 构建 pi 运行时 bundle（浏览器 importmap 目标）。 */
+async function buildPiBundle({ outfile = "web/pi-bundle.js", minify = true } = {}) {
+  await esbuild.build({
+    entryPoints: ["web/entry.ts"],
+    bundle: true,
+    format: "esm",
+    outfile,
+    platform: "browser",
+    target: "es2022",
+    plugins: [buildPlugin],
+    minify,
+    legalComments: "none",
+    charset: "utf8",
+    logLevel: "info",
+    // 生产构建：压缩；可被 CI 以 --minify=false 复现调试
+  });
+  return outfile;
+}
+
+if (require.main === module) {
+  const outfileArg = process.argv[2];
+  if (outfileArg === "--minify=false") {
+    buildPiBundle({ minify: false }).catch((e) => { console.error(e); process.exit(1); });
+  } else {
+    buildPiBundle({ outfile: outfileArg }).catch((e) => { console.error(e); process.exit(1); });
+  }
+}
+
+module.exports = { buildPiBundle };

@@ -349,8 +349,8 @@
       position: absolute;
       bottom: 8px;
       left: 8px;
-      width: 32px;
-      height: 32px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       border: 1px solid var(--color-border-default);
       background: var(--color-bg-elevated);
@@ -381,12 +381,12 @@
       position: absolute;
       bottom: 8px;
       left: 8px;
-      width: 32px;
-      height: 32px;
+      width: 44px;
+      height: 44px;
     }
     /* 为输入框留出语音按钮空间 */
     pi-chat-panel.has-voice-btn message-editor textarea {
-      padding-left: 40px;
+      padding-left: 52px;
     }
 
     #toast {
@@ -785,12 +785,50 @@
       flex-shrink: 0;
       background: var(--color-bg-surface);
     }
-    #map-chat-header h3 {
+    #map-chat-header h1 {
       font-size: 15px;
       font-weight: 600;
       display: flex;
       align-items: center;
       gap: 6px;
+      margin: 0;
+      line-height: 1.25;
+    }
+    #map-chat-header h1 > a {
+      min-width: 44px;
+      min-height: 44px;
+      justify-content: center;
+      border-radius: 8px;
+    }
+    .map-chat-actions,
+    .map-chat-language-switcher {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .map-chat-language-switcher {
+      gap: 1px;
+      margin-left: 4px;
+    }
+    #map-chat-header .map-tool-btn {
+      width: 44px !important;
+      height: 44px !important;
+      min-width: 44px;
+      min-height: 44px;
+      background: var(--color-bg-surface) !important;
+      border: 1px solid var(--color-border-subtle) !important;
+      box-shadow: none !important;
+    }
+    #map-chat-header .map-chat-text-btn {
+      width: auto !important;
+      padding: 0 12px;
+      white-space: nowrap;
+    }
+    #map-chat-header .lang-btn {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0 8px;
+      font-size: 11px;
     }
     .map-chat-back {
       background: none; border: none;
@@ -840,6 +878,7 @@
       text-align: left;
       transition: border-color 0.15s;
       color: var(--color-text-primary);
+      min-height: 44px;
     }
     #map-chat-welcome .quick-prompt:hover { border-color: var(--color-accent-subtle); }
     #map-chat-welcome .quick-prompt--discover {
@@ -1034,7 +1073,8 @@
       background: white;
       border-radius: 8px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-      padding: 8px 14px;
+      min-height: 44px;
+      padding: 0 14px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -1047,6 +1087,8 @@
       font-size: 14px;
       background: transparent;
       color: #333;
+      min-width: 0;
+      min-height: 44px;
     }
     .map-search-box input::placeholder { color: #999; }
     .map-tool-btn {
@@ -1054,7 +1096,9 @@
       border: none;
       border-radius: 8px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-      width: 36px; height: 36px;
+      width: 44px; height: 44px;
+      min-width: 44px;
+      min-height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1983,6 +2027,7 @@
       font-size: var(--text-base);
       outline: none;
       transition: border-color 0.15s;
+      min-height: 44px;
     }
     .setting-row select:focus,
     .setting-row input:focus {
@@ -2283,7 +2328,7 @@
       }
       #page-map-statusbar { font-size: 11px; gap: 8px; }
       #page-map-toolbar { gap: 6px; }
-      .map-tool-btn { width: 32px; height: 32px; font-size: 14px; }
+      .map-tool-btn { width: 44px; height: 44px; font-size: 14px; }
       /* 移动端视图切换按钮 */
       .mobile-view-toggle {
         display: flex;
@@ -2306,6 +2351,7 @@
         display: flex;
         align-items: center;
         gap: 6px;
+        min-height: 44px;
       }
     }
     /* 移动端视图切换按钮 — 仅桌面端隐藏，避免覆盖上方移动端规则 */
@@ -2539,3 +2585,297 @@
 #btn-voice-companion {
   display: none !important;
 }
+
+/* ═══════════════════════════════════════════════════════
+ * 暗黑模式（Dark Mode）
+ * - html[data-theme="dark"] 由 modules/infra/theme.js 设置
+ * - 未设置时跟随系统 prefers-color-scheme
+ * ═══════════════════════════════════════════════════════ */
+html[data-theme="dark"] {
+  --color-bg-base: #0f172a;
+  --color-bg-surface: #1e293b;
+  --color-bg-elevated: #334155;
+  --color-bg-overlay: rgba(2, 6, 23, 0.72);
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  --color-border-subtle: #334155;
+  --color-border-default: #475569;
+  --color-accent-primary: #60a5fa;
+  --color-accent-hover: #3b82f6;
+  --color-accent-subtle: #93c5fd;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* 未显式设置主题时跟随系统 */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) {
+    --color-bg-base: #0f172a;
+    --color-bg-surface: #1e293b;
+    --color-bg-elevated: #334155;
+    --color-bg-overlay: rgba(2, 6, 23, 0.72);
+    --color-text-primary: #f1f5f9;
+    --color-text-secondary: #cbd5e1;
+    --color-text-muted: #94a3b8;
+    --color-border-subtle: #334155;
+    --color-border-default: #475569;
+    --color-accent-primary: #60a5fa;
+    --color-accent-hover: #3b82f6;
+    --color-accent-subtle: #93c5fd;
+    --color-success: #4ade80;
+    --color-warning: #fbbf24;
+    --color-danger: #f87171;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  }
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] #model-modal,
+html[data-theme="dark"] #share-modal,
+html[data-theme="dark"] .history-item,
+html[data-theme="dark"] #feedback-overlay > div {
+  color-scheme: dark;
+}
+
+/* 硬编码浅色表面的针对性覆盖 */
+html[data-theme="dark"] .map-tool-btn,
+html[data-theme="dark"] #btn-open-model,
+html[data-theme="dark"] #btn-theme {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-primary);
+}
+
+html[data-theme="dark"] .history-item,
+html[data-theme="dark"] #history-panel,
+html[data-theme="dark"] #travelers-panel,
+html[data-theme="dark"] #share-modal,
+html[data-theme="dark"] #model-modal,
+html[data-theme="dark"] #settings-panel,
+html[data-theme="dark"] #trace-panel {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+html[data-theme="dark"] .history-item {
+  border-color: var(--color-border-subtle);
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+html[data-theme="dark"] .map-chat-language-switcher .lang-btn,
+html[data-theme="dark"] #lang-switcher .lang-btn {
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-subtle);
+}
+
+html[data-theme="dark"] .lang-btn.active {
+  background: var(--color-accent-primary);
+  color: #fff;
+}
+
+html[data-theme="dark"] #map-chat-welcome,
+html[data-theme="dark"] .quick-prompts .quick-prompt {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-subtle);
+}
+
+html[data-theme="dark"] .guest-banner {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border-subtle);
+}
+
+html[data-theme="dark"] .map-search-box input {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+/* Leaflet 控件适配 */
+html[data-theme="dark"] .leaflet-container {
+  background: #1e293b;
+}
+
+html[data-theme="dark"] .leaflet-control-zoom a,
+html[data-theme="dark"] .leaflet-bar a,
+html[data-theme="dark"] .leaflet-popup-content-wrapper,
+html[data-theme="dark"] .leaflet-popup-tip {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-subtle);
+}
+
+html[data-theme="dark"] .leaflet-popup-content-wrapper {
+  color: var(--color-text-primary);
+}
+
+html[data-theme="dark"] .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .leaflet-control-attribution a {
+  color: var(--color-accent-subtle);
+}
+
+/* 打印样式不受暗黑影响 */
+@media print {
+  html[data-theme="dark"] body {
+    background: white;
+    color: black;
+  }
+}
+
+
+/* ─── 行程编辑器 ─────────────────────────────────────── */
+.edit-btn {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.edit-btn:hover {
+  background: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  color: #fff;
+}
+
+.trip-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-overlay);
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.trip-editor-overlay[hidden] { display: none; }
+
+.trip-editor {
+  background: var(--color-bg-base);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: min(560px, 92vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.trip-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.trip-editor-header h3 { margin: 0; font-size: 15px; }
+
+.trip-editor-body {
+  padding: 12px 18px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.trip-editor-day {
+  margin-bottom: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+}
+.trip-editor-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.trip-editor-day-title { font-size: 13px; font-weight: 600; }
+.trip-editor-day-date { font-size: 12px; color: var(--color-text-muted); margin-left: 6px; }
+
+.trip-editor-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.trip-editor-item:last-child { border-bottom: none; }
+.trip-editor-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+.trip-editor-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.trip-editor-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+.trip-editor-btn:hover:not(:disabled) {
+  background: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  color: #fff;
+}
+.trip-editor-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.trip-editor-btn.danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.trip-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.trip-editor-hint { font-size: 11px; color: var(--color-text-muted); }
+.trip-editor-save {
+  background: var(--color-accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trip-editor-save:hover { background: var(--color-accent-hover); }
+

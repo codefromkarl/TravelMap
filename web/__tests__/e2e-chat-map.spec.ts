@@ -7,22 +7,9 @@
  *   3. 计划生成后地图上有路线显示
  */
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, gotoApp, showMapView, test } from "./fixtures/app";
 
 // ─── 辅助函数 ─────────────────────────────────────────────
-
-/** 等待 JS 模块加载完成 */
-async function waitForAppReady(page: Page, timeout = 15000): Promise<boolean> {
-  try {
-    await page.waitForFunction(() => {
-      const chat = document.getElementById("chat");
-      return chat && (chat as any).agent;
-    }, { timeout });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** 收集关键错误（排除插件和已知无关错误） */
 function filterCriticalErrors(errors: string[]): string[] {
@@ -42,7 +29,7 @@ function filterCriticalErrors(errors: string[]): string[] {
 }
 
 /** 监听控制台错误 */
-function setupConsoleListener(page: Page): { errors: string[]; cleanup: () => void } {
+function setupConsoleListener(page: import("@playwright/test").Page): { errors: string[]; cleanup: () => void } {
   const errors: string[] = [];
   const handler = (msg: any) => {
     if (msg.type() === "error") {
@@ -57,7 +44,7 @@ function setupConsoleListener(page: Page): { errors: string[]; cleanup: () => vo
 }
 
 /** 监听网络请求失败 */
-function setupNetworkListener(page: Page): { failedRequests: any[]; cleanup: () => void } {
+function setupNetworkListener(page: import("@playwright/test").Page): { failedRequests: any[]; cleanup: () => void } {
   const failedRequests: any[] = [];
   const handler = (response: any) => {
     if (response.status() >= 400) {
@@ -98,11 +85,7 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("页面加载无关键错误", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-
-    // 等待应用就绪
-    const ready = await waitForAppReady(page, 20000);
-    expect(ready).toBe(true);
+    await gotoApp(page, { readiness: "agent" });
 
     // 检查关键容器
     const structure = await page.evaluate(() => {
@@ -129,8 +112,7 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("对话交互：发送消息并接收回复", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-    await waitForAppReady(page, 20000);
+    await gotoApp(page, { readiness: "agent" });
 
     // 等待地图初始化
     await page.waitForFunction(() => {
@@ -182,8 +164,8 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("地图功能：搜索定位", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-    await waitForAppReady(page, 20000);
+    await gotoApp(page, { readiness: "agent" });
+    await showMapView(page);
 
     // 等待地图初始化
     await page.waitForFunction(() => {
@@ -213,8 +195,8 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("地图功能：图层切换", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-    await waitForAppReady(page, 20000);
+    await gotoApp(page, { readiness: "agent" });
+    await showMapView(page);
 
     // 等待地图初始化
     await page.waitForFunction(() => {
@@ -251,8 +233,7 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("网络请求检查：无关键 API 报错", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-    await waitForAppReady(page, 20000);
+    await gotoApp(page, { readiness: "agent" });
 
     // 等待地图初始化和瓦片加载
     await page.waitForTimeout(3000);
@@ -277,8 +258,7 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("完整流程：点击示例卡片并验证地图", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-    await waitForAppReady(page, 20000);
+    await gotoApp(page, { readiness: "agent" });
 
     // 等待地图初始化
     await page.waitForFunction(() => {
@@ -344,8 +324,7 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("骨架 tripPlan 应触发数据不完整警告", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-    await waitForAppReady(page, 20000);
+    await gotoApp(page, { readiness: "agent" });
 
     // 注入骨架 tripPlan（无坐标）并触发渲染
     const result = await page.evaluate(() => {
@@ -378,8 +357,7 @@ test.describe("E2E 对话 + 地图测试", () => {
   });
 
   test("完整 tripPlan 应渲染 marker", async ({ page }) => {
-    await page.goto("http://localhost:3456", { waitUntil: "networkidle" });
-    await waitForAppReady(page, 20000);
+    await gotoApp(page, { readiness: "agent" });
 
     // 等待地图初始化
     await page.waitForFunction(() => {

@@ -63,8 +63,9 @@
   <link rel="stylesheet" href="./styles/main.css" />
   <link rel="stylesheet" href="./styles/model-dropdown.css" />
   <link rel="stylesheet" href="./pi-web-ui.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css" />
+  <script src="./vendor/leaflet/leaflet.js"></script>
+  <link rel="manifest" href="./manifest.json" />
 
   <!-- JSON-LD Structured Data (GEO Optimized) -->
   <script type="application/ld+json">
@@ -483,18 +484,20 @@
 
       <!-- 左侧：对话面板 -->
       <div id="map-chat-panel">
-        <div id="map-chat-header">
-          <h3>🗺️ <span data-i18n="mapChatTitle">旅图助手</span> <a href="https://github.com/codefromkarl/TravelMap" target="_blank" rel="noopener noreferrer" title="GitHub" style="display:inline-flex;align-items:center;margin-left:6px;color:var(--color-text-muted);transition:color 0.15s"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg></a></h3>
-          <div style="display:flex;gap:4px;align-items:center">
-<button class="map-tool-btn" id="btn-history-map" title="历史行程" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+        <header id="map-chat-header">
+          <h1>🗺️ <span data-i18n="mapChatTitle">旅图助手</span> <a href="https://github.com/codefromkarl/TravelMap" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="GitHub" style="display:inline-flex;align-items:center;margin-left:6px;color:var(--color-text-muted);transition:color 0.15s"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg></a></h1>
+          <div class="map-chat-actions">
+            <button class="map-tool-btn map-chat-text-btn" id="travelers-btn" type="button" title="出行人群" aria-label="设置出行人群">👥 <span>旅行者</span></button>
+            <button class="map-tool-btn" id="btn-history-map" type="button" title="历史行程" aria-label="历史行程"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
             <button class="map-tool-btn" id="btn-open-model" title="模型配置" style="width:30px;height:30px;font-size:13px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-            <div style="display:flex;gap:1px;margin-left:4px">
-              <button class="lang-btn active" data-lang="zh" style="font-size:11px;padding:2px 6px">中</button>
-              <button class="lang-btn" data-lang="en" style="font-size:11px;padding:2px 6px">EN</button>
-              <button class="lang-btn" data-lang="ja" style="font-size:11px;padding:2px 6px">日</button>
+            <button class="map-tool-btn" id="btn-theme" type="button" title="切换主题" aria-label="切换主题" style="width:30px;height:30px;font-size:14px;background:var(--color-bg-surface);box-shadow:none;border:1px solid var(--color-border-subtle)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button>
+            <div class="map-chat-language-switcher" aria-label="语言选择">
+              <button class="lang-btn active" type="button" data-lang="zh" aria-label="切换为中文">中</button>
+              <button class="lang-btn" type="button" data-lang="en" aria-label="Switch to English">EN</button>
+              <button class="lang-btn" type="button" data-lang="ja" aria-label="日本語に切り替える">日</button>
             </div>
           </div>
-        </div>
+        </header>
         <div id="guest-banner" class="guest-banner" role="status">
           <span data-i18n="guestModeDesc">游客模式：可操作完整示例，自定义 AI 行程时再登录</span>
           <button id="btn-guest-presets" type="button" data-i18n="browseDemo">选择示例</button>
@@ -507,6 +510,7 @@
             <div style="font-size:15px;font-weight:600" data-i18n="mapChatWelcome">告诉我你的旅行计划</div>
             <div style="font-size:13px;color:var(--color-text-muted)" data-i18n="mapChatWelcomeDesc">我会帮你搜索景点、查询天气、规划路线、推荐美食</div>
             <div class="quick-prompts">
+              <button class="quick-prompt quick-prompt--discover" type="button" data-action="discover" data-i18n="discoverButton">🗺️ 不知道去哪？智能推荐</button>
               <button class="quick-prompt quick-prompt--preset" id="btn-guest-demo" type="button" data-i18n="browseDemo">⚡ 一键体验完整示例</button>
               <div class="quick-prompt" data-prompt="我想去旅行，帮我规划一下">🗺️ 帮我规划一个行程</div>
               <div class="quick-prompt" data-prompt="从上海出发去杭州西湖，亲子3人，总预算3000元，明天出发，规划3日游，包含景点、美食和住宿推荐">🏞️ 杭州西湖3日游</div>
@@ -636,19 +640,7 @@
     <span id="trace-id-display" style="font-size:10px;color:var(--color-text-muted);opacity:0.6;cursor:pointer" title="点击打开调用链追踪">trace:--</span>
   </footer>
 
-  <!-- Trace Waterfall Panel -->
-  <script type="module">
-    import { showPanel } from './modules/waterfall.js';
-    import { getCurrentTraceId } from './modules/trace.js';
-    document.getElementById('trace-id-display')?.addEventListener('click', () => {
-      const traceId = getCurrentTraceId();
-      if (traceId) {
-        // 同时复制到剪贴板
-        navigator.clipboard?.writeText(traceId);
-        showPanel(traceId);
-      }
-    });
-  </script>
+  <!-- Trace Waterfall Panel（逻辑已迁移至 modules/app-entry.js） -->
 
   <!-- 反馈弹窗 -->
   <div id="feedback-overlay" style="display:none;position:fixed;inset:0;background:var(--color-bg-overlay);z-index:200;align-items:center;justify-content:center">
@@ -678,73 +670,9 @@
   </div>
 
   <script type="module">
-    // ═══════════════════════════════════════════════════════
-    // TravelMap — JS 模块化入口
-    // 所有业务逻辑已拆分到 web/modules/ 下的 ES Module 文件
-    // ═══════════════════════════════════════════════════════
-
-    // ─── 反馈弹窗 ──────────────────────────────────────
-    const feedbackOverlay = document.getElementById('feedback-overlay');
-    const btnFeedback = document.getElementById('btn-feedback');
-    const btnCloseFeedback = document.getElementById('btn-close-feedback');
-    const btnSubmitFeedback = document.getElementById('btn-submit-feedback');
-    if (btnFeedback && feedbackOverlay) {
-      btnFeedback.addEventListener('click', () => { feedbackOverlay.style.display = 'flex'; });
-      btnCloseFeedback?.addEventListener('click', () => { feedbackOverlay.style.display = 'none'; });
-      feedbackOverlay.addEventListener('click', (e) => { if (e.target === feedbackOverlay) feedbackOverlay.style.display = 'none'; });
-      btnSubmitFeedback?.addEventListener('click', () => {
-        const type = document.getElementById('feedback-type')?.value || 'other';
-        const desc = document.getElementById('feedback-desc')?.value?.trim();
-        const email = document.getElementById('feedback-email')?.value?.trim();
-        if (!desc) { alert('请填写描述内容'); return; }
-        // 构造 mailto 链接
-        const labels = { bug: '问题报告', feature: '功能建议', experience: '体验优化', other: '其他' };
-        const subject = encodeURIComponent(`[旅图反馈] ${labels[type] || '反馈'}`);
-        const body = encodeURIComponent(`类型: ${labels[type]}\n描述: ${desc}\n联系方式: ${email || '未填写'}\n\n---\nUA: ${navigator.userAgent}\nURL: ${location.href}`);
-        window.open(`mailto:feedback@codefromkarl.xyz?subject=${subject}&body=${body}`);
-        feedbackOverlay.style.display = 'none';
-        document.getElementById('feedback-desc').value = '';
-        document.getElementById('feedback-email').value = '';
-        if (typeof showToast === 'function') showToast('感谢您的反馈！', 3000, 'success');
-      });
-    }
-
-    // ─── 自初始化模块（执行 side-effect） ────────────────
-    import './modules/infra/storage.js';
-    import './modules/ui/panels.js';
-    import './modules/auth/auth.js';
-    import './modules/trip/travelers.js';
-    import './modules/trip/export.js';
-    import './modules/trip/history.js';
-    import './modules/ui/map.js';
-    import './modules/weather-chart.js';
-    import './modules/infra/model-config.js';
-    import { initPageMap } from './modules/ui/map.js';
-    import { showToast } from './modules/infra/context.js';
-
-    // ─── 启动应用 ────────────────────────────────────────
-    import { initApp } from './modules/trip/chat-init.js';
-    import { detectProxyMode, checkAuth } from './modules/auth/auth.js';
-
-    // 代理模式检测 + 认证
-    await detectProxyMode();
-    await checkAuth();
-
-    // 初始化完成前保留骨架屏，避免游客入口先于交互监听器变为可点击
-    try {
-      await initApp();
-      initPageMap();
-      // initPageMap installs prompt listeners inside its deferred Leaflet setup.
-      // Keep the skeleton above the guest controls until that callback finishes.
-      const mapReadyDeadline = Date.now() + 2000;
-      while (!window._pageMapInstance && Date.now() < mapReadyDeadline) {
-        await new Promise(resolve => setTimeout(resolve, 20));
-      }
-    } catch (err) {
-      console.error('[App] 初始化失败:', err);
-    } finally {
-      document.getElementById('map-skeleton')?.remove();
-    }
+    // TravelMap 应用入口 — 由 scripts/build-app-bundle.cjs 打包（源码: modules/app-entry.js）
+    // 部署时由 hash-assets 重写为 app.bundle.<hash>.js 并启用 immutable 缓存
+    import "./app.bundle.js";
   </script>
 </body>
 </html>

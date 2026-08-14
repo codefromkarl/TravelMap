@@ -4,6 +4,10 @@
 {"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Verify one canonical artifact file-set implementation"}
 {"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality and regression test expectations"}
 {"file":".trellis/spec/backend/testing-strategy.md","reason":"Scoped test execution and meaningful failure-path assertions"}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend package quality entrypoint"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify mobile view, panel and accessibility behavior"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify browser code and regression tests do not mask failures"}
+{"file":".trellis/spec/frontend/guest-auth-flow.md","reason":"Verify guest/onboarding fixture state and auth-gated retry"}
 {"file":".trellis/tasks/08-13-production-safety-release-recovery/research/pi-dependencies.md","reason":"Check dependency pins, lock integrity and isolation proof"}
 {"file":".trellis/tasks/08-13-production-safety-release-recovery/research/deploy-safety.md","reason":"Check allowlist and fail-closed acceptance"}
 {"file":".trellis/tasks/08-13-production-safety-release-recovery/research/ci-workflow.md","reason":"Check workflow DAG, permissions and evidence artifacts"}

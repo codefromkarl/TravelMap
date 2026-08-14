@@ -11,10 +11,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REFERENCE_PATTERNS = Object.freeze([
+  // index.html 中对 modules/ 与 styles/ 的 src/href 引用
   /((?:src|href)=["']\.\/)((?:modules|styles)\/[^"'?#]+\.(?:js|css))(?:\?[^"']*)?(["'])/g,
+  // index.html 内联模块脚本中的 import ./modules/...
   /((?:import|from)\s+["']\.\/)(modules\/[^"'?#]+\.(?:js|css))(?:\?[^"']*)?(["'])/g,
+  // importmap 或 script src 中的顶层 bundle（pi-bundle.js / app.bundle.js / pi-web-ui.css）
+  /(["']\.\/)((?:pi-bundle|app\.bundle)\.js|pi-web-ui\.css)(["'])/g,
+  // vendor/ 静态资源（自托管 Leaflet 等）
+  /((?:src|href)=["']\.\/)(vendor\/[^"'?#]+\.(?:js|css))(?:\?[^"']*)?(["'])/g,
 ]);
-
 function assertContainedAssetPath(assetPath) {
   if (assetPath.includes("\0") || assetPath.includes("\\") || path.posix.isAbsolute(assetPath)) {
     throw new Error(`[HASH_PATH_INVALID] ${assetPath}`);
@@ -24,7 +29,7 @@ function assertContainedAssetPath(assetPath) {
     normalized !== assetPath ||
     normalized === ".." ||
     normalized.startsWith("../") ||
-    !/^(?:modules\/[A-Za-z0-9._/-]+\.js|styles\/[A-Za-z0-9._/-]+\.css)$/.test(normalized)
+    !/^(?:modules\/[A-Za-z0-9._/-]+\.js|styles\/[A-Za-z0-9._/-]+\.css|vendor\/[A-Za-z0-9._/-]+\.(?:js|css)|(?:pi-bundle|app\.bundle)\.js|pi-web-ui\.css)$/.test(normalized)
   ) {
     throw new Error(`[HASH_PATH_INVALID] ${assetPath}`);
   }
