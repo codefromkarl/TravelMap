@@ -1,3 +1,4 @@
+import { safeMarkdown } from '../infra/content-safety.js';
 import { Type } from "@earendil-works/pi-ai";
 import { normalizeTripPlanWeatherInfo, validateAndWarn, validateTripPlanSchema } from "./validate-trip.js";
 
@@ -25,8 +26,12 @@ export const generateActionLinksTool = {
             latitude: Type.Number(),
             longitude: Type.Number(),
           })),
-          visitDuration: Type.Optional(Type.Number()),
-          ticketPrice: Type.Optional(Type.Number()),
+          visitDuration: Type.Optional(Type.Union([Type.Null(), Type.Number()])),
+          ticketPrice: Type.Optional(Type.Union([Type.Null(), Type.Number()])),
+          source: Type.Optional(Type.String()),
+          coordinateSystem: Type.Optional(Type.String()),
+          fetchedAt: Type.Optional(Type.String()),
+          isSynthetic: Type.Optional(Type.Boolean()),
           description: Type.Optional(Type.String()),
           address: Type.Optional(Type.String()),
           tips: Type.Optional(Type.String()),
@@ -54,9 +59,9 @@ export const generateActionLinksTool = {
         city: Type.String(),
         dayWeather: Type.Optional(Type.String()),
         nightWeather: Type.Optional(Type.String()),
-        dayTemp: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
-        nightTemp: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
-        precipitationProbability: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+        dayTemp: Type.Optional(Type.Union([Type.Null(), Type.Number()])),
+        nightTemp: Type.Optional(Type.Union([Type.Null(), Type.Number()])),
+        precipitationProbability: Type.Optional(Type.Union([Type.Null(), Type.Number()])),
         windDirection: Type.Optional(Type.String()),
         windPower: Type.Optional(Type.String()),
         source: Type.Optional(Type.String()),
@@ -111,25 +116,8 @@ export const generateActionLinksTool = {
     if (!schemaResult.valid) {
       console.warn('[TripPlan] 结构校验失败:', schemaResult.errors);
     }
-    window._lastTripPlan = tripPlan;
-    // 启用地图按钮
-    document.getElementById("btn-map")?.classList.remove("disabled-ghost");
-    // 如果当前在地图页面，自动刷新
-    if (window.currentPage === 'page-map') {
-      // 调用 initPageMap from window if available (set during init)
-      if (typeof window._initPageMap === 'function') window._initPageMap();
-    }
-    // 检查是否有需要丰富的补给点
-    const hasSupplies = tripPlan.days?.some(d =>
-      d.attractions?.some(a =>
-        a.routes?.some(r => r.waypoints?.some(wp => wp.supplyPoints?.length > 0))
-      )
-    );
-    if (hasSupplies) {
-      document.getElementById("btn-enrich-supplies")?.style.setProperty("display", "inline-block");
-    }
     return {
-      content: [{ type: "text", text: lines.join("\n") }],
+      content: [{ type: "text", text: safeMarkdown(lines.join("\n")) }],
       details: { tripPlan, linkCount },
     };
   },

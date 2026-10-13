@@ -28,13 +28,13 @@ export function normalizeTripPlanWeatherInfo(tripPlan) {
 export function validateTripPlanSchema(tripPlan) {
   const errors = [];
 
-  if (!tripPlan) {
+  if (!tripPlan || typeof tripPlan !== 'object' || Array.isArray(tripPlan)) {
     return { valid: false, errors: ['tripPlan 为空'] };
   }
 
   normalizeTripPlanWeatherInfo(tripPlan);
 
-  if (typeof tripPlan.city !== 'string' || tripPlan.city.length === 0) {
+  if (typeof tripPlan.city !== 'string' || tripPlan.city.trim().length === 0) {
     errors.push('缺少 city 字段');
   }
 
@@ -43,15 +43,25 @@ export function validateTripPlanSchema(tripPlan) {
     return { valid: false, errors };
   }
 
+  if (tripPlan.days.length === 0) errors.push('days 数组为空');
+
   for (let i = 0; i < tripPlan.days.length; i++) {
     const day = tripPlan.days[i];
-    if (!day) {
+    if (!day || typeof day !== 'object' || Array.isArray(day)) {
       errors.push(`days[${i}] 为空`);
       continue;
     }
 
     if (!day.date) {
       errors.push(`days[${i}] 缺少 date`);
+    } else {
+      const date = typeof day.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day.date)
+        ? new Date(`${day.date}T00:00:00Z`) : null;
+      if (!date || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== day.date) {
+        errors.push(`days[${i}] date 无效`);
+      } else if (i > 0 && day.date <= tripPlan.days[i - 1]?.date) {
+        errors.push(`days[${i}] date 必须按时间递增`);
+      }
     }
 
     if (!Array.isArray(day.attractions)) {
@@ -61,13 +71,32 @@ export function validateTripPlanSchema(tripPlan) {
 
     for (let j = 0; j < day.attractions.length; j++) {
       const attr = day.attractions[j];
-      if (!attr) {
+      if (!attr || typeof attr !== 'object' || Array.isArray(attr)) {
         errors.push(`days[${i}].attractions[${j}] 为空`);
         continue;
       }
 
-      if (!attr.name && !attr.nameZh) {
+      if (![attr.name, attr.nameZh].some(name => typeof name === 'string' && name.trim())) {
         errors.push(`days[${i}].attractions[${j}] 缺少 name`);
+      }
+      const location = attr.location != null ? attr.location
+        : (attr.lat != null || attr.lng != null ? { latitude: attr.lat, longitude: attr.lng } : null);
+      if (location != null && (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)
+        || Math.abs(location.latitude) > 90 || Math.abs(location.longitude) > 180)) {
+        errors.push(`days[${i}].attractions[${j}] 坐标无效`);
+      }
+    }
+  }
+
+  if (tripPlan.budget != null) {
+    if (typeof tripPlan.budget !== 'object' || Array.isArray(tripPlan.budget)) {
+      errors.push('budget 无效');
+    } else {
+      for (const key of ['total', 'totalAttractions', 'totalHotels', 'totalMeals', 'totalTransportation', 'totalInterCityTransport']) {
+        const value = tripPlan.budget[key];
+        if (value != null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+          errors.push(`budget.${key} 无效`);
+        }
       }
     }
   }
@@ -94,17 +123,18 @@ export function validateTripPlanSchema(tripPlan) {
 export function validateTripPlan(tripPlan) {
   const missingCoords = [];
 
-  if (!tripPlan || !tripPlan.days) {
+  if (!tripPlan || !Array.isArray(tripPlan.days)) {
     return { missingCoords: [], hasIssues: false, summary: '' };
   }
 
   for (const day of tripPlan.days) {
-    for (const attr of day.attractions || []) {
+    for (const attr of (Array.isArray(day?.attractions) ? day.attractions : [])) {
+      if (!attr) continue;
       const loc = attr.location;
       const needsGeocode =
         !loc ||
-        !loc.latitude ||
-        !loc.longitude ||
+        !Number.isFinite(loc.latitude) ||
+        !Number.isFinite(loc.longitude) ||
         (loc.latitude === 0 && loc.longitude === 0);
 
       if (needsGeocode) {

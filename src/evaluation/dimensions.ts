@@ -43,7 +43,26 @@ export interface EvalContext {
   history?: Array<{ role: string; content: string }>;
 }
 
+/** Missing status in older deterministic results means evaluated. */
+export type EvaluationStatus = "evaluated" | "skipped" | "error";
+
+export interface EvaluationCompleteness {
+  complete: boolean;
+  evaluated: string[];
+  skipped: string[];
+  errors: string[];
+  evaluatedWeight: number;
+  totalWeight: number;
+}
+
 export interface DimensionResult {
+  /** Assessment availability; skipped/error scores are compatibility placeholders, not evidence. */
+  status?: EvaluationStatus;
+  /** Stable diagnostic code for unavailable assessment. */
+  errorCode?: string;
+  /** Judge model evidence, when a semantic assessment was attempted. */
+  judge?: { provider?: string; model?: string };
+
   /** 维度 ID */
   dimensionId: string;
   /** 得分 (0-1) */
@@ -84,6 +103,8 @@ export interface EvalReport {
   output: string;
   /** 综合得分 (0-1) */
   overallScore: number;
+  /** All configured dimensions were evaluated; unavailable evidence is explicit. */
+  completeness?: EvaluationCompleteness;
   /** 是否通过所有必须维度 */
   passed: boolean;
   /** 各维度结果 */
@@ -99,6 +120,58 @@ export interface EvalReport {
     duration: number;
     tokenUsage?: { prompt: number; completion: number; total: number };
   };
+}
+
+/** Older semantic reports used explicit diagnostic text instead of availability metadata. */
+export function hasDimensionEvidence(dimension: DimensionResult): boolean {
+  if (dimension.status === "skipped" || dimension.status === "error") return false;
+  return (
+    dimension.dimensionId !== "semantic" ||
+    !dimension.checks.some((check) =>
+      /LLM 评估已禁用|无可用 LLM Key|LLM Judge 调用失败，默认通过/.test(check.detail),
+    )
+  );
+}
+
+/** Legacy reports remain supported; explicit unavailable evidence cannot drive quality decisions. */
+export function hasCompleteEvaluation(report: EvalReport): boolean {
+  if (
+    !report ||
+    !Array.isArray(report.dimensions) ||
+    report.dimensions.length === 0 ||
+    report.completeness?.complete === false
+  )
+    return false;
+  return report.dimensions.every(
+    (dimension) =>
+      dimension &&
+      typeof dimension === "object" &&
+      !Array.isArray(dimension) &&
+      typeof dimension.dimensionId === "string" &&
+      dimension.dimensionId.trim().length > 0 &&
+      typeof dimension.score === "number" &&
+      Number.isFinite(dimension.score) &&
+      dimension.score >= 0 &&
+      dimension.score <= 1 &&
+      typeof dimension.passed === "boolean" &&
+      (dimension.status === undefined || dimension.status === "evaluated") &&
+      Array.isArray(dimension.checks) &&
+      dimension.checks.length > 0 &&
+      dimension.checks.every(
+        (check) =>
+          check &&
+          typeof check === "object" &&
+          typeof check.name === "string" &&
+          check.name.trim().length > 0 &&
+          typeof check.detail === "string" &&
+          typeof check.passed === "boolean" &&
+          typeof check.score === "number" &&
+          Number.isFinite(check.score) &&
+          check.score >= 0 &&
+          check.score <= 1,
+      ) &&
+      hasDimensionEvidence(dimension),
+  );
 }
 
 // ─── 维度注册表 ─────────────────────────────────────────────

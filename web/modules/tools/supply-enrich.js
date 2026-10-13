@@ -1,3 +1,4 @@
+import { safeMarkdown } from '../infra/content-safety.js';
 import { Type } from "@earendil-works/pi-ai";
 import { validateAndWarn, validateToMarkdown, validateTripPlanSchema } from "./validate-trip.js";
 
@@ -45,11 +46,6 @@ export const enrichSupplyDetailsTool = {
       if (!schemaResult.valid) {
         console.warn('[TripPlan] 结构校验失败:', schemaResult.errors);
       }
-      window._lastTripPlan = tripPlan;
-      document.getElementById("btn-map")?.classList.remove("disabled-ghost");
-      if (window.currentPage === "page-map" && typeof window._initPageMap === "function") {
-        window._initPageMap();
-      }
     }
     const lines = ["## 🍴 补给详情", ""];
     let totalSupplyPoints = 0;
@@ -86,7 +82,7 @@ export const enrichSupplyDetailsTool = {
     }
 
     return {
-      content: [{ type: "text", text: lines.join("\n") }],
+      content: [{ type: "text", text: safeMarkdown(lines.join("\n")) }],
       details: { tripPlan, totalSupplyPoints, exactCount },
     };
   },

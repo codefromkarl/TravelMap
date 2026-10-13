@@ -6,6 +6,7 @@
  */
 
 import type { AgentTool, StreamFn } from "@earendil-works/pi-agent-core";
+import { type AssistantMessage, createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 
 export interface MockLlmResponse {
   /** 助手回复文本 */
@@ -108,5 +109,51 @@ export function createMockTool(
           };
       return result as Awaited<ReturnType<AgentTool["execute"]>>;
     },
+  };
+}
+
+/** Structured, terminal Judge fixtures for offline assessment contracts. */
+
+export function judgeMessage(
+  text: string,
+  overrides: Partial<AssistantMessage> = {},
+): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text }],
+    provider: "openai",
+    model: "gpt-4o-mini",
+    api: "openai-completions",
+    stopReason: "stop",
+    timestamp: 1,
+    usage: {
+      input: 10,
+      output: 10,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 20,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    ...overrides,
+  };
+}
+export function judgeStream(text: string, reason: "stop" | "length" = "stop") {
+  const stream = createAssistantMessageEventStream();
+  const message = judgeMessage(text, { stopReason: reason });
+  stream.push({ type: "start", partial: message });
+  stream.push({ type: "text_delta", contentIndex: 0, delta: "ignored partial", partial: message });
+  stream.push({ type: "done", reason, message });
+  return stream;
+}
+export function judgeAssessment(kind: "coherence" | "relevance", score = 8) {
+  return {
+    [`${kind}_score`]: score,
+    checks: Array.from({ length: 4 }, (_, index) => ({
+      name: `${kind} ${index + 1}`,
+      score,
+      detail: `Visible evidence ${index + 1}`,
+    })),
+    issues: score < 6 ? ["Missing itinerary evidence"] : [],
+    suggestions: score < 6 ? ["Add concrete itinerary evidence"] : [],
   };
 }

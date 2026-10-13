@@ -1,3 +1,6 @@
+import { safeHttpUrl } from '../infra/content-safety.js';
+import { formatAttractionPrice } from '../ui/attraction-presentation.js';
+
 // ─── 行程分享服务 ───────────────────────────────────────
 // 零外部依赖，全部使用原生 API
 // 提供：分享图片 / 分享链接 / 二维码
@@ -653,6 +656,14 @@ function roundRect(ctx, x, y, w, h, r) {
 export async function generateTripPoster(tripPlan) {
   if (!tripPlan?.days) return null;
 
+  // Compression/QR/link helpers remain importable in Node without browser storage.
+  // Load browser language state only when the caller requests canvas rendering.
+  const [{ currentLang }, { I18N }] = await Promise.all([
+    import('../infra/context.js'),
+    import('../i18n.js'),
+  ]);
+  const dictionary = I18N[currentLang] || I18N.zh;
+
   const WIDTH = 800;
   const dayHeight = 320; // 每天高度
   const headerH = 200;
@@ -721,9 +732,10 @@ export async function generateTripPoster(tripPlan) {
     let itemY = y + 65;
     for (const attr of (day.attractions || []).slice(0, 4)) {
       // 景点图片（如果有）
-      if (attr.images?.[0]?.url) {
+      const imageUrl = safeHttpUrl(attr.images?.[0]?.url);
+      if (imageUrl) {
         try {
-          const img = await loadImage(attr.images[0].url);
+          const img = await loadImage(imageUrl);
           ctx.save();
           roundRectForPoster(ctx, timeLineX + 24, itemY, 60, 45, 4);
           ctx.clip();
@@ -733,13 +745,14 @@ export async function generateTripPoster(tripPlan) {
       }
 
       // 景点文字
-      const textX = attr.images?.length ? timeLineX + 96 : timeLineX + 24;
+      const textX = imageUrl ? timeLineX + 96 : timeLineX + 24;
       ctx.fillStyle = '#1a1a1a';
       ctx.font = '16px "PingFang SC",sans-serif';
       ctx.fillText(`${attr.nameZh || attr.name}`, textX, itemY + 14);
       ctx.fillStyle = '#888';
       ctx.font = '13px "PingFang SC",sans-serif';
-      const meta = `${attr.visitDuration ? '⏱' + attr.visitDuration + 'min' : ''} ${attr.ticketPrice > 0 ? '🎫¥' + attr.ticketPrice : '🎫免费'}`;
+      const duration = typeof attr.visitDuration === 'number' && Number.isFinite(attr.visitDuration) && attr.visitDuration > 0 ? `⏱${attr.visitDuration}min` : '';
+      const meta = `${duration} 🎫${formatAttractionPrice(attr.ticketPrice, dictionary)}`;
       ctx.fillText(meta.trim(), textX, itemY + 32);
       itemY += 55;
     }

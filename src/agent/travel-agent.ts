@@ -260,16 +260,16 @@ export class TravelAgent {
       }
     }
 
-    this.lastProcessedPlan = result.tripPlan;
-
-    // 验证并返回（验证失败时记录警告但不阻塞）
+    // 只有有效行程可以成为下一次 Diff 的基础。
     try {
-      return validateTripPlan(result.tripPlan);
+      const validatedPlan = validateTripPlan(result.tripPlan);
+      this.lastProcessedPlan = validatedPlan;
+      return validatedPlan;
     } catch (err) {
-      logger.warn("TripPlan 验证失败（已降级返回）", {
+      logger.warn("TripPlan 验证失败，保留上次有效行程", {
         error: err instanceof Error ? err.message : String(err),
       });
-      return result.tripPlan as ValidatedTripPlan;
+      return null;
     }
   }
 

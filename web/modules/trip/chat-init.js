@@ -148,7 +148,9 @@ import { ALL_TOOLS } from '../tools/index.js';
 import { buildSystemPrompt } from '../prompt.js';
 import { initWelcome } from '../welcome.js';
 import { showOnboarding } from '../ui/onboarding.js';
-import { renderTripStats, clearTripStats } from '../trip/trip-stats.js';
+import { clearTripStats } from '../trip/trip-stats.js';
+import { getCurrentTripPlan, setCurrentTripPlan, getCurrentTripMarkdown } from './trip-state.js';
+import { latestValidTripPlan } from './trip-results.js';
 import { initPlanCompare } from '../trip/plan-compare.js';
 import { initPlaceholder, applyI18n, I18N } from '../i18n.js';
 import { session, tryRestoreSession } from '../session.js';
@@ -182,7 +184,7 @@ function ensureEditLiveTripButton() {
   actions.appendChild(btn);
   btn.addEventListener("click", async () => {
     const dict = I18N[currentLang] || I18N.zh;
-    const tripPlan = window._lastTripPlan;
+    const tripPlan = getCurrentTripPlan();
     if (!tripPlan) {
       showToast(dict.tripEditorNoStructuredData, 3000, "warning");
       return;
@@ -199,7 +201,7 @@ function ensureEditLiveTripButton() {
 }
 
 function showEditLiveTripButton() {
-  if (!window._lastTripPlan) return;
+  if (!getCurrentTripPlan()) return;
   const btn = ensureEditLiveTripButton();
   if (btn) btn.style.display = "";
 }
@@ -327,7 +329,7 @@ export async function initApp() {
   window._panels = { openPanel: panelModule.openPanel, closePanel: panelModule.closePanel, closeAllPanels: panelModule.closeAllPanels };
 
   // ─── Agent 事件监听 ──────────────────────────────────
-  let lastTripContentInner = "";
+  let runStartIndex = 0;
   function resetToolbarAfterError() {
     feedback.done();
     document.getElementById("export-toolbar")?.classList.add("visible");
@@ -336,7 +338,19 @@ export async function initApp() {
     });
   }
 
+  function restorePreviousPlan() {
+    const plan = getCurrentTripPlan();
+    if (!plan) return;
+    setCurrentTripPlan(plan);
+    showEditLiveTripButton();
+    const render = window._renderTripOnMap || window._renderTripAnimated;
+    if (window.currentPage === 'page-map' && typeof render === 'function') {
+      Promise.resolve(render(plan)).catch(error => console.warn('[ChatInit] Map restoration failed:', error));
+    }
+  }
+
   _agent.subscribe(async (event) => {
+    if (event.type === "agent_start") runStartIndex = _agent.state.messages.length;
     // ─── 实时行程编辑按钮：行程生成完成时显示 ──────────
     if (event.type === "finalize_complete" && window._lastTripPlan) {
       showEditLiveTripButton();
@@ -358,12 +372,13 @@ export async function initApp() {
         if (ai) ai.requestUpdate();
       }, 100);
 
-      const msgs = _agent.state.messages;
+      const msgs = Array.isArray(event.messages) ? event.messages : _agent.state.messages.slice(runStartIndex);
 
       // ─── 检查是否有 errorMessage（Agent 内部异常，走 handleRunFailure）
       const lastAssistant = msgs.filter(m => m.role === 'assistant').slice(-1)[0];
       if (lastAssistant?.errorMessage) {
         resetToolbarAfterError();
+        restorePreviousPlan();
         const errMsg = lastAssistant.errorMessage;
         console.error("[ChatInit] Agent run failure:", errMsg);
         // 流式首字节超时已通过 feedback.error 提示（含重试按钮），避免重复弹错
@@ -375,74 +390,54 @@ export async function initApp() {
         return;
       }
 
-      // ─── 正常完成：提取行程内容
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        const m = msgs[i];
-        if (m.role === "assistant") {
-          const content = typeof m.content === "string" ? m.content :
-            Array.isArray(m.content) ? m.content.filter(c => c.type === 'text').map(c => c.text).join('') : '';
-          if (content.length > 100) {
-            if (content !== lastTripContentInner) {
-              lastTripContentInner = content;
-              setLastTripContent(content);
-              document.getElementById("export-toolbar")?.classList.add("visible");
-              ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
-                document.getElementById(id)?.classList.remove("disabled-ghost");
-              });
-            }
-            break;
-          }
-        }
+      if (lastAssistant && ['error', 'aborted'].includes(lastAssistant.stopReason)) {
+        resetToolbarAfterError();
+        restorePreviousPlan();
+        return;
       }
 
-      // ─── 从 tool results 中提取 tripPlan 并刷新地图 ──
-      for (const msg of msgs) {
-        if (msg.role === "toolResult" && msg.details) {
-          const details = msg.details;
-          if (details && details.tripPlan) {
-            window._lastTripPlan = details.tripPlan;
-            // 校验坐标完整性
-            try {
-              const { validateAndWarn } = await import('../tools/validate-trip.js');
-              validateAndWarn(details.tripPlan);
-            } catch (_) { /* 校验模块加载失败不阻塞 */ }
-            document.getElementById("btn-map")?.classList.remove("disabled-ghost");
-            if (window.currentPage === "page-map") {
-              if (typeof window._initPageMap === "function") window._initPageMap();
-              // 使用动画渲染（如果可用），否则 fallback 到普通渲染
-              if (typeof window._renderTripAnimated === "function") {
-                window._renderTripAnimated(details.tripPlan);
-              }
-            }
-            // 行程统计条（AI 生成成功后展示关键数据）
-            renderTripStats(details.tripPlan);
-            const hasSupplies = details.tripPlan.days?.some(d =>
-              d.attractions?.some(a =>
-                a.routes?.some(r => r.waypoints?.some(wp => wp.supplyPoints?.length > 0))
-              )
-            );
-            if (hasSupplies) {
-              document.getElementById("btn-enrich-supplies")?.style.setProperty("display", "inline-block");
-            }
-            break;
-          }
+      // SDK agent_end.messages contains only this run, never historical tool results.
+      const tripPlan = latestValidTripPlan(msgs);
+      if (!tripPlan) {
+        if (getCurrentTripPlan()) {
+          resetToolbarAfterError();
+          restorePreviousPlan();
+        }
+        return;
+      }
+      setCurrentTripPlan(tripPlan);
+      setLastTripContent(getCurrentTripMarkdown());
+      resetToolbarAfterError();
+      // Coordinate warnings are independent of the structural acceptance gate.
+      try {
+        const { validateAndWarn } = await import('../tools/validate-trip.js');
+        validateAndWarn(tripPlan);
+      } catch (_) { /* Optional diagnostics must not discard a valid plan. */ }
+      if (window.currentPage === "page-map") {
+        if (typeof window._initPageMap === "function") window._initPageMap();
+        if (typeof window._renderTripAnimated === "function") {
+          Promise.resolve(window._renderTripAnimated(tripPlan)).catch(error => {
+            console.warn('[ChatInit] Map rendering failed:', error);
+          });
         }
       }
-      // 行程就绪：显示实时编辑按钮
-      if (window._lastTripPlan) showEditLiveTripButton();
+      const hasSupplies = tripPlan.days.some(day => day.attractions.some(attr =>
+        attr.routes?.some(route => route.waypoints?.some(point => point.supplyPoints?.length > 0))
+      ));
+      document.getElementById("btn-enrich-supplies")?.style.setProperty("display", hasSupplies ? "inline-block" : "none");
+      showEditLiveTripButton();
+      setCurrentTripId(null);
       autoSaveTrip();
     }
-    if (event.type === "turn_start") {
+    if (event.type === "agent_start") {
       _streamTimeoutFired = false;
       appState.transition('planning');
       feedback.loading('正在规划行程...');
-      // 新一轮规划开始：行程未就绪，隐藏实时编辑按钮
       hideEditLiveTripButton();
       document.getElementById("export-toolbar")?.classList.remove("visible");
       ["btn-export-md", "btn-export-pdf", "btn-share-image", "btn-share-link-new", "btn-share-qr", "btn-map", "btn-tts", "btn-poster", "btn-voice-companion"].forEach(id => {
         document.getElementById(id)?.classList.add("disabled-ghost");
       });
-      setCurrentTripId(null);
     }
     // ─── Tool 级增量渲染（A2）────────────────────────
     if (event.type === "tool_execution_end" && window.currentPage === "page-map") {
@@ -489,6 +484,8 @@ export async function initApp() {
         const ai = document.querySelector('agent-interface');
         if (ai) ai.requestUpdate();
       }, 100);
+      resetToolbarAfterError();
+      restorePreviousPlan();
       console.error("[ChatInit] Agent error:", event);
       const raw = event.error?.message || event.payload?.error?.message || "";
       const errMsg = String(raw);
@@ -503,21 +500,10 @@ export async function initApp() {
   // ─── 自动保存 ─────────────────────────────────────────
   let saveTimeout = null;
   function autoSaveTrip() {
-    const tripPlan = window._lastTripPlan;
+    const tripPlan = getCurrentTripPlan();
     const msgs = _agent.state.messages;
 
-    // 找 assistant 的 markdown 文本（兼容 string 和 array 两种格式）
-    let markdown = null;
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i].role === "assistant") {
-        const text = typeof msgs[i].content === "string" ? msgs[i].content
-          : Array.isArray(msgs[i].content) ? msgs[i].content.filter(c => c.type === "text").map(c => c.text).join("") : "";
-        if (text.length > 50) {
-          markdown = text;
-          break;
-        }
-      }
-    }
+    const markdown = getCurrentTripMarkdown();
 
     // 没有 tripPlan 也没有 markdown，不保存
     if (!tripPlan && !markdown) return;
@@ -772,6 +758,7 @@ export async function initApp() {
   if (btnNewTrip) {
     btnNewTrip.addEventListener('click', () => {
       session.startFresh();
+      setCurrentTripPlan(null);
       clearTripStats();
       showToast('已开启新行程规划', 2000, 'success');
     });
@@ -793,7 +780,7 @@ export async function initApp() {
       }
 
       // 获取行程数据并生成播报文本
-      const tripPlan = window._lastTripPlan;
+      const tripPlan = getCurrentTripPlan();
       if (!tripPlan) {
         showToast('请先生成行程', 3000, 'warning');
         return;
@@ -921,7 +908,7 @@ export async function initApp() {
   const btnPoster = document.getElementById('btn-poster');
   if (btnPoster) {
     btnPoster.addEventListener('click', async () => {
-      const tripPlan = window._lastTripPlan;
+      const tripPlan = getCurrentTripPlan();
       if (!tripPlan) {
         showToast('请先生成行程', 3000, 'warning');
         return;
@@ -960,7 +947,7 @@ export async function initApp() {
           stopVoiceCompanion();
           showToast('语音伴游已结束', 2000);
         } else {
-          const tripPlan = window._lastTripPlan;
+          const tripPlan = getCurrentTripPlan();
           if (!tripPlan) {
             showToast('请先生成行程', 3000, 'warning');
             return;

@@ -9,7 +9,7 @@ import { I18N } from './i18n.js';
 import { saveTripPlan } from './db.js';
 import { getPresetTrip, getPresetTripList } from './data/preset-trips.js';
 import { appState } from './app-state.js';
-import { renderTripStats } from './trip/trip-stats.js';
+import { setCurrentTripPlan } from './trip/trip-state.js';
 import { showDemoGuide } from './ui/onboarding.js';
 
 const RESULT_ACTION_IDS = [
@@ -99,6 +99,7 @@ export async function loadPresetTrip(key) {
   const tripPlan = typeof structuredClone === 'function'
     ? structuredClone(preset.tripPlan)
     : JSON.parse(JSON.stringify(preset.tripPlan));
+  tripPlan.demoNotice = dictionary().guestDemoNotice;
   const markdown = buildPresetMarkdown({ ...preset, tripPlan });
   const timestamp = Date.now();
   const messages = [
@@ -107,7 +108,7 @@ export async function loadPresetTrip(key) {
   ];
 
   agent.state.messages = messages;
-  window._lastTripPlan = tripPlan;
+  setCurrentTripPlan(tripPlan);
   setCurrentTripId(preset.id);
   setLastTripContent(markdown);
   document.getElementById('map-chat-welcome')?.style.setProperty('display', 'none');
@@ -142,7 +143,6 @@ export async function loadPresetTrip(key) {
   });
 
   // ── 行程统计条 + 示例导览 ─────────────────────────────
-  renderTripStats(tripPlan);
   setTimeout(() => showDemoGuide(), 1400);
 
   try {

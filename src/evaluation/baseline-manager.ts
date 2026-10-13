@@ -15,6 +15,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { EvalReport } from "./dimensions.js";
+import { hasCompleteEvaluation } from "./dimensions.js";
 
 // ─── 类型定义 ──────────────────────────────────────────────
 
@@ -125,6 +126,9 @@ export class BaselineManager {
     reports: EvalReport[],
     description: string = `Baseline ${new Date().toISOString()}`,
   ): Baseline {
+    if (reports.length === 0 || reports.some((report) => !hasCompleteEvaluation(report))) {
+      throw new Error("Incomplete assessments cannot become evaluation baselines");
+    }
     const scenarios: Record<string, ScenarioBaseline> = {};
 
     for (const report of reports) {
@@ -224,6 +228,7 @@ export class BaselineManager {
     const regressions: Regression[] = [];
 
     for (const report of reports) {
+      if (!hasCompleteEvaluation(report)) continue;
       const scenarioBaseline = baseline.scenarios[report.id];
       if (!scenarioBaseline) continue;
 
@@ -267,9 +272,10 @@ export class BaselineManager {
     const trends: TrendData[] = [];
 
     for (const entry of history) {
+      const completeReports = entry.reports.filter(hasCompleteEvaluation);
       const relevantReports = scenarioId
-        ? entry.reports.filter((r) => r.id === scenarioId)
-        : entry.reports;
+        ? completeReports.filter((r) => r.id === scenarioId)
+        : completeReports;
 
       if (relevantReports.length === 0) continue;
 

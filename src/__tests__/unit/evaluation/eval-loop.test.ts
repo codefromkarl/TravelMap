@@ -4,14 +4,17 @@
  * 测试各维度评估器和评估运行器
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
-import { AttributionAnalyzer } from "../../evaluation/attribution-analyzer.js";
-import { evaluateExperience } from "../../evaluation/dimensions/experience.js";
-import { evaluatePractical } from "../../evaluation/dimensions/practical.js";
-import { evaluateSafety } from "../../evaluation/dimensions/safety.js";
-import { evaluateStructure } from "../../evaluation/dimensions/structure.js";
-import type { EvalReport } from "../../evaluation/dimensions.js";
-import { EvalRunner } from "../../evaluation/runner.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { AttributionAnalyzer } from "../../../evaluation/attribution-analyzer.js";
+import { evaluateExperience } from "../../../evaluation/dimensions/experience.js";
+import { evaluatePractical } from "../../../evaluation/dimensions/practical.js";
+import { evaluateSafety } from "../../../evaluation/dimensions/safety.js";
+import { evaluateStructure } from "../../../evaluation/dimensions/structure.js";
+import type { EvalReport } from "../../../evaluation/dimensions.js";
+import { EvalRunner } from "../../../evaluation/runner.js";
 
 describe("评估维度测试", () => {
   describe("结构维度", () => {
@@ -207,16 +210,21 @@ describe("评估维度测试", () => {
 
 describe("评估运行器", () => {
   let runner: EvalRunner;
+  let projectRoot: string;
+
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
   beforeEach(() => {
+    projectRoot = mkdtempSync(join(tmpdir(), "travel-eval-offline-"));
     runner = new EvalRunner({
+      projectRoot,
       enableLLM: false, // 测试时禁用 LLM
       detectRegression: false,
       generateAttribution: false,
     });
   });
 
-  it("应生成完整报告", async () => {
+  it("应记录所有维度并明确说明未执行 Judge", async () => {
     const input = "帮我规划北京三日游";
     const output = `
 ## 北京三日游
@@ -241,6 +249,8 @@ describe("评估运行器", () => {
       "experience",
     ]);
     expect(result.report.overallScore).toBeGreaterThan(0);
+    expect(result.report.completeness).toMatchObject({ complete: false, skipped: ["semantic"] });
+    expect(result.report.passed).toBe(false);
     expect(result.report.dimensions.length).toBeGreaterThan(0);
   });
 

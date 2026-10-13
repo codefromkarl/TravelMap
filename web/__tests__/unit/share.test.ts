@@ -47,6 +47,14 @@ beforeAll(async () => {
   shareModule = await import('../../modules/share.js');
 });
 
+describe("share module Node dependency boundary", () => {
+  it("imports compression/link helpers without localStorage or document", () => {
+    expect(typeof globalThis.localStorage).toBe("undefined");
+    expect(typeof globalThis.document).toBe("undefined");
+    expect(shareModule.generateShareLink(MOCK_TRIP_PLAN)).toContain("#share=");
+  });
+});
+
 describe("generateShareLink", () => {
   it("应为 TripPlan 生成压缩分享链接", () => {
     const { generateShareLink } = shareModule;

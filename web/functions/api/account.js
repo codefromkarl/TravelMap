@@ -210,8 +210,14 @@ export async function onRequest(context) {
   }
 
   const user = await getUser(env.RATE_LIMIT_KV, payload.sub);
-  if (!user) {
+  if (!user || user.id !== payload.sub) {
     return jsonResponse(401, "AUTH_REQUIRED", "Authentication required");
+  }
+
+  // Bind a destructive client action to the account selected before asynchronous work.
+  const syncUser = request.headers.get("X-Sync-User");
+  if (syncUser && syncUser !== payload.sub) {
+    return jsonResponse(403, "SYNC_OWNER_MISMATCH", "Account changed before the request");
   }
 
   const accountPath = parseAccountPath(request);

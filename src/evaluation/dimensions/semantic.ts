@@ -11,9 +11,8 @@
  *   - 返回结构化结果，支持归因分析
  */
 
-import { getModel } from "@earendil-works/pi-ai";
-import { discoverProvider } from "../../__tests__/helpers/ai-e2e.js";
 import type { CheckResult, DimensionResult, EvalContext } from "../dimensions.js";
+import { requestJudge } from "../judge.js";
 
 // ─── 语义评估 Prompt ───────────────────────────────────────
 
@@ -100,16 +99,31 @@ export async function evaluateSemantic(
   const relevanceResult = await evaluateRelevance(input, output);
   checks.push(...relevanceResult.checks);
 
-  // 计算总分
-  const totalScore = checks.reduce((sum, c) => sum + c.score, 0) / checks.length;
-  const allPassed = checks.every((c) => c.passed);
-
+  const availableChecks = checks;
+  const status =
+    coherenceResult.status === "error" || relevanceResult.status === "error"
+      ? "error"
+      : coherenceResult.status === "skipped" || relevanceResult.status === "skipped"
+        ? "skipped"
+        : "evaluated";
+  const totalScore = availableChecks.length
+    ? availableChecks.reduce((sum, c) => sum + c.score, 0) / availableChecks.length
+    : 0;
+  const allPassed =
+    status === "evaluated" && availableChecks.length > 0 && availableChecks.every((c) => c.passed);
+  const unavailable = [coherenceResult, relevanceResult].find(
+    (result) => result.status !== "evaluated",
+  );
   return {
     dimensionId: "semantic",
+    status,
     score: totalScore,
     passed: allPassed,
-    checks,
-    failureReason: allPassed ? undefined : "语义评估未通过",
+    checks: availableChecks,
+    errorCode: unavailable?.errorCode,
+    judge: coherenceResult.judge || relevanceResult.judge,
+    failureReason:
+      status !== "evaluated" ? "语义评估未完成" : allPassed ? undefined : "语义评估未通过",
     suggestions: [...coherenceResult.suggestions, ...relevanceResult.suggestions],
   };
 }
@@ -117,6 +131,9 @@ export async function evaluateSemantic(
 // ─── LLM Judge 调用 ────────────────────────────────────────
 
 interface JudgeResult {
+  status: "evaluated" | "skipped" | "error";
+  errorCode?: string;
+  judge?: { provider?: string; model?: string };
   score: number;
   checks: CheckResult[];
   suggestions: string[];
@@ -140,90 +157,70 @@ async function evaluateRelevance(input: string, output: string): Promise<JudgeRe
   return callJudge(prompt, "relevance");
 }
 
+/** Strict JSON from the Judge is evidence only after the complete schema is validated. */
 async function callJudge(prompt: string, judgeType: string): Promise<JudgeResult> {
-  const provider = discoverProvider();
-
-  if (!provider.hasKey) {
-    return {
-      score: 5,
-      checks: [
-        {
-          name: `${judgeType} (LLM Judge)`,
-          passed: true,
-          score: 0.5,
-          detail: "无可用 LLM Key，跳过语义评估",
-        },
-      ],
-      suggestions: [],
-    };
-  }
-
-  try {
-    // 使用独立的 Judge 模型（避免与生成模型共享上下文）
-    const judgeProvider = process.env.JUDGE_MODEL_PROVIDER ?? provider.provider;
-    const judgeModel = process.env.JUDGE_MODEL_ID ?? "gpt-4o-mini";
-    const model = getModel(judgeProvider as "openai", judgeModel as "gpt-4o-mini");
-
-    const { streamSimple } = await import("@earendil-works/pi-ai");
-    // biome-ignore lint/suspicious/noExplicitAny: third-party type mismatch
-    const response = await (streamSimple as any)(model, [
-      {
-        role: "user" as const,
-        content: [{ type: "text" as const, text: prompt }],
-        timestamp: Date.now(),
-      },
-    ]);
-
-    // 收集响应文本
-    let text = "";
-    for await (const event of response as AsyncIterable<{
-      type: string;
-      message?: { content?: Array<{ type: string; text?: string }> };
-    }>) {
-      if (event.type === "done" && event.message?.content) {
-        for (const c of event.message.content) {
-          if (c.type === "text" && c.text) text += c.text;
-        }
-      }
-    }
-
-    // 解析 JSON
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-
-      const checks: CheckResult[] = (parsed.checks ?? []).map(
-        (c: { name: string; score: number; detail: string }) => ({
-          name: `${c.name} (LLM Judge)`,
-          passed: c.score >= 6,
-          score: c.score / 10,
-          detail: c.detail,
-        }),
-      );
-
-      return {
-        score: parsed[`${judgeType}_score`] ?? parsed.score ?? 5,
-        checks,
-        suggestions: parsed.suggestions ?? [],
-      };
-    }
-  } catch (err) {
-    console.warn(
-      `[Semantic Judge] ${judgeType} 评估失败:`,
-      err instanceof Error ? err.message : err,
-    );
-  }
-
-  return {
-    score: 5,
-    checks: [
-      {
-        name: `${judgeType} (LLM Judge)`,
-        passed: true,
-        score: 0.5,
-        detail: "LLM Judge 调用失败，默认通过",
-      },
-    ],
+  const response = await requestJudge(prompt);
+  const judge = { provider: response.provider, model: response.model };
+  const unavailable = (status: "skipped" | "error", errorCode: string): JudgeResult => ({
+    status,
+    errorCode,
+    judge,
+    score: 0,
+    checks: [],
     suggestions: [],
-  };
+  });
+  if (response.status !== "evaluated") return unavailable(response.status, response.code);
+  try {
+    const raw = response.text
+      .trim()
+      .replace(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/, "$1")
+      .trim();
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return unavailable("error", "JUDGE_INVALID_SCHEMA");
+    const value = parsed as Record<string, unknown>;
+    const finiteScore = (score: unknown): score is number =>
+      typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 10;
+    const strings = (items: unknown): items is string[] =>
+      Array.isArray(items) && items.every((item) => typeof item === "string");
+    if (
+      !finiteScore(value[`${judgeType}_score`]) ||
+      !Array.isArray(value.checks) ||
+      value.checks.length !== 4 ||
+      !strings(value.issues) ||
+      !strings(value.suggestions)
+    )
+      return unavailable("error", "JUDGE_INVALID_SCHEMA");
+    const checks: CheckResult[] = [];
+    for (const check of value.checks) {
+      if (
+        !check ||
+        typeof check !== "object" ||
+        Array.isArray(check) ||
+        typeof check.name !== "string" ||
+        !check.name.trim() ||
+        typeof check.detail !== "string" ||
+        !check.detail.trim() ||
+        !finiteScore(check.score)
+      )
+        return unavailable("error", "JUDGE_INVALID_SCHEMA");
+      checks.push({
+        name: `${check.name} (LLM Judge)`,
+        passed: check.score >= 6,
+        score: check.score / 10,
+        detail: check.detail,
+      });
+    }
+    if (new Set(checks.map((check) => check.name)).size !== 4)
+      return unavailable("error", "JUDGE_INVALID_SCHEMA");
+    return {
+      status: "evaluated",
+      judge,
+      score: value[`${judgeType}_score`] as number,
+      checks,
+      suggestions: value.suggestions,
+    };
+  } catch {
+    return unavailable("error", "JUDGE_INVALID_JSON");
+  }
 }

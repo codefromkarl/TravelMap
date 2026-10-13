@@ -1,4 +1,4 @@
-import { DB_NAME, DB_VERSION, STORE_NAME, SUPPLY_STORE_NAME } from '../infra/context.js';
+import { DB_NAME, DB_VERSION, STORE_NAME, SUPPLY_STORE_NAME, currentUser } from '../infra/context.js';
 
 // ─── IndexedDB 数据库 ──────────────────────────────────
 export function openDB() {
@@ -51,104 +51,209 @@ function notifyTripChanged(id) {
   }
 }
 
-/**
- * 保存行程（新版本：结构化数据）
- * @param {object} trip - 完整行程对象
- */
-export async function saveTripPlan(trip) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const now = new Date().toISOString();
-    const getReq = store.get(trip.id);
-    getReq.onsuccess = () => {
-      const existing = getReq.result;
-      const record = {
-        ...trip,
-        createdAt: existing?.createdAt || now,
-        updatedAt: now,
-        status: trip.status || existing?.status || "active",
-      };
-      const putReq = store.put(record);
-      putReq.onsuccess = () => {
-        notifyTripChanged(record.id);
-        resolve(record);
-      };
-      putReq.onerror = () => reject(putReq.error);
-    };
-    getReq.onerror = () => reject(getReq.error);
-  });
+/** Snapshot comparison also supports legacy records without localRevision. */
+function sameRevision(record, snapshot) {
+  return record?.localRevision === snapshot?.localRevision && record?.updatedAt === snapshot?.updatedAt
+    && Boolean(record?.deleted) === Boolean(snapshot?.deleted);
 }
 
-/**
- * 保存行程（兼容旧接口）
- * @deprecated 使用 saveTripPlan 替代
- */
-export async function saveTrip(id, title, summary, content, messages) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const now = new Date().toISOString();
-    const getReq = store.get(id);
-    getReq.onsuccess = () => {
-      const existing = getReq.result;
-      const record = {
-        id, title, summary, content, messages,
-        createdAt: existing?.createdAt || now,
-        updatedAt: now,
-      };
-      const putReq = store.put(record);
-      putReq.onsuccess = () => resolve(record);
-      putReq.onerror = () => reject(putReq.error);
-    };
-    getReq.onerror = () => reject(getReq.error);
-  });
+function isDeleted(record) { return record?.deleted === true || record?.status === "deleted"; }
+
+function compactTombstone(record) {
+  const tombstone = { id: record.id, status: "deleted", deleted: true, updatedAt: record.updatedAt };
+  for (const key of ["version", "syncOwnerId", "localRevision", "syncState", "syncConflict", "syncExcluded"]) {
+    if (record[key] !== undefined) tombstone[key] = record[key];
+  }
+  return tombstone;
 }
 
-export async function listTrips() {
-  const db = await openDB();
+/** Execute a record update in one IndexedDB transaction, resolving only after commit. */
+async function updateTrip(id, update, notify = false, signal) {
+  if (signal?.aborted) return null;
+  let db;
+  try { db = await openDB(); }
+  catch (error) { if (signal?.aborted) return null; throw error; }
+  // Cancellation can happen while the database connection is being opened.
+  if (signal?.aborted) { db.close?.(); return null; }
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
-    const index = store.index("updatedAt");
-    const req = index.openCursor(null, "prev");
-    const results = [];
-    req.onsuccess = (e) => {
-      const cursor = e.target.result;
-      if (cursor) {
-        results.push(cursor.value);
-        cursor.continue();
-      } else {
-        resolve(results);
+    let tx;
+    let store;
+    try {
+      tx = db.transaction(STORE_NAME, "readwrite");
+      store = tx.objectStore(STORE_NAME);
+    } catch (error) { db.close?.(); reject(error); return; }
+    let result = null;
+    let changed = false;
+    let cancelled = false;
+    let settled = false;
+    const finish = (value, error) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener('abort', cancel);
+      db.close?.();
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const cancel = () => {
+      cancelled = true;
+      try { tx.abort(); }
+      catch { finish(null); } // A completed transaction has nothing left to cancel.
+    };
+    tx.oncomplete = () => {
+      if (cancelled || signal?.aborted) { finish(null); return; }
+      if (changed && notify && result?.status !== "demo" && !result?.syncExcluded) notifyTripChanged(id);
+      finish(result);
+    };
+    tx.onerror = tx.onabort = () => {
+      if (cancelled || signal?.aborted) finish(null);
+      else finish(null, tx.error || new Error("IndexedDB transaction failed"));
+    };
+    signal?.addEventListener('abort', cancel, { once: true });
+    if (signal?.aborted) { cancel(); return; }
+    const request = store.get(id);
+    request.onsuccess = () => {
+      if (settled) return;
+      if (signal?.aborted) { cancel(); return; }
+      try {
+        const record = update(request.result || null);
+        if (signal?.aborted) { cancel(); return; }
+        result = record;
+        if (record && record !== request.result) { store.put(record); changed = true; }
+      } catch (error) {
+        finish(null, error);
+        try { tx.abort(); } catch { /* Already completed or aborted. */ }
       }
     };
-    req.onerror = () => reject(req.error);
   });
 }
 
-export async function loadTripById(id) {
+/** Save a user edit, or import a remote revision without timestamp rewriting/change events.
+ * @param {object} trip
+ * @param {{source?: string, syncOwnerId?: string, snapshot?: object|null, signal?: AbortSignal}} options
+ */
+export async function saveTripPlan(trip, options = {}) {
+  return updateTrip(trip.id, existing => {
+    if (options.source === "remote") {
+      if (existing?.syncOwnerId && existing.syncOwnerId !== options.syncOwnerId) return null;
+      if ("snapshot" in options && !sameRevision(existing, options.snapshot)) return null;
+      if (isDeleted(existing) && !isDeleted(trip)) return null;
+      if (existing && ["pending", "conflict"].includes(existing.syncState)) return null;
+      const record = { ...trip, syncOwnerId: options.syncOwnerId, syncState: "clean",
+        localRevision: (existing?.localRevision || 0) + 1,
+        createdAt: trip.createdAt || existing?.createdAt || trip.updatedAt,
+        status: trip.status || "active" };
+      delete record.syncConflict;
+      return isDeleted(record) ? compactTombstone(record) : record;
+    }
+    // Deletion is permanent for this id. A new itinerary must use a fresh id.
+    if (isDeleted(existing)) {
+      const error = new Error("This itinerary was deleted. Create a new itinerary to save these changes.");
+      error.code = "TRIP_DELETED";
+      throw error;
+    }
+    const now = new Date(Math.max(Date.now(), (Date.parse(existing?.updatedAt || "") || 0) + 1)).toISOString();
+    return { ...trip, createdAt: existing?.createdAt || trip.createdAt || now, updatedAt: now,
+      status: trip.status || existing?.status || "active", deleted: false,
+      version: existing?.version || trip.version,
+      syncOwnerId: existing?.syncOwnerId || trip.syncOwnerId || currentUser?.id,
+      localRevision: (existing?.localRevision || 0) + 1, syncState: "pending", syncConflict: undefined };
+  }, options.source !== "remote", options.source === "remote" ? options.signal : undefined);
+}
+
+/** Apply a server ACK only if the sync is active and no user edit/deletion occurred.
+ * @param {{signal?: AbortSignal}} options Optional domain cancellation, including database opening.
+ */
+export async function acknowledgeTripSync(id, snapshot, ack, { signal } = {}) {
+  return updateTrip(id, existing => {
+    if (!existing || !sameRevision(existing, snapshot)) return null;
+    if (existing.syncOwnerId && existing.syncOwnerId !== ack.userId) return null;
+    const record = { ...existing, version: ack.version, syncOwnerId: ack.userId, syncState: "clean" };
+    delete record.syncConflict;
+    return isDeleted(record) ? compactTombstone(record) : record;
+  }, false, signal);
+}
+
+/** Preserve local content/deletion and expose conflict metadata without scheduling a retry.
+ * @param {{signal?: AbortSignal}} options Optional domain cancellation, including database opening.
+ */
+export async function markTripSyncConflict(id, snapshot, remote, userId, { signal } = {}) {
+  return updateTrip(id, existing => {
+    if (!existing || !sameRevision(existing, snapshot)) return null;
+    if (existing.syncOwnerId && existing.syncOwnerId !== userId) return null;
+    const record = { ...existing, syncOwnerId: userId, syncState: "conflict",
+      syncConflict: { code: "SYNC_CONFLICT", remoteVersion: remote?.version || null, remoteDeleted: Boolean(remote?.deleted) } };
+    return isDeleted(record) ? compactTombstone(record) : record;
+  }, false, signal);
+}
+
+/** @deprecated Use saveTripPlan. */
+export async function saveTrip(id, title, summary, content, messages) {
+  return saveTripPlan({ id, title, summary, content, messages });
+}
+
+/** @param {{includeDeleted?: boolean}} options */
+export async function listTrips({ includeDeleted = false } = {}) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
+    const req = tx.objectStore(STORE_NAME).index("updatedAt").openCursor(null, "prev");
+    const results = [];
+    req.onsuccess = e => {
+      const cursor = e.target.result;
+      if (cursor) {
+        if (includeDeleted || !isDeleted(cursor.value)) results.push(cursor.value);
+        cursor.continue();
+      } else { db.close?.(); resolve(results); }
+    };
+    req.onerror = () => { db.close?.(); reject(req.error); };
   });
 }
 
+/** @param {string} id @param {{includeDeleted?: boolean}} options */
+export async function loadTripById(id, { includeDeleted = false } = {}) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(id);
+    req.onsuccess = () => { db.close?.(); resolve(req.result && (includeDeleted || !isDeleted(req.result)) ? req.result : null); };
+    req.onerror = () => { db.close?.(); reject(req.error); };
+  });
+}
+
+/** Hide deleted trips immediately, retaining only reconciliation metadata. */
 export async function deleteTripById(id) {
+  return updateTrip(id, existing => {
+    if (isDeleted(existing)) return existing;
+    const updatedAt = new Date(Math.max(Date.now(), (Date.parse(existing?.updatedAt || "") || 0) + 1)).toISOString();
+    return compactTombstone({ id, deleted: true, updatedAt, version: existing?.version,
+      syncOwnerId: existing?.syncOwnerId, syncExcluded: existing?.syncExcluded || existing?.status === "demo" || Boolean(existing?.tripPlan?.demoNotice), localRevision: (existing?.localRevision || 0) + 1, syncState: "pending" });
+  }, true);
+}
+
+/** Remove local records without sync events.
+ * Account clearing removes only records explicitly owned by ownerId, preserving legacy unowned
+ * and other-account records. Omitting ownerId is reserved for an explicit full storage reset.
+ * @param {{ownerId?: string}} options
+ */
+export async function clearTripsLocal({ ownerId } = {}) {
+  if (ownerId !== undefined && (typeof ownerId !== "string" || !ownerId.trim())) {
+    throw new Error("Account owner identity required");
+  }
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
-    const req = tx.objectStore(STORE_NAME).delete(id);
-    req.onsuccess = () => {
-      notifyTripChanged(id);
-      resolve();
-    };
-    req.onerror = () => reject(req.error);
+    const store = tx.objectStore(STORE_NAME);
+    if (ownerId === undefined) store.clear();
+    else {
+      const request = store.openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        if (cursor.value.syncOwnerId === ownerId) store.delete(cursor.primaryKey);
+        cursor.continue();
+      };
+    }
+    tx.oncomplete = () => { db.close?.(); resolve(); };
+    tx.onerror = tx.onabort = () => { db.close?.(); reject(tx.error); };
   });
 }
 

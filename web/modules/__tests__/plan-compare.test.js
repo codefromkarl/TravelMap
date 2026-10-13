@@ -28,6 +28,7 @@ vi.mock('../trip/trip-stats.js', async (importOriginal) => {
   };
 });
 
+import { getCurrentTripMarkdown, setCurrentTripPlan } from '../trip/trip-state.js';
 import { initPlanCompare, getCompareState, extractOriginalPrompt, buildComparePrompt } from '../trip/plan-compare.js';
 
 const planA = {
@@ -133,13 +134,52 @@ describe('plan-compare', () => {
     expect(getCompareState().active).toBe(false);
   });
 
-  it('new turn_start while compare is idle resets the panel', () => {
+  it('new agent_start while compare is idle resets the panel', () => {
     initPlanCompare();
     document.getElementById('btn-compare-plans').click();
     window._lastTripPlan = structuredClone(planB);
     mocks.subscribeCb({ type: 'agent_end' });
-    mocks.subscribeCb({ type: 'turn_start' });
+    mocks.subscribeCb({ type: 'agent_start' });
     expect(document.getElementById('plan-compare-bar')).toBeNull();
     expect(getCompareState().active).toBe(false);
   });
+  it('keeps selected plan, export and edited-side snapshots consistent', async () => {
+    initPlanCompare();
+    document.getElementById('btn-compare-plans').click();
+    window._lastTripPlan = structuredClone(planB);
+    mocks.subscribeCb({ type: 'agent_end' });
+    document.querySelector('.compare-card[data-side="A"]').click();
+    expect(getCurrentTripMarkdown()).toContain('断桥');
+    expect(getCurrentTripMarkdown()).not.toContain('灵隐寺');
+    const editedA = structuredClone(planA);
+    editedA.days[0].attractions.splice(1, 1);
+    editedA.budget.total = 1400;
+    setCurrentTripPlan(editedA);
+    document.querySelector('.compare-card[data-side="B"]').click();
+    expect(getCurrentTripMarkdown()).toContain('灵隐寺');
+    document.querySelector('.compare-card[data-side="A"]').click();
+    expect(window._lastTripPlan.days[0].attractions).toHaveLength(1);
+    expect(getCurrentTripMarkdown()).not.toContain('断桥');
+    expect(getCurrentTripMarkdown()).toContain('1400');
+    expect(mocks.renderTripStats).toHaveBeenLastCalledWith(expect.objectContaining({ budget: { total: 1400 } }));
+  });
+
+  it('does not capture the retained previous plan when generation has no valid result', () => {
+    initPlanCompare();
+    document.getElementById('btn-compare-plans').click();
+    mocks.subscribeCb({ type: 'turn_start' });
+    expect(getCompareState().generating).toBe(true);
+    mocks.subscribeCb({ type: 'agent_end', messages: [] });
+    expect(getCompareState().planB).toBe(false);
+    expect(window._lastTripPlan.budget.total).toBe(1550);
+    expect(document.getElementById('plan-compare-bar')).toBeNull();
+  });
+
+  it('does not render malformed budget strings as active HTML', () => {
+    window._lastTripPlan = { ...structuredClone(planA), budget: { total: '<img src=x onerror=alert(1)>' } };
+    initPlanCompare();
+    document.getElementById('btn-compare-plans').click();
+    expect(document.querySelector('#plan-compare-bar img')).toBeNull();
+  });
+
 });

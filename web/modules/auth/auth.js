@@ -11,7 +11,7 @@ import { I18N } from '../i18n.js';
 import { addTraceHeaders, extractTraceId } from '../trace.js';
 import { createLogger } from '../logger.js';
 import { traceAsync } from '../perf-trace.js';
-import { initTripSync, syncTrips } from '../infra/trip-sync.js';
+import { initTripSync, syncTrips, pauseTripSync, resumeTripSync } from '../infra/trip-sync.js';
 
 const logger = createLogger('auth');
 
@@ -83,6 +83,7 @@ export function hideAuthOverlay() {
 }
 
 export function onGuest() {
+  pauseTripSync();
   setCurrentUser(null);
   hideAuthOverlay();
   document.getElementById('quota-bar')?.classList.remove('visible');
@@ -90,6 +91,7 @@ export function onGuest() {
 }
 
 export function onAuthenticated(data) {
+  resumeTripSync();
   const user = data?.user || null;
   const remaining = Number(data?.quota?.remaining ?? 0);
   setCurrentUser(user);
@@ -123,6 +125,7 @@ document.addEventListener('keydown', event => {
 });
 
 document.getElementById('btn-logout')?.addEventListener('click', async () => {
+  pauseTripSync();
   try {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
   } catch {

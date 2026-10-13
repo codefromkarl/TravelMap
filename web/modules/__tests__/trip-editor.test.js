@@ -314,4 +314,60 @@ describe('openTripEditorForPlan（实时行程编辑）', () => {
     expect(ctx.showToast).toHaveBeenCalledWith(expect.stringContaining('没有可编辑的结构化数据'), 3000, 'warning');
     expect(document.querySelectorAll('#trip-editor-overlay')).toHaveLength(0);
   });
+  it('escapes names and dates in editor text and attributes', async () => {
+    const plan = basePlan();
+    plan.days[0].date = '<img src=x onerror="window.injected=true">';
+    plan.days[0].attractions[0].nameZh = '\"/><img src=x onerror="window.injected=true">';
+    await tripEditor.openTripEditorForPlan(plan);
+    expect(document.querySelector('.trip-editor-body img')).toBeNull();
+    expect(document.querySelector('.trip-editor-item-name').textContent).toContain('<img');
+    expect(document.querySelector('.trip-editor-item-name').getAttribute('title')).toBe(plan.days[0].attractions[0].nameZh);
+  });
+
+  it('saving deletions updates budget, dates, statistics and serialized history', async () => {
+    const plan = basePlan();
+    plan.city = '杭州';
+    plan.startDate = '2026-06-01';
+    plan.endDate = '2026-06-02';
+    plan.days[0].attractions[0].ticketPrice = 20;
+    plan.days[0].attractions[1].ticketPrice = 30;
+    plan.days[1].attractions[0].ticketPrice = 50;
+    plan.budget = { totalAttractions: 200, totalHotels: 0, totalMeals: 0, totalTransportation: 0, totalInterCityTransport: 0, total: 200 };
+    document.body.innerHTML = '<div id="trip-stats-bar" hidden></div>';
+    db.saveTripPlan.mockResolvedValue({ id: 'saved' });
+    await tripEditor.openTripEditorForPlan(plan);
+    btn('del', 0, 0).click();
+    btn('day-down', 0).click();
+    document.getElementById('btn-save-trip-editor').click();
+    await vi.waitFor(() => expect(db.saveTripPlan).toHaveBeenCalledTimes(1));
+    const saved = db.saveTripPlan.mock.calls[0][0];
+    expect(saved.tripPlan.budget.total).toBe(160);
+    expect(saved.tripPlan.days.map(day => day.date)).toEqual(['2026-06-01', '2026-06-02']);
+    expect(saved.markdown).toContain('西溪湿地');
+    expect(saved.markdown).not.toContain('西湖');
+    expect(document.getElementById('trip-stats-bar').textContent).toContain('160');
+    expect(document.getElementById('trip-stats-bar').textContent).toContain('2');
+    const state = await import('../trip/trip-state.js');
+    expect(state.getCurrentTripMarkdown()).toBe(saved.markdown);
+  });
+
+  it('moving down advances exactly one place in a three-attraction day', async () => {
+    const plan = basePlan();
+    plan.days[0].attractions.push({ name: '断桥', lat: 30, lng: 120 });
+    await tripEditor.openTripEditorForPlan(plan);
+    btn('down', 0, 0).click();
+    expect(renderedDays()[0].names).toEqual(['灵隐寺', '西湖', '断桥']);
+  });
+
+  it('later unsaved edits do not mutate the published plan after saving', async () => {
+    db.saveTripPlan.mockResolvedValue({ id: 'saved' });
+    await tripEditor.openTripEditorForPlan(basePlan());
+    document.getElementById('btn-save-trip-editor').click();
+    await vi.waitFor(() => expect(window._lastTripPlan).toBeTruthy());
+    btn('del', 0, 0).click();
+    expect(window._lastTripPlan.days[0].attractions).toHaveLength(2);
+    tripEditor.closeTripEditor();
+    expect(window._lastTripPlan.days[0].attractions).toHaveLength(2);
+  });
+
 });

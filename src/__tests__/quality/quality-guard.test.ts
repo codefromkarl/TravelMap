@@ -38,10 +38,6 @@ const SOURCE_FILES_EXEMPT = [
   "services/free-sources/index.ts", // 已在 free-sources.test.ts 通过 searchFreeSources 测试
   "services/free-sources/types.ts", // 纯类型定义
   "tools/image-recognize.ts", // 图片识别工具，WIP
-  // AI 评估框架模块 — 需要 LLM 调用，暂无测试
-  "evaluation/baseline-manager.ts",
-  "evaluation/dimensions/semantic.ts",
-  "evaluation/optimization-loop.ts",
 ];
 
 /** 自动发现需要测试覆盖的源文件 */

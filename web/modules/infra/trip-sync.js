@@ -1,150 +1,147 @@
-/**
- * 行程云同步 — 换设备不丢数据
- *
- * 仅在非 localhost 生效（本地开发/E2E 的静态服务器没有 /api/trips 路由）。
- * 合并策略（按 updatedAt）：
- *  - 本地独有，或本地 updatedAt 新于服务端 → 上传（PUT /api/trips/<id>）
- *  - 服务端独有，或服务端 updatedAt 新于本地 → 下载（GET /api/trips/<id>）→ saveTripPlan 入库
- *  - 删除只删除本地，不传播到云端（简单化，避免误删其它设备数据）
- * 失败静默，不阻塞主流程；同一 trip 5 秒内不重复上传，上传失败静默重试一次。
- */
-
-import { listTrips, loadTripById, saveTripPlan } from "../db.js";
+/** Versioned cloud reconciliation. Conflicts preserve local revisions for explicit review. */
+import { listTrips, loadTripById, saveTripPlan, acknowledgeTripSync, markTripSyncConflict } from '../db.js';
 
 const SYNC_DEBOUNCE_MS = 5000;
-const UPLOAD_COOLDOWN_MS = 5000;
-
-let inited = false;
-let debounceTimer = null;
-let syncing = null;
-const recentUploads = new Map();
+let _inited = false;
+let _debounceTimer = null;
+let _syncing = null;
+let _controller = null;
+let _paused = false;
 
 function isLocalHost() {
-  if (typeof location === "undefined") return true;
-  return ["localhost", "127.0.0.1"].includes(location.hostname);
+  return typeof location === 'undefined' || ['localhost', '127.0.0.1'].includes(location.hostname);
 }
 
-function withinCooldown(id) {
-  const last = recentUploads.get(id) || 0;
-  return Date.now() - last < UPLOAD_COOLDOWN_MS;
+function eligible(record, userId) {
+  return record && record.status !== 'demo' && !record.syncExcluded && !record.tripPlan?.demoNotice
+    && (!record.syncOwnerId || record.syncOwnerId === userId);
 }
 
-async function fetchTripList() {
+function dirty(record, remote) {
+  if (record?.syncState === 'pending' || record?.syncState === 'conflict') return true;
+  if (record?.syncState === 'clean') return false;
+  return !remote || (record.updatedAt || '') > (remote.updatedAt || '');
+}
+
+async function request(url, init, signal) {
   try {
-    const response = await fetch("/api/trips", {
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-    if (!response || !response.ok) return null;
+    const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...init, signal });
     const data = await response.json().catch(() => null);
-    return data && Array.isArray(data.trips) ? data.trips : null;
-  } catch {
-    return null;
-  }
+    return { ok: response.ok, status: response.status, data };
+  } catch { return null; }
 }
 
-async function fetchTrip(id) {
-  try {
-    const response = await fetch("/api/trips/" + encodeURIComponent(id), {
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-    if (!response || !response.ok) return null;
-    const data = await response.json().catch(() => null);
-    return data && data.trip ? data.trip : null;
-  } catch {
-    return null;
-  }
-}
+async function runSync(signal) {
+  const active = () => !_paused && !signal.aborted;
+  const auth = await request('/api/auth/status', { headers: { Accept: 'application/json' } }, signal);
+  const userId = auth?.data?.user?.id;
+  if (!active() || !auth?.ok || auth.data.authenticated !== true || typeof userId !== 'string' || !userId) return;
+  const list = await request('/api/trips', { headers: { Accept: 'application/json', 'X-Sync-User': userId } }, signal);
+  if (!active() || !list?.ok || list.data?.userId !== userId || !Array.isArray(list.data.trips)) return;
+  const localRecords = await listTrips({ includeDeleted: true });
+  if (!active()) return;
+  const localMap = new Map(localRecords.map(trip => [trip.id, trip]));
+  const remoteMap = new Map(list.data.trips.filter(trip => typeof trip?.id === 'string').map(trip => [trip.id, trip]));
+  const ids = new Set([...localMap.keys(), ...remoteMap.keys()]);
 
-async function uploadTrip(trip) {
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const response = await fetch("/api/trips/" + encodeURIComponent(trip.id), {
-        method: "PUT",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trip }),
-      });
-      if (response && response.ok) return true;
-    } catch {
-      // 静默，进入下一次重试
-    }
-  }
-  return false;
-}
+  for (const id of ids) {
+    if (!active()) return;
+    // Re-read before every decision; user edits may occur during earlier requests.
+    const local = await loadTripById(id, { includeDeleted: true });
+    if (!active()) return;
+    const remote = remoteMap.get(id);
+    if (local && (!eligible(local, userId) || local.syncState === 'conflict')) continue;
+    const path = '/api/trips/' + encodeURIComponent(id);
 
-async function runSync() {
-  try {
-    const serverTrips = await fetchTripList();
-    if (!serverTrips) return;
-
-    const localTrips = await listTrips();
-    const serverMap = new Map(serverTrips.map((trip) => [trip.id, trip]));
-
-    // 1. 本地 → 服务端：本地独有，或本地更新 → 上传
-    for (const localTrip of localTrips) {
-      const serverTrip = serverMap.get(localTrip.id);
-      const localUpdatedAt = localTrip.updatedAt || "";
-      const serverUpdatedAt = serverTrip?.updatedAt || "";
-      if (serverTrip && localUpdatedAt <= serverUpdatedAt) continue;
-      if (withinCooldown(localTrip.id)) continue;
-      const uploaded = await uploadTrip(localTrip);
-      if (uploaded) recentUploads.set(localTrip.id, Date.now());
+    // A deleted remote id can never be recreated by a stale local PUT.
+    if (remote?.deleted) {
+      if (local?.deleted) {
+        await acknowledgeTripSync(id, local, { ...remote, userId }, { signal });
+      } else if (local && dirty(local, remote)) {
+        await markTripSyncConflict(id, local, remote, userId, { signal });
+      } else {
+        await saveTripPlan(remote, { source: 'remote', syncOwnerId: userId, snapshot: local, signal });
+      }
+      continue;
     }
 
-    // 2. 服务端 → 本地：本地缺失，或服务端更新 → 下载
-    for (const serverTrip of serverTrips) {
-      const localTrip = await loadTripById(serverTrip.id);
-      if (localTrip && (localTrip.updatedAt || "") >= (serverTrip.updatedAt || "")) continue;
-      const fullTrip = await fetchTrip(serverTrip.id);
-      if (!fullTrip) continue;
-      await saveTripPlan(fullTrip);
+    if (local?.deleted || (local && dirty(local, remote))) {
+      // A divergent version is a visible conflict, never a force-overwrite or blind retry.
+      if (remote?.version && local.version !== remote.version) {
+        await markTripSyncConflict(id, local, remote, userId, { signal });
+        continue;
+      }
+      const deleting = local.deleted === true;
+      const body = deleting ? { baseVersion: local.version, updatedAt: local.updatedAt }
+        : { trip: local, baseVersion: local.version };
+      const response = await request(path, { method: deleting ? 'DELETE' : 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Sync-User': userId }, body: JSON.stringify(body) }, signal);
+      if (!active()) return;
+      if (response?.data?.userId !== userId) continue;
+      if (response.ok && typeof response.data.version === 'string' && response.data.deleted === deleting) {
+        await acknowledgeTripSync(id, local, response.data, { signal });
+      } else if (response.status === 409 && response.data.code === 'SYNC_CONFLICT') {
+        await markTripSyncConflict(id, local, response.data.remote, userId, { signal });
+      }
+      continue;
     }
-  } catch {
-    // 同步失败静默，不阻塞主流程
+
+    if (!remote) continue;
+    if (local && local.version === remote.version && local.syncState === 'clean') continue;
+    // Unversioned records with equal timestamps may be adopted without rewriting content.
+    if (local && !local.version && local.updatedAt === remote.updatedAt && remote.version) {
+      await acknowledgeTripSync(id, local, { ...remote, userId }, { signal });
+      continue;
+    }
+    const response = await request(path, { headers: { Accept: 'application/json', 'X-Sync-User': userId } }, signal);
+    if (!active() || response?.data?.userId !== userId) continue;
+    const incoming = response.ok ? response.data.trip
+      : response.status === 410 && response.data.code === 'TRIP_DELETED' ? response.data.tombstone : null;
+    if (!incoming || incoming.id !== id || !eligible(incoming, userId)) continue;
+    // Transaction snapshot protects edits made while downloading from being overwritten.
+    await saveTripPlan(incoming, { source: 'remote', syncOwnerId: userId, snapshot: local, signal });
   }
 }
 
-/**
- * 执行一次云同步（合并本地与服务端行程）。
- * 仅非 localhost 生效；并发调用复用同一在途同步；失败静默。
- */
+/** Authenticated sync; concurrent calls reuse the same run. No request is blindly retried. */
 export async function syncTrips() {
-  if (isLocalHost()) return;
-  if (syncing) return syncing;
-  syncing = runSync();
-  try {
-    await syncing;
-  } catch {
-    // runSync 自身已兜底，这里再兜一层
-  } finally {
-    syncing = null;
+  if (_paused || isLocalHost()) return;
+  if (_syncing && !_controller?.signal.aborted) return _syncing;
+  const controller = new AbortController();
+  const run = runSync(controller.signal);
+  _controller = controller;
+  _syncing = run;
+  try { await run; } catch (error) { console.warn('[TripSync] Reconciliation unavailable', error); }
+  finally {
+    // An aborted account's run must not clear a newer authenticated run.
+    if (_syncing === run) { _syncing = null; _controller = null; }
   }
 }
 
-/**
- * 初始化行程同步：监听本地变更事件（debounce 5s）+ pagehide 尽力冲刷。
- * 幂等；失败静默，不阻塞主流程。
- */
+/** Stop background sync before logout/account clearing and reject late responses. */
+export function pauseTripSync() {
+  _paused = true;
+  _controller?.abort();
+  if (_debounceTimer !== null) clearTimeout(_debounceTimer);
+  _debounceTimer = null;
+}
+
+/** Authentication refresh may re-enable a previously paused local sync instance. */
+export function resumeTripSync() { _paused = false; }
+
+/** Debounced local edits and pagehide trigger reconciliation; remote imports emit no edits. */
 export function initTripSync() {
-  if (typeof window === "undefined") return;
-  if (inited) return;
-  inited = true;
-
-  window.addEventListener("travelmap-trip-changed", () => {
-    if (debounceTimer !== null) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      debounceTimer = null;
-      void syncTrips();
-    }, SYNC_DEBOUNCE_MS);
+  if (typeof window === 'undefined' || _inited) return;
+  _inited = true;
+  window.addEventListener('travelmap-trip-changed', () => {
+    if (_paused) return;
+    if (_debounceTimer !== null) clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(() => { _debounceTimer = null; void syncTrips(); }, SYNC_DEBOUNCE_MS);
   });
-
-  window.addEventListener("pagehide", () => {
-    if (debounceTimer !== null) clearTimeout(debounceTimer);
-    debounceTimer = null;
+  window.addEventListener('pagehide', () => {
+    if (_paused) return;
+    if (_debounceTimer !== null) clearTimeout(_debounceTimer);
+    _debounceTimer = null;
     void syncTrips();
   });
 }

@@ -79,3 +79,8 @@ export async function searchXxx(params): Promise<Result> {
 | 空 `catch {}`  | 失败静默，生产环境无法排查  | 至少 `console.warn("[Service] xxx failed:", err)`  |
 | API Key 直接拼在 URL 中且不做脱敏  | Key 可能泄露到日志/代理  | 使用 `sanitizeUrl()` 脱敏后再打印  |
 | 不对错误分类  | 401 也会触发重试，浪费资源  | 区分 `AuthError`（不重试）与 `ApiError`（可重试）  |
+
+
+## Validated Itinerary Boundary
+
+`TravelAgent.finalize(): Promise<ValidatedTripPlan | null>` updates `lastProcessedPlan` only after `validateTripPlan()` succeeds. Invalid results return null and preserve the last valid Diff base; never cast a failed result to `ValidatedTripPlan`. The validator requires a city, nonempty day array, valid increasing calendar dates, attraction arrays and finite in-range coordinates; the legacy `(0,0)` unknown sentinel is rejected while valid single-axis zero coordinates remain accepted. Tests cover invalid dates/coordinates and valid-base preservation without real LLM/provider calls.

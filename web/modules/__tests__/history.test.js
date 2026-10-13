@@ -22,6 +22,7 @@ vi.mock('../db.js', () => ({
   listTrips: vi.fn(() => Promise.resolve([])),
   loadTripById: vi.fn(),
   deleteTripById: vi.fn(),
+  clearTripsLocal: vi.fn(),
 }));
 
 vi.mock('../tools/validate-trip.js', () => ({
@@ -96,6 +97,15 @@ describe('history.js', () => {
       expect(module.historyList.innerHTML).toContain('3天');
     });
 
+    it('conflicted active records visibly preserve the local itinerary', async () => {
+      const { listTrips } = await import('../db.js');
+      listTrips.mockResolvedValue([{ id: 'conflict', title: '保留本地内容', updatedAt: new Date().toISOString(), syncState: 'conflict' }]);
+      const module = await import('../history.js');
+      await module.renderHistory();
+      expect(document.querySelector('.item-sync-conflict').textContent).toContain('冲突');
+      expect(document.querySelector('.item-title').textContent).toBe('保留本地内容');
+    });
+
     it('行程卡片包含恢复和删除按钮', async () => {
       const { listTrips } = await import('../db.js');
       const mockTrips = [
@@ -161,6 +171,23 @@ describe('history.js', () => {
 
       expect(module.historyList.innerHTML).toContain('item-cover');
       expect(module.historyList.innerHTML).toContain('https://example.com/cover.jpg');
+    });
+
+    it('untrusted trip text and cover URLs never become markup or attributes', async () => {
+      const { listTrips } = await import('../db.js');
+      const dangerous = '<img src=x onerror="alert(1)">';
+      listTrips.mockResolvedValue([{
+        id: '1" onclick="alert(1)', title: dangerous, city: dangerous,
+        summary: '<script>alert(1)</script>', days: 2,
+        travelerProfile: { adults: '2<img src=x>', children: 0, seniors: 0 },
+        coverImage: 'javascript:alert(1)', updatedAt: new Date().toISOString(),
+      }]);
+      const module = await import('../history.js');
+      await module.renderHistory();
+      expect(module.historyList.querySelector('.item-title').textContent).toBe(dangerous);
+      expect(module.historyList.querySelector('.item-city').textContent).toContain(dangerous);
+      expect(module.historyList.querySelector('.history-item').dataset.id).toBe('1" onclick="alert(1)');
+      expect(module.historyList.querySelectorAll('img,script,[onclick],[onerror]').length).toBe(0);
     });
 
     it('行程无封面图时不显示封面', async () => {
@@ -367,6 +394,7 @@ describe('账号数据操作按钮', () => {
   });
 
   it('删除按钮：确认后调用 DELETE 并清空本地行程', async () => {
+    document.body.insertAdjacentHTML('beforeend', '<div id="toast"></div>');
     const locationMock = useRemoteLocation();
     useConfirm(true);
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ deleted: { user: true, trips: 2 } }) });
@@ -375,9 +403,9 @@ describe('账号数据操作按钮', () => {
     await import('../history.js');
     const ctx = await import('../infra/context.js');
     ctx.setCurrentUser({ id: 'u1' });
-    const { listTrips, deleteTripById } = await import('../db.js');
+    const { listTrips, deleteTripById, clearTripsLocal } = await import('../db.js');
     listTrips.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
-    deleteTripById.mockResolvedValue();
+    clearTripsLocal.mockResolvedValue();
 
     document.getElementById('btn-delete-account').click();
 
@@ -390,11 +418,64 @@ describe('账号数据操作按钮', () => {
     }));
     expect(window.confirm).toHaveBeenCalledWith('此操作将永久删除你的账号数据（行程、设置等），且不可恢复。确定继续吗？');
     await vi.waitFor(() => {
-      expect(deleteTripById).toHaveBeenCalledTimes(2);
+      expect(clearTripsLocal).toHaveBeenCalledWith({ ownerId: 'u1' });
     });
-    expect(deleteTripById).toHaveBeenCalledWith('t1');
-    expect(deleteTripById).toHaveBeenCalledWith('t2');
+    expect(deleteTripById).not.toHaveBeenCalled();
+    expect(document.getElementById('toast').textContent).toContain('保留');
+    expect(document.getElementById('toast').classList.contains('success')).toBe(true);
     expect(locationMock.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures initiating owner for DELETE and local clear despite a later UI account switch', async () => {
+    useRemoteLocation();
+    useConfirm(true);
+    let resolveDelete;
+    const fetchMock = vi.fn(() => new Promise(resolve => { resolveDelete = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'account-a' });
+    const { clearTripsLocal } = await import('../db.js');
+    clearTripsLocal.mockResolvedValue();
+    document.getElementById('btn-delete-account').click();
+    await vi.waitFor(() => expect(resolveDelete).toBeTypeOf('function'));
+    ctx.setCurrentUser({ id: 'account-b' });
+    expect(fetchMock.mock.calls[0][1].headers['X-Sync-User']).toBe('account-a');
+    resolveDelete({ ok: true });
+    await vi.waitFor(() => expect(clearTripsLocal).toHaveBeenCalledWith({ ownerId: 'account-a' }));
+  });
+
+  it('keeps sync paused and preserves local records when account-cookie fence rejects deletion', async () => {
+    useRemoteLocation();
+    useConfirm(true);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 403 });
+    vi.stubGlobal('fetch', fetchMock);
+    await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'account-a' });
+    const { clearTripsLocal } = await import('../db.js');
+    document.getElementById('btn-delete-account').click();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][1].headers['X-Sync-User']).toBe('account-a');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(clearTripsLocal).not.toHaveBeenCalled();
+    const { syncTrips } = await import('../infra/trip-sync.js');
+    await syncTrips();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report complete account clearing when local storage clear fails', async () => {
+    const locationMock = useRemoteLocation();
+    useConfirm(true);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    await import('../history.js');
+    const ctx = await import('../infra/context.js');
+    ctx.setCurrentUser({ id: 'u1' });
+    const { clearTripsLocal } = await import('../db.js');
+    clearTripsLocal.mockRejectedValue(new Error('storage unavailable'));
+    document.getElementById('btn-delete-account').click();
+    await vi.waitFor(() => expect(clearTripsLocal).toHaveBeenCalledTimes(1));
+    expect(locationMock.reload).not.toHaveBeenCalled();
   });
 
   it('删除按钮：取消确认时不发起请求', async () => {

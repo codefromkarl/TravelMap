@@ -104,3 +104,33 @@ return fetch(`${provider.baseUrl}${provider.path}`, {
 The allowlist is code-owned, client routing fields are rejected, and production credentials remain encrypted Pages Secrets.
 
 References: [Pages bindings](https://developers.cloudflare.com/pages/functions/bindings/), [Pages Secrets](https://developers.cloudflare.com/pages/functions/bindings/#secrets), [Workers Rate Limiting limitations and consistency](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+
+
+## Credentialed Map Lookup
+
+### 1. Scope / Trigger
+Browser POI requests using the server map credential, including attraction and hotel lookup.
+
+### 2. Signatures
+`POST /api/amap` receives `{ endpoint, params }`. Allowed endpoints are `place/text` and `place/around`. Required bindings are `JWT_SECRET`, `RATE_LIMIT_KV`, and `AMAP_WEB_KEY` (compatible fallback: `AMAP_GEO_KEY`).
+
+### 3. Contracts
+Require an explicit same-origin Origin, non-cross-site metadata, a valid JWT and matching KV user before upstream work. Use user 30/minute and IP 120/minute buckets; these are eventual-consistency abuse controls. JSON request limit is 8 KiB, upstream JSON limit 512 KiB, timeout 8 seconds. Forward only allowed endpoint parameters to `https://restapi.amap.com/v3/`; set the credential and JSON output server-side. Never follow redirects or return provider diagnostics. Success preserves `{status: "1", info: "OK", count, pois}` with at most 20 POIs. Guest presets do not call this API.
+
+### 4. Validation & Error Matrix
+- Missing/wrong origin: 403 `FORBIDDEN_ORIGIN`.
+- Missing security/map configuration: 503 `SECURITY_NOT_CONFIGURED` / `PROVIDER_NOT_CONFIGURED`.
+- Invalid/missing JWT or user: 401 `AUTH_REQUIRED`.
+- Exhausted/unavailable limiter: 429 `RATE_LIMITED` / 503 `RATE_LIMIT_UNAVAILABLE`.
+- Malformed JSON/schema/oversized request: 400 `INVALID_JSON` or `INVALID_REQUEST` / 413 `REQUEST_TOO_LARGE`.
+- Timeout, redirect, non-JSON, unsuccessful/oversized upstream response: 502 `UPSTREAM_ERROR`.
+All denials make zero upstream calls and carry no wildcard CORS.
+
+### 5. Good / Base / Bad Cases
+Good: authenticated city POI lookup returns real GCJ-02 coordinates. Base: no matching POIs returns a successful empty provider collection. Bad: client key override, arbitrary endpoint, malformed endpoint object or cross-origin request is rejected before fetch.
+
+### 6. Tests Required
+`web/__tests__/unit/amap.test.ts` covers fixed upstream/key, hotel compatibility, no-upstream denials, body bounds, redirect/timeout/provider errors and safe responses. Build Pages Functions and independently validate the local deployment artifact. Hosted configuration and runtime acceptance are separate operator evidence.
+
+### 7. Wrong vs Correct
+Wrong: build upstream from arbitrary `body.endpoint` or copy `params.key` over the server key. Correct: validate endpoint/parameter allowlists first, then assign the server credential last with manual redirect handling.

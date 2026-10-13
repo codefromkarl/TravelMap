@@ -300,8 +300,8 @@ export default defineConfig({
 | 测试类型 | 文件 | 环境 | Mock 方式 |
 |---------|------|------|----------|
 | 单元测试 | `web/modules/__tests__/map-geocode.test.js` | jsdom | `vi.mock()` mock 依赖 |
-| 集成测试 | `web/__tests__/flows/geocode-integration.spec.ts` | Playwright | 真实 API |
-| E2E 测试 | `web/__tests__/flows/itinerary-map-linkage.spec.ts` | Playwright | 真实 API |
+| 集成测试 | `web/__tests__/flows/geocode-integration.spec.ts` | Playwright | 真实页面 + Mock 高德 HTTP |
+| E2E 测试 | `web/__tests__/flows/itinerary-map-linkage.spec.ts` | Playwright | 真实页面 + Mock 高德 HTTP |
 
 ### 单元测试模板
 
@@ -332,7 +332,7 @@ describe('geocodeAttractions', () => {
     // ...
   });
 
-  it('高德 API 失败时 fallback 到 CITY_CENTERS', async () => {
+  it('高德 API 失败时保持缺失坐标并报告不可用', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
     // ...
   });
@@ -347,9 +347,9 @@ describe('geocodeAttractions', () => {
    - `location: {0, 0}` 触发补全
 
 2. **降级路径**
-   - 高德 API 失败 → fallback 到 CITY_CENTERS
-   - 无 API Key → 使用 CITY_CENTERS
-   - 网络超时 → 使用 CITY_CENTERS
+   - 高德 API 失败 → 保持缺失坐标，返回明确失败，不绘制虚构景点
+   - 无 API Key → 不发请求，保持缺失坐标
+   - 网络超时 → 保持缺失坐标并报告不可用
 
 3. **边界情况**
    - 空行程返回 0
@@ -361,7 +361,8 @@ describe('geocodeAttractions', () => {
 
 当后端或前端逻辑变更时，E2E 测试预期需要同步更新。例如：
 - 地理编码补全后，原本无坐标的景点会生成 marker
-- marker 数量预期需要从 "无坐标=不渲染" 更新为 "补全后=渲染"
+- 仅成功得到真实坐标时新增 marker；失败不得用城市中心代替景点坐标
+- 浏览器测试通过实际行程渲染入口加载方案；模拟高德查询并断言存储 GCJ02、地图 WGS84 和失败无 marker，不手工清图层或构造 marker
 
 ---
 
@@ -495,3 +496,27 @@ test.describe("功能名称", () => {
   });
 });
 ```
+
+
+## Offline Evaluation and Evidence Availability
+
+### 1. Scope / Trigger
+Deterministic quality rules, mocked Judge transport, runner aggregation, baseline/regression, attribution and bounded optimization.
+
+### 2. Signatures
+Regular tests live in `src/__tests__/unit/evaluation/*.test.ts`; true provider scenarios stay in opt-in `e2e/` or `evaluation/` tests. `requestJudge(prompt)` returns evaluated text or skipped/error with a stable diagnostic. `DimensionResult.status` is evaluated/skipped/error; reports include `completeness` and evaluated/total weight.
+
+### 3. Contracts
+Use the installed SDK `streamSimple(model, {messages}, options)` and require a successful final stop event. Resolve matching provider/model/credential in the SDK registry. Trusted server environment may override provider base URL; never silently move local configuration to another paid host. Production evaluation never imports test helpers. Offline tests mock provider traffic and use temporary output/baseline directories. Disabled/missing-key/error/malformed replies are missing evidence, not passing scores. Aggregate only evaluated weights, but an incomplete report or batch cannot pass.
+
+### 4. Validation & Error Matrix
+No credential: skipped. Unknown explicit provider/model or unsafe URL: configuration error. Network/timeout/length/partial/invalid JSON/check scores: error. A valid complete Judge result with failing checks is evaluated but failed. Recognize old semantic diagnostics explicitly saying disabled/no Key/default pass. Empty/malformed dimensions are incomplete even in legacy reports. Missing evidence cannot replace baselines, produce observed regressions or attribution, enter accepted optimization/history trends, or count as a successful repair.
+
+### 5. Good / Base / Bad Cases
+Good: a mocked complete report drives a real baseline comparison and bounded mock repair. Base: semantic Judge is disabled; deterministic evidence remains visible and completeness is false. Bad: fallback 0.5 or an empty check array is reported as successful AI evidence.
+
+### 6. Tests Required
+Deterministic rule boundary tests, baseline persistence/history/regression, attribution origin evidence, iteration/cooldown limits, success on the final allowed repair, SDK context/event/timeout/URL contracts, unavailable/legacy/empty evidence and aggregate completeness. Test helpers belong in existing approved mocks. Preserve unchanged coverage includes/excludes and 85/85/75/85 thresholds; do not enable real providers to get a green unit gate.
+
+### 7. Wrong vs Correct
+Wrong: classify a provider failure as a good itinerary, regress quality against a missing semantic score, or repair prompts without evidence. Correct: publish unavailable status, retain complete assessed dimensions, and stop baseline/optimization decisions until evidence is complete.

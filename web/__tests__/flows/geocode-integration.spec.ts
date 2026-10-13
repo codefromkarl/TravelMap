@@ -4,11 +4,12 @@
  * 场景：
  *   1. 注入骨架行程 → 自动触发地理编码 → marker 渲染
  *   2. 注入完整行程 → 不触发地理编码 → 直接渲染
- *   3. 地理编码失败 → showToast 告警 → 使用 fallback 坐标
+ *   3. 地理编码失败 → showToast 告警 → 保留缺失坐标，不生成虚构 marker
  *   4. 行程变更 → 重新触发地理编码 → marker 更新
  */
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test, GEOCODE_TEST_KEY } from "../fixtures/geocode";
 import { spawn, type ChildProcess } from "child_process";
 import { createServer } from "net";
 
@@ -114,22 +115,17 @@ const ZERO_COORD_TRIP = {
 
 async function waitForMapReady(page: Page) {
   await page.waitForFunction(() => {
-    return !!document.getElementById("page-map-leaflet");
+    return !!window._pageMapInstance && typeof window._renderTripAnimated === "function";
   }, { timeout: 10000 });
 }
 
 async function injectTrip(page: Page, trip: any) {
-  await page.evaluate((t) => {
+  await page.evaluate(async (t) => {
     window._lastTripPlan = t;
-    if (window._initPageMap) {
-      window._initPageMap();
-    }
-    if (window._renderTripOnPageMap) {
-      window._renderTripOnPageMap(t);
-    }
+    await window._renderTripAnimated(t);
+    // The animated pipeline previews its last popup; start explicit click checks from closed state.
+    window._pageMapInstance.closePopup();
   }, trip);
-  // 等待地理编码完成（最多 3 秒）
-  await page.waitForTimeout(3000);
 }
 
 // ─── 测试 ─────────────────────────────────────────────
@@ -151,11 +147,8 @@ test.describe("地理编码集成测试", () => {
   });
 
   // === 1. 骨架行程自动触发地理编码 ===
-  test("注入骨架行程（无坐标）应自动触发地理编码并渲染 marker", async ({ page }) => {
+  test("注入骨架行程（无坐标）应自动触发地理编码并渲染 marker", async ({ page, geocoder }) => {
     await injectTrip(page, SKELETON_TRIP);
-
-    // 等待地理编码完成
-    await page.waitForTimeout(2000);
 
     const markerCount = await page.evaluate(() => {
       return document.querySelectorAll(".attraction-marker").length;
@@ -163,6 +156,10 @@ test.describe("地理编码集成测试", () => {
 
     // 两个景点都应被地理编码补全并渲染 marker
     expect(markerCount).toBe(2);
+    expect(geocoder.queries).toEqual([
+      { address: '西湖', city: '杭州', key: GEOCODE_TEST_KEY },
+      { address: '灵隐寺', city: '杭州', key: GEOCODE_TEST_KEY },
+    ]);
   });
 
   // === 2. 完整行程不触发地理编码 ===
@@ -197,9 +194,6 @@ test.describe("地理编码集成测试", () => {
   test("坐标为 {0,0} 的景点应触发地理编码补全", async ({ page }) => {
     await injectTrip(page, ZERO_COORD_TRIP);
 
-    // 等待地理编码完成
-    await page.waitForTimeout(2000);
-
     const markerCount = await page.evaluate(() => {
       return document.querySelectorAll(".attraction-marker").length;
     });
@@ -212,7 +206,6 @@ test.describe("地理编码集成测试", () => {
   test("注入新行程后应重新触发地理编码并更新 marker", async ({ page }) => {
     // 第一次注入骨架行程
     await injectTrip(page, SKELETON_TRIP);
-    await page.waitForTimeout(2000);
 
     const count1 = await page.evaluate(() => {
       return document.querySelectorAll(".attraction-marker").length;
@@ -238,7 +231,6 @@ test.describe("地理编码集成测试", () => {
       ],
     };
     await injectTrip(page, newTrip);
-    await page.waitForTimeout(2000);
 
     const count2 = await page.evaluate(() => {
       return document.querySelectorAll(".attraction-marker").length;
@@ -263,24 +255,32 @@ test.describe("地理编码集成测试", () => {
   });
 
   // === 5. 地理编码补全后坐标合理 ===
-  test("地理编码补全后的坐标应在合理范围内", async ({ page }) => {
+  test("地理编码补全后的坐标应在合理范围内", async ({ page, geocoder }) => {
     await injectTrip(page, SKELETON_TRIP);
-    await page.waitForTimeout(2000);
 
-    // 获取所有 marker 的坐标
+    // Validate actual Leaflet coordinates against mocked provider results, not DOM ids.
     const coords = await page.evaluate(() => {
-      const markers = document.querySelectorAll(".attraction-marker");
-      return Array.from(markers).map(m => {
-        const parent = m.closest(".leaflet-marker-icon");
-        if (!parent) return null;
-        // 从 Leaflet marker 获取坐标
-        const leafletId = parent.getAttribute("data-leaflet-id");
-        return leafletId;
+      const result: Array<{ latitude: number; longitude: number }> = [];
+      window._pageMapInstance.eachLayer((layer: any) => {
+        if (String(layer.options?.icon?.options?.html || '').includes('attraction-marker')) {
+          const point = layer.getLatLng();
+          result.push({ latitude: point.lat, longitude: point.lng });
+        }
       });
+      return result;
     });
-
-    // 验证 marker 数量正确
-    expect(coords.length).toBe(2);
+    const storedLocations = await page.evaluate(() => window._lastTripPlan.days[0].attractions.map((attr: any) => attr.location));
+    expect(storedLocations).toEqual([
+      { latitude: 30.2458, longitude: 120.1484 },
+      { latitude: 30.2414, longitude: 120.1017 },
+    ]);
+    // Provider locations are GCJ-02; OSM Leaflet tiles display converted WGS-84 points.
+    expect(coords).toHaveLength(2);
+    expect(coords[0].latitude).toBeCloseTo(30.24811967465639, 6);
+    expect(coords[0].longitude).toBeCloseTo(120.14368895736219, 6);
+    expect(coords[1].latitude).toBeCloseTo(30.243672980288512, 6);
+    expect(coords[1].longitude).toBeCloseTo(120.09689513509463, 6);
+    expect(geocoder.queries).toHaveLength(2);
 
     // 验证 popup 包含景点信息
     await page.evaluate(() => {
@@ -325,4 +325,14 @@ test.describe("地理编码集成测试", () => {
     expect(markerCount).toBe(0);
     expect(geocodeCalls).toBe(0);
   });
+  test('provider unavailable leaves missing coordinates and produces no invented markers', async ({ page, geocoder }) => {
+    geocoder.unavailable();
+    await injectTrip(page, SKELETON_TRIP);
+    expect(geocoder.queries).toHaveLength(2);
+    expect(await page.locator('.attraction-marker').count()).toBe(0);
+    const locations = await page.evaluate(() => window._lastTripPlan.days[0].attractions.map((attr: any) => attr.location ?? null));
+    expect(locations).toEqual([null, null]);
+    await expect(page.locator('#toast')).toContainText('坐标');
+  });
+
 });

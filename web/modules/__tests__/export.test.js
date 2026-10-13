@@ -60,13 +60,15 @@ vi.mock('../share.js', async (importOriginal) => {
 });
 
 // 导入被测模块
-import { getLastAssistantContent, generateMarkdown, loadSharedTrip } from '../export.js';
+import { setCurrentTripPlan } from '../trip/trip-state.js';
+import { getLastAssistantContent, generateMarkdown, loadSharedTrip, exportPDF } from '../export.js';
 
 // ─── 测试 ─────────────────────────────────────────────
 
 describe('export.js', () => {
   beforeEach(() => {
     contextMocks.agent = null;
+    setCurrentTripPlan(null);
   });
 
   describe('getLastAssistantContent', () => {
@@ -103,6 +105,22 @@ describe('export.js', () => {
       };
 
       expect(getLastAssistantContent()).toBe(longContent);
+    });
+
+    it('structured active plan wins over stale assistant text after editing', () => {
+      contextMocks.agent = { state: { messages: [{ role: 'assistant', content: '旧方案'.repeat(100) }] } };
+      setCurrentTripPlan({ city: '杭州', days: [{ attractions: [{ name: '西湖', ticketPrice: 0 }] }] });
+      expect(getLastAssistantContent()).toContain('西湖');
+      setCurrentTripPlan({ city: '杭州', days: [{ attractions: [{ name: '灵隐寺', ticketPrice: 45 }] }] });
+      expect(getLastAssistantContent()).toContain('灵隐寺');
+      expect(getLastAssistantContent()).not.toContain('西湖');
+      expect(getLastAssistantContent()).not.toContain('旧方案');
+    });
+
+    it('text-only history accepts pi assistant text blocks', () => {
+      const content = '杭州三日行程'.repeat(30);
+      contextMocks.agent = { state: { messages: [{ role: 'assistant', content: [{ type: 'text', text: content }] }] } };
+      expect(getLastAssistantContent()).toBe(content);
     });
 
     it('应返回最后一条长消息', async () => {
@@ -151,6 +169,41 @@ describe('export.js', () => {
 
       expect(md).toContain('TravelMap');
       expect(md).toContain('AI');
+    });
+  });
+
+  describe('safe PDF and Markdown export', () => {
+    it('prints headings and readable names without running raw HTML or image handlers', () => {
+      document.body.innerHTML = '<div id="print-content"></div>';
+      const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
+      exportPDF('# 杭州\n## Day 1\n**西湖**\n<img src=x onerror=alert(1)>\n<script>alert(1)</script>');
+      const content = document.getElementById('print-content');
+      expect(content.querySelector('h2').textContent).toBe('Day 1');
+      expect(content.querySelector('strong').textContent).toBe('西湖');
+      expect(content.querySelectorAll('img,script,[onerror]').length).toBe(0);
+      expect(printSpy).toHaveBeenCalledTimes(1);
+      printSpy.mockRestore();
+    });
+    it('preserves safe booking targets in Markdown and readable PDF while disabling dangerous targets', () => {
+      document.body.innerHTML = '<div id="print-content"></div>';
+      const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
+      const content = '# 行程\n[预约](https://example.com/book?day=1&city=杭州)\n[攻击](\njavascript:alert(1)\n)\n![攻击图](data:image/svg+xml,evil)';
+      const markdown = generateMarkdown(content);
+      expect(markdown).toContain('https://example.com/book?day=1&city=');
+      expect(markdown).not.toContain('javascript:');
+      expect(markdown).not.toContain('data:image');
+      exportPDF(content);
+      const el = document.getElementById('print-content');
+      expect(el.textContent).toContain('预约 (https://example.com/book?day=1&city=');
+      expect(el.querySelectorAll('img,script,a,[onerror]').length).toBe(0);
+      printSpy.mockRestore();
+    });
+    it('downloaded Markdown keeps readable labels but removes active HTML and unsafe images', () => {
+      const md = generateMarkdown('# 行程\n<script>alert(1)</script>\n![照片](javascript:alert)');
+      expect(md).toContain('# 行程');
+      expect(md).toContain('照片');
+      expect(md).not.toContain('<script>');
+      expect(md).not.toContain('javascript:');
     });
   });
 

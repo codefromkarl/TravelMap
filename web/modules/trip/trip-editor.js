@@ -14,6 +14,10 @@
 import { loadTripById, saveTripPlan } from '../db.js';
 import { currentLang, showToast } from '../infra/context.js';
 import { I18N } from '../infra/i18n.js';
+import { escapeHtml } from '../infra/content-safety.js';
+import { setCurrentTripPlan } from './trip-state.js';
+import { serializeTripPlan } from './trip-serialization.js';
+import { normalizeEditedTrip } from './trip-edit-normalize.js';
 import { createLogger } from '../logger.js';
 
 const logger = createLogger('trip-editor');
@@ -21,6 +25,7 @@ const logger = createLogger('trip-editor');
 let editorOverlay = null;
 let currentTrip = null;
 let currentPlan = null;
+let originalPlan = null;
 let liveTripTitle = null; // 实时编辑保存时使用的行程标题
 
 // ─── 渲染 ────────────────────────────────────────────
@@ -33,17 +38,17 @@ function render() {
   body.innerHTML = days.map((day, dayIndex) => {
     const attractions = day.attractions || [];
     const items = attractions.map((attr, attrIndex) => {
-      const name = attr.nameZh || attr.name || dict.tripEditorUnnamedAttr;
-      const coordOk = attr.lat != null && attr.lng != null;
+      const name = escapeHtml(attr.nameZh || attr.name || dict.tripEditorUnnamedAttr);
+      const coordOk = (attr.location?.latitude != null && attr.location?.longitude != null) || (attr.lat != null && attr.lng != null);
       return `
         <div class="trip-editor-item" data-day="${dayIndex}" data-attr="${attrIndex}">
-          <span class="trip-editor-item-name" title="${name}">${name} ${coordOk ? '' : dict.tripEditorMissingCoord}</span>
+          <span class="trip-editor-item-name" title="${name}">${name} ${coordOk ? '' : escapeHtml(dict.tripEditorMissingCoord)}</span>
           <span class="trip-editor-item-actions">
-            <button type="button" class="trip-editor-btn" data-act="up" data-day="${dayIndex}" data-attr="${attrIndex}" title="${dict.tripEditorMoveUp}">↑</button>
-            <button type="button" class="trip-editor-btn" data-act="down" data-day="${dayIndex}" data-attr="${attrIndex}" title="${dict.tripEditorMoveDown}">↓</button>
-            <button type="button" class="trip-editor-btn" data-act="prev-day" data-day="${dayIndex}" data-attr="${attrIndex}" title="${dict.tripEditorPrevDay}" ${dayIndex === 0 ? 'disabled' : ''}>←天</button>
-            <button type="button" class="trip-editor-btn" data-act="next-day" data-day="${dayIndex}" data-attr="${attrIndex}" title="${dict.tripEditorNextDay}" ${dayIndex === days.length - 1 ? 'disabled' : ''}>天→</button>
-            <button type="button" class="trip-editor-btn danger" data-act="del" data-day="${dayIndex}" data-attr="${attrIndex}" title="${dict.tripEditorDeleteAttr}">✕</button>
+            <button type="button" class="trip-editor-btn" data-act="up" data-day="${dayIndex}" data-attr="${attrIndex}" title="${escapeHtml(dict.tripEditorMoveUp)}">↑</button>
+            <button type="button" class="trip-editor-btn" data-act="down" data-day="${dayIndex}" data-attr="${attrIndex}" title="${escapeHtml(dict.tripEditorMoveDown)}">↓</button>
+            <button type="button" class="trip-editor-btn" data-act="prev-day" data-day="${dayIndex}" data-attr="${attrIndex}" title="${escapeHtml(dict.tripEditorPrevDay)}" ${dayIndex === 0 ? 'disabled' : ''}>←天</button>
+            <button type="button" class="trip-editor-btn" data-act="next-day" data-day="${dayIndex}" data-attr="${attrIndex}" title="${escapeHtml(dict.tripEditorNextDay)}" ${dayIndex === days.length - 1 ? 'disabled' : ''}>天→</button>
+            <button type="button" class="trip-editor-btn danger" data-act="del" data-day="${dayIndex}" data-attr="${attrIndex}" title="${escapeHtml(dict.tripEditorDeleteAttr)}">✕</button>
           </span>
         </div>
       `;
@@ -52,14 +57,14 @@ function render() {
     return `
       <div class="trip-editor-day" data-day="${dayIndex}">
         <div class="trip-editor-day-header">
-          <span class="trip-editor-day-title">${dayTitle} <span class="trip-editor-day-date">${day.date || ''}</span></span>
+          <span class="trip-editor-day-title">${escapeHtml(dayTitle)} <span class="trip-editor-day-date">${escapeHtml(day.date || '')}</span></span>
           <span class="trip-editor-day-actions">
-            <button type="button" class="trip-editor-btn" data-act="day-up" data-day="${dayIndex}" title="${dict.tripEditorDayUp}" ${dayIndex === 0 ? 'disabled' : ''}>↑</button>
-            <button type="button" class="trip-editor-btn" data-act="day-down" data-day="${dayIndex}" title="${dict.tripEditorDayDown}" ${dayIndex === days.length - 1 ? 'disabled' : ''}>↓</button>
-            <button type="button" class="trip-editor-btn danger" data-act="day-del" data-day="${dayIndex}" title="${dict.tripEditorDeleteDay}">🗑</button>
+            <button type="button" class="trip-editor-btn" data-act="day-up" data-day="${dayIndex}" title="${escapeHtml(dict.tripEditorDayUp)}" ${dayIndex === 0 ? 'disabled' : ''}>↑</button>
+            <button type="button" class="trip-editor-btn" data-act="day-down" data-day="${dayIndex}" title="${escapeHtml(dict.tripEditorDayDown)}" ${dayIndex === days.length - 1 ? 'disabled' : ''}>↓</button>
+            <button type="button" class="trip-editor-btn danger" data-act="day-del" data-day="${dayIndex}" title="${escapeHtml(dict.tripEditorDeleteDay)}">🗑</button>
           </span>
         </div>
-        ${items || '<div class="trip-editor-empty">' + dict.tripEditorEmpty + '</div>'}
+        ${items || '<div class="trip-editor-empty">' + escapeHtml(dict.tripEditorEmpty) + '</div>'}
       </div>
     `;
   }).join('');
@@ -89,7 +94,7 @@ function handleAction(button) {
   if (act === 'up' && attr > 0) {
     moveAttr(day, attr, day, attr - 1);
   } else if (act === 'down' && attr < days[day].attractions.length - 1) {
-    moveAttr(day, attr, day, attr + 2);
+    moveAttr(day, attr, day, attr + 1);
   } else if (act === 'prev-day' && day > 0) {
     moveAttr(day, attr, day - 1, days[day - 1].attractions.length);
   } else if (act === 'next-day' && day < days.length - 1) {
@@ -112,6 +117,7 @@ function handleAction(button) {
   } else {
     return;
   }
+  normalizeEditedTrip(currentPlan, originalPlan);
   render();
   markDirty();
 }
@@ -125,10 +131,12 @@ async function save() {
   if (!currentPlan) return;
   const dict = I18N[currentLang] || I18N.zh;
   try {
+    normalizeEditedTrip(currentPlan, originalPlan);
+    const markdown = serializeTripPlan(currentPlan);
     let savedTrip;
     if (currentTrip) {
       // 历史行程编辑：原记录上更新
-      savedTrip = await saveTripPlan({ ...currentTrip, tripPlan: currentPlan });
+      savedTrip = await saveTripPlan({ ...currentTrip, tripPlan: currentPlan, markdown, days: currentPlan.days.length, startDate: currentPlan.startDate, endDate: currentPlan.endDate });
     } else {
       // 实时编辑：无历史记录 ID，保存为新行程（db.js saveTripPlan 需要 id 字段）
       savedTrip = await saveTripPlan({
@@ -137,18 +145,24 @@ async function save() {
         city: currentPlan.city,
         days: currentPlan.days?.length,
         tripPlan: currentPlan,
+        markdown,
+        startDate: currentPlan.startDate,
+        endDate: currentPlan.endDate,
         updatedAt: new Date().toISOString(),
         summary: '',
       });
     }
     // 同步全局状态与地图
-    window._lastTripPlan = currentPlan;
+    setCurrentTripPlan(currentPlan);
     if (typeof window._renderTripAnimated === 'function') {
-      window._renderTripAnimated(currentPlan);
+      Promise.resolve(window._renderTripAnimated(currentPlan)).catch(error => logger.warn('地图更新失败', error));
     }
     dirty = false;
     showToast(currentTrip ? dict.tripEditorSaved : dict.tripEditorSavedToHistory, 2500, 'success');
     logger.info('行程编辑已保存', { id: savedTrip?.id, days: currentPlan.days.length });
+    currentTrip = savedTrip || currentTrip;
+    // Continue editing a draft; later unsaved changes must not mutate the active plan.
+    currentPlan = JSON.parse(JSON.stringify(currentPlan));
   } catch (error) {
     logger.error('行程保存失败', error);
     showToast(dict.tripEditorSaveFailed + '：' + (error?.message || dict.tripEditorUnknownError), 3500, 'error');
@@ -173,6 +187,7 @@ export async function openTripEditor(tripId) {
   }
   currentTrip = trip;
   liveTripTitle = null;
+  originalPlan = JSON.parse(JSON.stringify(trip.tripPlan));
   currentPlan = JSON.parse(JSON.stringify(trip.tripPlan)); // 深拷贝，取消不落库
   dirty = false;
 
@@ -197,6 +212,7 @@ export async function openTripEditorForPlan(tripPlan, { title } = {}) {
 
   currentTrip = null;
   liveTripTitle = title || null;
+  originalPlan = JSON.parse(JSON.stringify(tripPlan));
   currentPlan = JSON.parse(JSON.stringify(tripPlan)); // 深拷贝，取消不落库
   dirty = false;
 
@@ -212,6 +228,7 @@ export function closeTripEditor() {
   editorOverlay.setAttribute('hidden', '');
   currentTrip = null;
   currentPlan = null;
+  originalPlan = null;
   liveTripTitle = null;
 }
 
@@ -224,13 +241,13 @@ function buildOverlay() {
   editorOverlay.innerHTML = `
     <div class="trip-editor">
       <div class="trip-editor-header">
-        <h3>${dict.tripEditorTitle}</h3>
-        <button type="button" class="close-btn" id="btn-close-trip-editor" aria-label="${dict.closeAria}">✕</button>
+        <h3>${escapeHtml(dict.tripEditorTitle)}</h3>
+        <button type="button" class="close-btn" id="btn-close-trip-editor" aria-label="${escapeHtml(dict.closeAria)}">✕</button>
       </div>
       <div class="trip-editor-body"></div>
       <div class="trip-editor-footer">
-        <span class="trip-editor-hint">${dict.tripEditorHint}</span>
-        <button type="button" class="trip-editor-save" id="btn-save-trip-editor">${dict.tripEditorSave}</button>
+        <span class="trip-editor-hint">${escapeHtml(dict.tripEditorHint)}</span>
+        <button type="button" class="trip-editor-save" id="btn-save-trip-editor">${escapeHtml(dict.tripEditorSave)}</button>
       </div>
     </div>
   `;

@@ -36,6 +36,7 @@ const EXTERNAL = [
   "@earendil-works/pi-ai",
   "@earendil-works/pi-web-ui",
   "lit",
+  "marked",
 ];
 
 /** 构建应用 bundle（浏览器启动逻辑 + 业务模块）。 */

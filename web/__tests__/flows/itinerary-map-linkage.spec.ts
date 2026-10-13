@@ -11,7 +11,8 @@
  *   7. 行程中无坐标的景点不应生成 marker
  */
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test, GEOCODE_TEST_KEY } from "../fixtures/geocode";
 import { spawn, type ChildProcess } from "child_process";
 import { createServer } from "net";
 
@@ -95,7 +96,7 @@ const MOCK_TRIP = {
           location: { latitude: 30.2654, longitude: 120.0628 },
         },
         {
-          // 无坐标的景点 — 不应生成 marker
+          // 缺失坐标由测试中的 provider mock 补全；失败时保持缺失
           name: "河坊街",
           nameZh: "河坊街",
           description: "杭州历史文化街区",
@@ -111,22 +112,18 @@ const MOCK_TRIP = {
 
 /** 注入行程数据并触发渲染 */
 async function injectTrip(page: Page, trip = MOCK_TRIP) {
-  await page.evaluate((t) => {
-    (window as any)._lastTripPlan = t;
-    if ((window as any)._initPageMap) {
-      (window as any)._initPageMap();
-    }
-    if ((window as any)._renderTripOnPageMap) {
-      (window as any)._renderTripOnPageMap(t);
-    }
+  await page.evaluate(async (t) => {
+    window._lastTripPlan = t;
+    await window._renderTripAnimated(t);
+    // The animated pipeline previews its last popup; start explicit click checks from closed state.
+    window._pageMapInstance.closePopup();
   }, trip);
-  await page.waitForTimeout(1200);
 }
 
 /** 等待地图就绪 */
 async function waitForMapReady(page: Page) {
   await page.waitForFunction(() => {
-    return !!document.getElementById("page-map-leaflet");
+    return !!window._pageMapInstance && typeof window._renderTripAnimated === "function";
   }, { timeout: 10000 });
 }
 
@@ -184,17 +181,17 @@ test.describe("行程 → 地图联动", () => {
   });
 
   // === 2. 地理编码补全后景点应有 marker ===
-  test("location 为 null 的景点经地理编码补全后应生成 marker", async ({ page }) => {
+  test("location 为 null 的景点经地理编码补全后应生成 marker", async ({ page, geocoder }) => {
     await injectTrip(page);
-
-    // 等待地理编码完成
-    await page.waitForTimeout(2000);
 
     // 检查 marker 数量（河坊街应被地理编码补全）
     const markerCount = await page.evaluate(() => {
       return document.querySelectorAll(".attraction-marker").length;
     });
     expect(markerCount).toBe(5);
+    expect(geocoder.queries).toEqual([{ address: '河坊街', city: '杭州', key: GEOCODE_TEST_KEY }]);
+    const location = await page.evaluate(() => window._lastTripPlan.days[1].attractions[1].location);
+    expect(location).toEqual({ latitude: 30.241, longitude: 120.17 });
   });
 
   // === 3. Marker 点击显示 Popup，内容正确 ===
@@ -494,4 +491,13 @@ test.describe("行程-地图边界情况", () => {
     // 应该仍然是 1，不是 2
     expect(count2).toBe(1);
   });
+  test('unavailable provider preserves known markers and never invents a missing coordinate', async ({ page, geocoder }) => {
+    geocoder.unavailable();
+    await injectTrip(page);
+    expect(geocoder.queries).toEqual([{ address: '河坊街', city: '杭州', key: GEOCODE_TEST_KEY }]);
+    expect(await page.locator('.attraction-marker').count()).toBe(4);
+    expect(await page.evaluate(() => window._lastTripPlan.days[1].attractions[1].location)).toBeNull();
+    await expect(page.locator('#toast')).toContainText('坐标');
+  });
+
 });
