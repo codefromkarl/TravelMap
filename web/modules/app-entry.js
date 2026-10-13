@@ -76,11 +76,12 @@ import { showToast } from './infra/context.js';
 
 // ─── 启动应用 ──────────────────────────────────────
 import { initApp } from './trip/chat-init.js';
-import { detectProxyMode, checkAuth } from './auth/auth.js';
+import { detectProxyMode, checkAuth, onGuest } from './auth/auth.js';
 
-// 代理模式检测 + 认证
+// 代理先于 Agent 安装；认证后台检查不阻塞游客入口和交互监听器。
 await detectProxyMode();
-await checkAuth();
+onGuest();
+void checkAuth();
 
 // 初始化完成前保留骨架屏，避免游客入口先于交互监听器变为可点击
 try {
