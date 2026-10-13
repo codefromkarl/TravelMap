@@ -156,3 +156,106 @@ export function setupTokenReport(): void {
     console.log(`  Report saved to: ${reportPath}`);
   });
 }
+
+// Deterministic golden assertion helpers shared by offline tests and provider E2E.
+// ─── 评估器接口 ─────────────────────────────────────────────
+
+export interface EvaluationResult {
+  /** 评估项名称 */
+  name: string;
+  /** 分数 0-1 */
+  score: number;
+  /** 详细说明 */
+  reason: string;
+  /** 是否通过 (score >= threshold) */
+  passed: boolean;
+}
+
+export interface Evaluator {
+  name: string;
+  evaluate(input: string, output: string): Promise<EvaluationResult>;
+}
+
+// ─── 结构化断言评估器 ──────────────────────────────────────
+
+/**
+ * 验证 Agent 输出包含行程规划所需的结构化信息
+ */
+export function assertTripPlanStructure(output: string): EvaluationResult[] {
+  const results: EvaluationResult[] = [];
+
+  const checks: Array<{ name: string; pattern: RegExp; required: boolean }> = [
+    { name: "包含目的地", pattern: /目的地|城市|景点|行程|旅游|出发|抵达/, required: true },
+    {
+      name: "包含日期",
+      pattern: /\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?|Day\s*\d|第[一二三四五六七八九十]+天/,
+      required: true,
+    },
+    { name: "包含景点推荐", pattern: /景点|游览|参观|推荐|攻略/, required: true },
+    { name: "包含餐饮建议", pattern: /早餐|午餐|晚餐|美食|餐厅/, required: false },
+    { name: "包含住宿建议", pattern: /住宿|酒店|民宿/, required: false },
+    { name: "包含费用信息", pattern: /预算|费用|价格|元|¥/, required: false },
+  ];
+
+  for (const check of checks) {
+    const match = check.pattern.test(output);
+    results.push({
+      name: check.name,
+      score: match ? 1 : 0,
+      reason: match
+        ? `输出匹配 ${check.name} 模式`
+        : `输出未匹配 ${check.name} 模式 (${check.pattern.source})`,
+      passed: check.required ? match : true,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * 验证工具调用结果的格式
+ */
+export function assertToolResultFormat(result: {
+  content: Array<{ type: string; text?: string }>;
+  details: unknown;
+}): EvaluationResult[] {
+  const results: EvaluationResult[] = [];
+
+  results.push({
+    name: "content 是数组",
+    score: Array.isArray(result.content) ? 1 : 0,
+    reason: Array.isArray(result.content) ? "content 格式正确" : "content 不是数组",
+    passed: Array.isArray(result.content),
+  });
+
+  const hasText = result.content.some((c) => c.type === "text");
+  results.push({
+    name: "包含 text 内容",
+    score: hasText ? 1 : 0,
+    reason: hasText ? "包含 text 内容" : "缺少 text 内容",
+    passed: hasText,
+  });
+
+  results.push({
+    name: "details 存在",
+    score: result.details !== undefined ? 1 : 0,
+    reason: result.details !== undefined ? "details 存在" : "缺少 details",
+    passed: result.details !== undefined,
+  });
+
+  return results;
+}
+
+// ─── 工具调用验证 ──────────────────────────────────────────
+
+/**
+ * 验证工具调用集合是否包含期望的工具（子集匹配）
+ */
+export function assertToolCalls(
+  actual: Array<{ name: string }>,
+  expected: string[],
+): { passed: boolean; missing: string[] } {
+  const called = new Set(actual.map((t) => t.name));
+  const missing = expected.filter((name) => !called.has(name));
+  return { passed: missing.length === 0, missing };
+}

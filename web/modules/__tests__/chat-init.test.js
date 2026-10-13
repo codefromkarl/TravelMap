@@ -48,11 +48,11 @@ vi.mock('../config.js', () => ({
 }));
 
 vi.mock('@earendil-works/pi-agent-core', () => ({
-  Agent: vi.fn().mockImplementation(() => ({
+  Agent: vi.fn().mockImplementation(function MockAgent() { return {
     subscribe: vi.fn(),
     state: { messages: [] },
     prompt: vi.fn(),
-  })),
+  }; }),
 }));
 
 vi.mock('../auth/auth.js', () => ({

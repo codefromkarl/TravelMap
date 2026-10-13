@@ -9,8 +9,8 @@
  */
 
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { assertTripPlanStructure } from "../evaluation/evaluators.test.js";
 import {
+  assertTripPlanStructure,
   describeAiE2e,
   discoverProvider,
   reportTokenUsage,

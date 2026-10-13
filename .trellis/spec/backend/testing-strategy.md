@@ -226,7 +226,7 @@ const { request, scenarios } = createMultiCityScenario([
 ### 背景
 
 高核心数服务器（>8 核）上，测试框架默认使用大量 worker，可能导致 OOM：
-- vitest `pool: "forks"` 默认 `maxForks = CPU - 1`（28 核 → 27 个 worker）
+- vitest `pool: "forks"` 默认随 CPU 增加 worker 数量（28 核 → 27 个 worker）
 - Playwright 默认 `workers = CPU / 2`（28 核 → 14 个 worker）
 - 每个 worker 占用 300-500MB（Node.js 运行时 + MSW + 被测代码）
 - 27 个 worker × 400MB = 10.8 GB → 触发 OOM
@@ -235,29 +235,19 @@ const { request, scenarios } = createMultiCityScenario([
 
 | 测试框架 | 配置项 | 推荐值 | 原因 |
 |----------|--------|--------|------|
-| vitest + forks | `poolOptions.forks.maxForks` | `4` | 平衡速度与内存 |
-| vitest + threads | `poolOptions.threads.maxThreads` | `4` | 同上 |
+| Vitest 4 + forks | `maxWorkers` | unit/frontend 4、integration 2、cross-layer/AI 1 | 保留各项目资源上限 |
+| Vitest 4 多项目 | `sequence.groupOrder` | 0/1/0/2/3 | worker 上限不同的项目不能共用运行组 |
 | Playwright | `workers` | `CI ? 2 : 4` | CI 资源有限 |
 
 ### 配置模板
 
 **vitest.config.ts**:
 ```typescript
-import os from "node:os";
-
-const MAX_WORKERS = process.env.CI
-  ? 2
-  : Math.min(4, os.cpus().length - 1);
-
 export default defineConfig({
   test: {
+    projects, // 本地 vitest.workspace.ts 导出的 defineProject 列表
     pool: "forks",
-    poolOptions: {
-      forks: {
-        maxForks: MAX_WORKERS,
-        minForks: 1,
-      },
-    },
+    maxWorkers: 4,
   },
 });
 ```
@@ -282,9 +272,9 @@ export default defineConfig({
 
 ### 检查清单
 
-- [ ] vitest.config.ts 有 `poolOptions.forks.maxForks` 限制
+- [ ] Vitest 4 使用根 `test.projects` 与各项目 `maxWorkers`，不使用已删除的 `defineWorkspace`/`poolOptions`
 - [ ] playwright.config.ts 有 `workers` 限制
-- [ ] CI 环境 worker 数量 ≤ 2
+- [ ] Playwright CI worker 数量 ≤ 2；Vitest 按已声明的 4/2/4/1/1 项目上限与运行组执行
 - [ ] 本地开发 worker 数量 ≤ 4
 
 ---
@@ -520,3 +510,6 @@ Deterministic rule boundary tests, baseline persistence/history/regression, attr
 
 ### 7. Wrong vs Correct
 Wrong: classify a provider failure as a good itinerary, regress quality against a missing semantic score, or repair prompts without evidence. Correct: publish unavailable status, retain complete assessed dimensions, and stop baseline/optimization decisions until evidence is complete.
+
+## Validation toolchain versions
+Vitest 与 coverage-v8 同时固定为4.1.11，Wrangler固定4.149.0，Vite固定7.3.6；Pi四个 sibling 保持0.75.3，Node最低22.19.0。覆盖率 include/exclude 与85/85/75/85门槛不变。Vitest4默认AST映射改变覆盖率计数，不直接比较跨大版本百分比；同时核对实际源文件集合及门槛。真实 provider 项目仅在 AI_E2E=true 加入；确定性 evaluator 用例位于 unit/evaluation 并常规执行。E2E共享helper不得从.test文件导入，以免重复注册测试；构造器mock须可new，fetch mock使用明确callable类型。工具链升级必须通过官方registry high级审计、全套覆盖率、真实Pages编译路由及制品检查，不自动部署。
