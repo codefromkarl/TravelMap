@@ -45,10 +45,21 @@ describe('computeTripStats', () => {
     });
   });
 
+  it('ignores malformed optional legacy metadata while keeping usable day counts', () => {
+    const stats = computeTripStats({ city: '杭州', days: [null, { attractions: [] }], cities: {}, weatherInfo: {} });
+    expect(stats).toEqual({ days: 2, attractions: 0, cities: 1, budgetTotal: null, weather: null });
+  });
+
   it('returns null for invalid input', () => {
     expect(computeTripStats(null)).toBeNull();
     expect(computeTripStats({})).toBeNull();
     expect(computeTripStats({ days: 'nope' })).toBeNull();
+  });
+
+  it.each([null, Infinity, -1, '<img src=x onerror=alert(1)>'])('keeps invalid or unknown budget %s out of rendering', total => {
+    const stats = computeTripStats({ ...sampleTrip, budget: { total } });
+    expect(stats.budgetTotal).toBeNull();
+    expect(stats.attractions).toBe(4);
   });
 });
 

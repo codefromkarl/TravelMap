@@ -168,10 +168,9 @@ export interface TripPlan {
  *
  * 通过 validateTripPlan() 生成，调用方拿到它就知道：
  * - days.length > 0
- * - 日期连续（无跳跃）
- * - dayIndex 正确
- * - 非移动日有景点
- * - 景点有坐标
+ * - 日期有效且按时间递增
+ * - 每一天都有景点数组（移动日可以为空）
+ * - 景点有有限且处于有效范围内的坐标
  *
  * 使用 phantom type 防止未验证的 TripPlan 被误用。
  */
@@ -186,33 +185,50 @@ export interface ValidatedTripPlan extends TripPlan {
  */
 export function validateTripPlan(plan: TripPlan): ValidatedTripPlan {
   const errors: string[] = [];
-  const warnings: string[] = [];
 
   // 基本结构
-  if (!plan.days || plan.days.length === 0) {
+  if (!plan || typeof plan.city !== "string" || !plan.city.trim()) {
+    errors.push("行程缺少城市名称");
+  }
+  if (!Array.isArray(plan?.days) || plan.days.length === 0) {
     errors.push("行程没有任何天数数据");
+    throw new Error(`TripPlan 验证失败:\n${errors.join("\n")}`);
   }
 
-  // 日期连续性
-  if (plan.days && plan.days.length > 1) {
-    for (let i = 1; i < plan.days.length; i++) {
-      const prev = new Date(plan.days[i - 1]!.date);
-      const curr = new Date(plan.days[i]!.date);
-      const diffDays = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays <= 0) {
-        errors.push(`第 ${i + 1} 天日期不晚于第 ${i} 天`);
-      } else if (diffDays > 1) {
-        warnings.push(`第 ${i} 天和第 ${i + 1} 天之间有 ${diffDays - 1} 天空隙`);
+  let previousDate: number | undefined;
+  for (const [index, day] of plan.days.entries()) {
+    const timestamp = Date.parse(day?.date);
+    if (
+      !day ||
+      typeof day.date !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(day.date) ||
+      !Number.isFinite(timestamp) ||
+      new Date(timestamp).toISOString().slice(0, 10) !== day.date
+    ) {
+      errors.push(`第 ${index + 1} 天日期无效`);
+    } else {
+      if (previousDate !== undefined && timestamp <= previousDate) {
+        errors.push(`第 ${index + 1} 天日期不晚于前一天`);
       }
+      previousDate = timestamp;
     }
-  }
-
-  // 景点坐标完整性
-  for (const day of plan.days ?? []) {
+    if (!Array.isArray(day?.attractions)) {
+      errors.push(`第 ${index + 1} 天缺少景点数组`);
+      continue;
+    }
     for (const attr of day.attractions) {
-      const loc = attr.location;
-      if (!loc || (!loc.latitude && !loc.longitude)) {
-        errors.push(`${day.date} 的景点 "${attr.nameZh || attr.name}" 缺少坐标`);
+      const loc = attr?.location;
+      if (
+        !loc ||
+        !Number.isFinite(loc.latitude) ||
+        !Number.isFinite(loc.longitude) ||
+        Math.abs(loc.latitude) > 90 ||
+        Math.abs(loc.longitude) > 180 ||
+        (loc.latitude === 0 && loc.longitude === 0)
+      ) {
+        errors.push(
+          `${day.date} 的景点 "${attr?.nameZh || attr?.name || "未知景点"}" 缺少有效坐标`,
+        );
       }
     }
   }

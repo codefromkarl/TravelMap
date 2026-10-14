@@ -8,7 +8,7 @@
  * - URL 脱敏
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import {
   ApiError,
   AuthError,
@@ -30,7 +30,7 @@ async function flushPromises(): Promise<void> {
 }
 
 describe("http-client", () => {
-  let mockFetch: ReturnType<typeof vi.fn>;
+  let mockFetch: Mock<typeof fetch>;
 
   beforeEach(() => {
     mockFetch = vi.fn();
@@ -88,8 +88,8 @@ describe("http-client", () => {
 
       // mock fetch 监听 AbortSignal，超时时 abort 会触发 reject
       mockFetch.mockImplementationOnce(
-        (_url: string, opts?: RequestInit) =>
-          new Promise((_resolve, reject) => {
+        (_url: Parameters<typeof fetch>[0], opts?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
             const signal = opts?.signal as AbortSignal | undefined;
             if (signal?.aborted) {
               reject(new DOMException("The operation was aborted.", "AbortError"));
@@ -168,8 +168,8 @@ describe("http-client", () => {
       vi.useFakeTimers();
 
       // mock fetch 监听 AbortSignal，超时时 abort 触发 reject
-      const abortableFetch = (_url: string, opts?: RequestInit) =>
-        new Promise((_resolve, reject) => {
+      const abortableFetch = (_url: Parameters<typeof fetch>[0], opts?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
           const signal = opts?.signal as AbortSignal | undefined;
           if (signal?.aborted) {
             reject(new DOMException("The operation was aborted.", "AbortError"));
@@ -226,8 +226,8 @@ describe("http-client", () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const callArgs = mockFetch.mock.calls[0];
       expect(callArgs[0]).toBe("https://api.example.com");
-      expect(callArgs[1].method).toBe("POST");
-      expect(callArgs[1].body).toBe(JSON.stringify({ key: "value" }));
+      expect(callArgs[1]?.method).toBe("POST");
+      expect(callArgs[1]?.body).toBe(JSON.stringify({ key: "value" }));
     });
 
     it("proxyUrl 应包装请求", async () => {

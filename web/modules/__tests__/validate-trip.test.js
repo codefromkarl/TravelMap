@@ -121,6 +121,39 @@ describe('validateTripPlanSchema', () => {
   });
 });
 
+describe('strict generation acceptance', () => {
+  it('rejects empty schedules and impossible calendar dates', () => {
+    expect(validateTripPlanSchema({ city: '杭州', days: [] }).valid).toBe(false);
+    const plan = createValidTripPlan();
+    plan.days[0].date = '2026-02-30';
+    expect(validateTripPlanSchema(plan).valid).toBe(false);
+  });
+  it('rejects dates out of order and malformed attraction entries', () => {
+    const plan = createValidTripPlan();
+    plan.days.push({ date: '2025-05-31', attractions: [null] });
+    const result = validateTripPlanSchema(plan);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('days[1] date 必须按时间递增');
+    expect(result.errors).toContain('days[1].attractions[0] 为空');
+  });
+  it('rejects malformed budget strings and accepts explicit unknown amounts', () => {
+    const plan = createValidTripPlan();
+    plan.budget = { total: '<img src=x onerror=alert(1)>' };
+    expect(validateTripPlanSchema(plan).valid).toBe(false);
+    plan.budget = { total: null, totalAttractions: null };
+    expect(validateTripPlanSchema(plan).valid).toBe(true);
+  });
+  it('rejects infinite/out-of-range coordinates while allowing unresolved coordinates', () => {
+    const plan = createValidTripPlan();
+    plan.days[0].attractions[0].location.latitude = Infinity;
+    expect(validateTripPlanSchema(plan).valid).toBe(false);
+    plan.days[0].attractions[0].location = { latitude: 91, longitude: 181 };
+    expect(validateTripPlanSchema(plan).valid).toBe(false);
+    plan.days[0].attractions[0].location = null;
+    expect(validateTripPlanSchema(plan).valid).toBe(true);
+  });
+});
+
 describe('validateTripPlan', () => {
   it('无缺失坐标返回空数组', () => {
     const tripPlan = createValidTripPlan();

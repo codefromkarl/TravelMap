@@ -15,8 +15,8 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { TravelAgent } from "../../agent/travel-agent.js";
 import { getCostTracker } from "../../services/cost-tracker.js";
 import type { TripRequest } from "../../types/trip.js";
-import { assertTripPlanStructure } from "../evaluation/evaluators.test.js";
 import {
+  assertTripPlanStructure,
   describeAiE2e,
   discoverProvider,
   reportTokenUsage,

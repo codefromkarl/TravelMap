@@ -10,109 +10,100 @@
  *   vitest run --project frontend-unit # 只跑前端单元
  *   AI_E2E=true vitest run        # 包含 AI E2E
  */
-import { defineWorkspace } from "vitest/config";
+import { defineProject } from "vitest/config";
 import path from "node:path";
 
 const alias = {
   "@": path.resolve(__dirname, "src"),
 };
 
-export default defineWorkspace([
+// The filename is retained for imports; Vitest reads this list via root test.projects.
+export default [
   // ── 后端单元测试 ──────────────────────────────
-  {
+  defineProject({
     test: {
       name: "backend-unit",
-      include: [
-        "src/__tests__/unit/**/*.test.ts",
-        "src/__tests__/quality/**/*.test.ts",
-      ],
+      sequence: { groupOrder: 0 },
+      include: ["src/__tests__/unit/**/*.test.ts", "src/__tests__/quality/**/*.test.ts"],
       environment: "node",
       setupFiles: ["./src/__tests__/setup.ts"],
       pool: "forks",
-      poolOptions: {
-        forks: { maxForks: 4, minForks: 1 },
-      },
+      maxWorkers: 4,
       testTimeout: 30_000,
       hookTimeout: 30_000,
       alias,
     },
-  },
+  }),
 
   // ── 后端集成测试 ──────────────────────────────
-  {
+  defineProject({
     test: {
       name: "backend-integration",
+      sequence: { groupOrder: 1 },
       include: ["src/__tests__/integration/**/*.test.ts"],
       environment: "node",
       setupFiles: ["./src/__tests__/setup.ts"],
       pool: "forks",
-      poolOptions: {
-        forks: { maxForks: 2, minForks: 1 },
-      },
+      maxWorkers: 2,
       testTimeout: 30_000,
       hookTimeout: 30_000,
       alias,
     },
-  },
+  }),
 
   // ── 前端单元测试 ──────────────────────────────
   // web/modules/__tests__/*.test.js (浏览器模块)
   // web/__tests__/unit/*.test.ts (Cloudflare Functions)
-  {
+  defineProject({
     test: {
       name: "frontend-unit",
-      include: [
-        "web/modules/__tests__/**/*.test.js",
-        "web/__tests__/unit/**/*.test.ts",
-      ],
+      sequence: { groupOrder: 0 },
+      include: ["web/modules/__tests__/**/*.test.js", "web/__tests__/unit/**/*.test.ts"],
       environment: "node",
       setupFiles: ["./src/__tests__/setup.ts"],
       pool: "forks",
-      poolOptions: {
-        forks: { maxForks: 4, minForks: 1 },
-      },
+      maxWorkers: 4,
       testTimeout: 30_000,
       hookTimeout: 30_000,
       alias,
     },
-  },
+  }),
 
   // ── 跨层集成测试 ──────────────────────────────
   // 前后端联调: Agent → API → 前端渲染
-  {
+  defineProject({
     test: {
       name: "cross-layer",
+      sequence: { groupOrder: 2 },
       include: ["src/__tests__/cross-layer/**/*.test.ts"],
       environment: "node",
       pool: "forks",
-      poolOptions: {
-        forks: { maxForks: 1, minForks: 1 },
-      },
+      maxWorkers: 1,
       testTimeout: 60_000,
       hookTimeout: 30_000,
       alias,
     },
-  },
+  }),
 
-  // ── AI E2E (条件启用) ─────────────────────────
-  // 需要 AI_E2E=true 环境变量
-  {
-    test: {
-      name: "ai-e2e",
-      include: [
-        "src/__tests__/e2e/**/*.test.ts",
-        "src/__tests__/evaluation/**/*.test.ts",
-      ],
-      environment: "node",
-      setupFiles: ["src/__tests__/helpers/ai-e2e-setup.ts"],
-      enabled: process.env.AI_E2E === "true",
-      pool: "forks",
-      poolOptions: {
-        forks: { maxForks: 1, minForks: 1 },
-      },
-      testTimeout: 180_000,
-      hookTimeout: 30_000,
-      alias,
-    },
-  },
-]);
+  // Real providers are omitted completely unless explicitly requested.
+  ...(process.env.AI_E2E === "true"
+    ? [
+        // ── AI E2E (条件启用) ─────────────────────────
+        // 需要 AI_E2E=true 环境变量
+        defineProject({
+          test: {
+            name: "ai-e2e",
+            sequence: { groupOrder: 3 },
+            include: ["src/__tests__/e2e/**/*.test.ts", "src/__tests__/evaluation/**/*.test.ts"],
+            environment: "node",
+            setupFiles: ["src/__tests__/helpers/ai-e2e-setup.ts"],
+            pool: "forks",
+            maxWorkers: 1,
+            testTimeout: 180_000,
+            hookTimeout: 30_000,
+            alias,
+          },
+        }),
+      ]
+    : []),
+];

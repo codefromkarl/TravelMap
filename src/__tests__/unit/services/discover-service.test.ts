@@ -14,13 +14,15 @@ import type { DiscoverResult } from "../../../types/trip.js";
 
 // Mock pi-agent-core
 vi.mock("@earendil-works/pi-agent-core", () => ({
-  Agent: vi.fn().mockImplementation(() => ({
-    prompt: vi.fn().mockResolvedValue(undefined),
-    waitForIdle: vi.fn().mockResolvedValue(undefined),
-    state: {
-      messages: [],
-    },
-  })),
+  Agent: vi.fn().mockImplementation(function MockAgent() {
+    return {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      waitForIdle: vi.fn().mockResolvedValue(undefined),
+      state: {
+        messages: [],
+      },
+    };
+  }),
 }));
 
 // Mock pi-ai
@@ -49,21 +51,20 @@ describe("discover-service", () => {
     it("should return empty result when LLM output is invalid", async () => {
       // Mock Agent to return invalid JSON
       const { Agent } = await import("@earendil-works/pi-agent-core");
-      vi.mocked(Agent).mockImplementation(
-        () =>
-          ({
-            prompt: vi.fn().mockResolvedValue(undefined),
-            waitForIdle: vi.fn().mockResolvedValue(undefined),
-            state: {
-              messages: [
-                {
-                  role: "assistant",
-                  content: "Invalid JSON response",
-                },
-              ],
-            },
-          }) as unknown as InstanceType<typeof Agent>,
-      );
+      vi.mocked(Agent).mockImplementation(function MockAgent() {
+        return {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          waitForIdle: vi.fn().mockResolvedValue(undefined),
+          state: {
+            messages: [
+              {
+                role: "assistant",
+                content: "Invalid JSON response",
+              },
+            ],
+          },
+        } as unknown as InstanceType<typeof Agent>;
+      });
 
       const result = await discoverDestinations({
         location: { latitude: 31.23, longitude: 121.47, city: "上海" },
@@ -94,21 +95,20 @@ describe("discover-service", () => {
 
       // Mock Agent to return valid JSON
       const { Agent } = await import("@earendil-works/pi-agent-core");
-      vi.mocked(Agent).mockImplementation(
-        () =>
-          ({
-            prompt: vi.fn().mockResolvedValue(undefined),
-            waitForIdle: vi.fn().mockResolvedValue(undefined),
-            state: {
-              messages: [
-                {
-                  role: "assistant",
-                  content: JSON.stringify(mockResponse),
-                },
-              ],
-            },
-          }) as unknown as InstanceType<typeof Agent>,
-      );
+      vi.mocked(Agent).mockImplementation(function MockAgent() {
+        return {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          waitForIdle: vi.fn().mockResolvedValue(undefined),
+          state: {
+            messages: [
+              {
+                role: "assistant",
+                content: JSON.stringify(mockResponse),
+              },
+            ],
+          },
+        } as unknown as InstanceType<typeof Agent>;
+      });
 
       const result = await discoverDestinations({
         location: { latitude: 31.23, longitude: 121.47, city: "上海" },
@@ -144,21 +144,20 @@ describe("discover-service", () => {
       };
 
       const { Agent } = await import("@earendil-works/pi-agent-core");
-      vi.mocked(Agent).mockImplementation(
-        () =>
-          ({
-            prompt: vi.fn().mockResolvedValue(undefined),
-            waitForIdle: vi.fn().mockResolvedValue(undefined),
-            state: {
-              messages: [
-                {
-                  role: "assistant",
-                  content: `\`\`\`json\n${JSON.stringify(mockResponse)}\n\`\`\``,
-                },
-              ],
-            },
-          }) as unknown as InstanceType<typeof Agent>,
-      );
+      vi.mocked(Agent).mockImplementation(function MockAgent() {
+        return {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          waitForIdle: vi.fn().mockResolvedValue(undefined),
+          state: {
+            messages: [
+              {
+                role: "assistant",
+                content: `\`\`\`json\n${JSON.stringify(mockResponse)}\n\`\`\``,
+              },
+            ],
+          },
+        } as unknown as InstanceType<typeof Agent>;
+      });
 
       const result = await discoverDestinations({
         location: { latitude: 31.23, longitude: 121.47, city: "上海" },
@@ -172,21 +171,20 @@ describe("discover-service", () => {
       const { Agent } = await import("@earendil-works/pi-agent-core");
       const promptSpy = vi.fn().mockResolvedValue(undefined);
 
-      vi.mocked(Agent).mockImplementation(
-        () =>
-          ({
-            prompt: promptSpy,
-            waitForIdle: vi.fn().mockResolvedValue(undefined),
-            state: {
-              messages: [
-                {
-                  role: "assistant",
-                  content: JSON.stringify({ destinations: [], summary: "无推荐" }),
-                },
-              ],
-            },
-          }) as unknown as InstanceType<typeof Agent>,
-      );
+      vi.mocked(Agent).mockImplementation(function MockAgent() {
+        return {
+          prompt: promptSpy,
+          waitForIdle: vi.fn().mockResolvedValue(undefined),
+          state: {
+            messages: [
+              {
+                role: "assistant",
+                content: JSON.stringify({ destinations: [], summary: "无推荐" }),
+              },
+            ],
+          },
+        } as unknown as InstanceType<typeof Agent>;
+      });
 
       await discoverDestinations({
         location: { latitude: 39.9, longitude: 116.4, city: "北京" },

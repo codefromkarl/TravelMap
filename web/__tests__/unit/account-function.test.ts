@@ -65,6 +65,7 @@ async function createContext(options: {
   rawBody?: string;
   userId?: string | null;
   origin?: string;
+  syncUser?: string;
   env?: Record<string, unknown>;
   kv?: ReturnType<typeof createMockKv>;
 } = {}) {
@@ -73,6 +74,7 @@ async function createContext(options: {
   const headers = new Headers({ "Content-Type": "application/json" });
   if (options.origin !== "") headers.set("Origin", options.origin || "https://example.com");
   headers.set("CF-Connecting-IP", "203.0.113.10");
+  if (options.syncUser) headers.set("X-Sync-User", options.syncUser);
 
   if (userId) {
     const token = await signJwt({ sub: userId }, JWT_SECRET);
@@ -264,3 +266,27 @@ describe("rate limiting", () => {
   });
 });
 
+
+
+describe("captured account actions", () => {
+  it("rejects a stored account record with a different identity", async () => {
+    const ctx = await createContext();
+    ctx.kv._store["user:u1"] = JSON.stringify(makeUser({ id: "u2" }));
+    const response = await onRequest(ctx);
+    expect(response.status).toBe(401);
+    expect((await response.json()).code).toBe("AUTH_REQUIRED");
+    expect(ctx.kv.delete).not.toHaveBeenCalled();
+  });
+
+  it.each(["GET", "DELETE"])("rejects an account switch for %s without storage mutation", async method => {
+    const ctx = await createContext({ method, syncUser: "previous-account" });
+    ctx.kv._store["trips:u1:a1"] = JSON.stringify(makeTrip());
+    const before = { ...ctx.kv._store };
+    const response = await onRequest(ctx);
+    expect(response.status).toBe(403);
+    expect((await response.json()).code).toBe("SYNC_OWNER_MISMATCH");
+    expect(ctx.kv._store).toEqual(before);
+    expect(ctx.kv.delete).not.toHaveBeenCalled();
+    expect(ctx.kv.put).not.toHaveBeenCalled();
+  });
+});

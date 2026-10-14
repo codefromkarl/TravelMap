@@ -34,24 +34,26 @@ export function computeTripStats(tripPlan) {
 
   const days = tripPlan.days.length;
   const attractions = tripPlan.days.reduce(
-    (sum, day) => sum + (day.attractions?.length || 0),
+    (sum, day) => sum + (Array.isArray(day?.attractions) ? day.attractions.length : 0),
     0,
   );
 
   const citySet = new Set();
   for (const day of tripPlan.days) {
-    if (typeof day.city === 'string' && day.city) citySet.add(day.city);
+    if (typeof day?.city === 'string' && day.city) citySet.add(day.city);
   }
-  for (const item of tripPlan.cities || []) {
+  for (const item of Array.isArray(tripPlan.cities) ? tripPlan.cities : []) {
     const name = typeof item === 'string' ? item : item?.city;
     if (name) citySet.add(name);
   }
   if (tripPlan.city) citySet.add(tripPlan.city);
 
-  const budgetTotal = tripPlan.budget?.total ?? null;
+  const rawBudget = tripPlan.budget?.total;
+  const budgetTotal = typeof rawBudget === 'number' && Number.isFinite(rawBudget) && rawBudget >= 0
+    ? rawBudget : null;
 
   let weather = null;
-  for (const w of tripPlan.weatherInfo || []) {
+  for (const w of Array.isArray(tripPlan.weatherInfo) ? tripPlan.weatherInfo : []) {
     if (w?.dayWeather) {
       weather = w.dayTemp ? `${w.dayWeather} ${w.dayTemp}°` : w.dayWeather;
       break;

@@ -178,3 +178,8 @@ Biome enforces:
 - Consistent quotes (single)
 - Semicolons required
 - No `var`
+
+
+## Untrusted Travel Content
+
+Use `infra/content-safety.js` for dynamic HTML text/attributes, absolute HTTP(S) image/link validation, and Markdown/print rendering. Provider/LLM/history fields are untrusted. Escape interpolated names, descriptions, addresses and quoted attributes; raw tool Markdown must not create dangerous links. Preserve safe booking URLs. Attraction lookup returns only provider POIs with `source`, `coordinateSystem: "gcj02"`, `fetchedAt` and `isSynthetic: false`; unknown prices/durations are null, and failures return explicit unavailable/empty data. Map/share price rendering uses the shared finite numeric rule and never calls null free. Regression tests must use hostile text/URLs and verify actual rendered output.

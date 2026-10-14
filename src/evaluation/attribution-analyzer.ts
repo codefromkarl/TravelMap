@@ -14,10 +14,14 @@
 
 import type { Regression } from "./baseline-manager.js";
 import type { CheckResult, DimensionResult, EvalReport } from "./dimensions.js";
+import { hasCompleteEvaluation } from "./dimensions.js";
 
 // ─── 归因结果类型 ──────────────────────────────────────────
 
 export interface AttributionResult {
+  /** Explicitly false when missing assessment evidence prevents quality attribution. */
+  assessmentComplete?: boolean;
+  failureReason?: string;
   /** 归因 ID */
   id: string;
   /** 时间戳 */
@@ -95,6 +99,7 @@ export class AttributionAnalyzer {
    * 分析单个报告的失败原因
    */
   analyzeReport(report: EvalReport): AttributionResult {
+    if (!hasCompleteEvaluation(report)) return this.unavailableAttribution(report);
     const failureCategories = this.categorizeFailures(report);
     const rootCauses = this.identifyRootCauses(report, failureCategories);
     const recommendations = this.generateRecommendations(rootCauses, report);
@@ -115,6 +120,7 @@ export class AttributionAnalyzer {
    * 分析回归原因
    */
   analyzeRegression(report: EvalReport, regressions: Regression[]): AttributionResult {
+    if (!hasCompleteEvaluation(report)) return this.unavailableAttribution(report);
     const failureCategories = this.categorizeRegressions(regressions);
     const rootCauses = this.identifyRegressionRootCauses(report, regressions);
     const recommendations = this.generateRegressionRecommendations(rootCauses, regressions);
@@ -139,6 +145,8 @@ export class AttributionAnalyzer {
     recommendations: Recommendation[];
     summary: string;
   } {
+    const unavailable = reports.filter((report) => !hasCompleteEvaluation(report)).length;
+    reports = reports.filter(hasCompleteEvaluation);
     const allFailures: Map<string, number> = new Map();
     const allRecommendations: Recommendation[] = [];
 
@@ -167,7 +175,8 @@ export class AttributionAnalyzer {
     const passedCount = reports.filter((r) => r.passed).length;
     const summary = `
 评估摘要：
-- 通过率：${passedCount}/${reports.length} (${Math.round((passedCount / reports.length) * 100)}%)
+- 未完成评估：${unavailable}
+- 通过率：${passedCount}/${reports.length} (${reports.length ? Math.round((passedCount / reports.length) * 100) : 0}%)
 - 共同问题：${commonIssues.length > 0 ? commonIssues.join("、") : "无"}
 - 主要建议：${sortedRecommendations
       .slice(0, 3)
@@ -183,6 +192,20 @@ export class AttributionAnalyzer {
   }
 
   // ─── 内部方法 ──────────────────────────────────────────
+
+  private unavailableAttribution(report: EvalReport): AttributionResult {
+    return {
+      assessmentComplete: false,
+      failureReason: "评估未完成，不进行质量归因",
+      id: `attr-${report.id}-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      scenarioId: report.id,
+      failureCategories: [],
+      rootCauses: [],
+      recommendations: [],
+      priorityActions: [],
+    };
+  }
 
   private categorizeFailures(report: EvalReport): FailureCategory[] {
     const categories: FailureCategory[] = [];

@@ -428,7 +428,7 @@ describe("TravelAgent", () => {
         city: "北京",
         days: [
           createMockDayPlan({ dayIndex: 1, city: "北京" }),
-          createMockDayPlan({ dayIndex: 2, city: "北京" }),
+          createMockDayPlan({ dayIndex: 2, date: "2025-06-02", city: "北京" }),
         ],
       });
 
@@ -439,7 +439,7 @@ describe("TravelAgent", () => {
       expect(agent.getLastProcessedPlan()).not.toBeNull();
 
       // 注入 diff 消息（提供完整的天结构）
-      const diffDay = createMockDayPlan({ dayIndex: 2, city: "上海" });
+      const diffDay = createMockDayPlan({ dayIndex: 2, date: "2025-06-02", city: "上海" });
       const diffText = JSON.stringify({ changedDays: [2], days: { "2": diffDay } });
       const messages = agent.getMessages();
       messages.push({
@@ -459,6 +459,44 @@ describe("TravelAgent", () => {
       const agent = new TravelAgent({ preSearch: false });
       const result = await agent.finalize();
       expect(result).toBeNull();
+    });
+
+    it("无效行程不能作为已验证结果或 Diff 基础返回", async () => {
+      const agent = new TravelAgent({
+        preSearch: false,
+        reviewEnabled: false,
+        postProcess: { enableActionLinks: false },
+      });
+      injectTripPlanMessage(agent, createMockTripPlan({ days: [] }));
+
+      expect(await agent.finalize()).toBeNull();
+      expect(agent.getLastProcessedPlan()).toBeNull();
+    });
+
+    it("日期无效的后续行程应保留上次有效版本", async () => {
+      const agent = new TravelAgent({
+        preSearch: false,
+        reviewEnabled: false,
+        postProcess: { enableActionLinks: false },
+      });
+      injectTripPlanMessage(agent, createMockTripPlan());
+      const validPlan = await agent.finalize();
+      expect(validPlan?.city).toBe("北京");
+
+      injectTripPlanMessage(
+        agent,
+        createMockTripPlan({
+          city: "上海",
+          days: [
+            createMockDayPlan({ date: "2025-06-02" }),
+            createMockDayPlan({ dayIndex: 2, date: "2025-06-01" }),
+          ],
+        }),
+      );
+
+      expect(await agent.finalize()).toBeNull();
+      expect(agent.getLastProcessedPlan()).toBe(validPlan);
+      expect(agent.getLastProcessedPlan()?.city).toBe("北京");
     });
   });
 

@@ -1,8 +1,10 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
+import projects from "./vitest.workspace.js";
 
 export default defineConfig({
   test: {
+    projects,
     // 测试环境
     environment: "node",
 
@@ -50,12 +52,7 @@ export default defineConfig({
     // 限制并发 worker 数量，避免内存爆炸
     // 28 核 CPU，默认会创建 27 个 worker，每个 ~500MB
     // 限制为 4 个 worker，内存占用从 11GB 降到 ~2GB
-    poolOptions: {
-      forks: {
-        maxForks: 4,
-        minForks: 1,
-      },
-    },
+    maxWorkers: 4,
 
     // 别名（与 tsconfig 保持一致）
     alias: {

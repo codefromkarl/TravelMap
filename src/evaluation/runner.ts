@@ -18,8 +18,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { AttributionAnalyzer, type AttributionResult } from "./attribution-analyzer.js";
 import { BaselineManager, type Regression } from "./baseline-manager.js";
-import type { DimensionResult, EvalContext, EvalDimension, EvalReport } from "./dimensions.js";
-import { EVAL_DIMENSIONS, getTotalWeight } from "./dimensions.js";
+import type {
+  DimensionResult,
+  EvalContext,
+  EvalDimension,
+  EvalReport,
+  EvaluationCompleteness,
+} from "./dimensions.js";
+import { EVAL_DIMENSIONS, hasCompleteEvaluation, hasDimensionEvidence } from "./dimensions.js";
 
 // ─── 运行器配置 ─────────────────────────────────────────────
 
@@ -75,6 +81,8 @@ export interface BatchRunResult {
   overallScore: number;
   /** 通过率 */
   passRate: number;
+  /** All scenarios have complete assessment evidence. */
+  complete: boolean;
   /** 是否通过 */
   passed: boolean;
   /** 回归检测 */
@@ -121,37 +129,64 @@ export class EvalRunner {
       if (!this.config.enableLLM && this.requiresLLM(dim)) {
         dimensions.push({
           dimensionId: dim.id,
-          score: 0.5,
-          passed: true,
-          checks: [
-            {
-              name: dim.name,
-              passed: true,
-              score: 0.5,
-              detail: "LLM 评估已禁用",
-            },
-          ],
+          status: "skipped",
+          score: 0,
+          passed: false,
+          checks: [],
+          failureReason: "LLM 评估已禁用",
+          errorCode: "LLM_DISABLED",
         });
         continue;
       }
 
       try {
         const result = await dim.evaluator(input, output, context);
-        dimensions.push(result);
-      } catch (err) {
-        console.warn(`[EvalRunner] 维度 ${dim.id} 评估失败:`, err);
+        const declaredStatus = result.status ?? "evaluated";
+        const status =
+          declaredStatus === "evaluated" &&
+          Array.isArray(result.checks) &&
+          !hasDimensionEvidence(result)
+            ? "skipped"
+            : declaredStatus;
+        const finiteScore = (score: number) => Number.isFinite(score) && score >= 0 && score <= 1;
+        if (
+          result.dimensionId !== dim.id ||
+          !["evaluated", "skipped", "error"].includes(status) ||
+          !Array.isArray(result.checks) ||
+          !finiteScore(result.score) ||
+          typeof result.passed !== "boolean" ||
+          (status === "evaluated" &&
+            (result.checks.length === 0 ||
+              result.checks.some(
+                (check) =>
+                  !check ||
+                  typeof check.name !== "string" ||
+                  typeof check.detail !== "string" ||
+                  typeof check.passed !== "boolean" ||
+                  !finiteScore(check.score),
+              )))
+        ) {
+          dimensions.push({
+            dimensionId: dim.id,
+            status: "error",
+            score: 0,
+            passed: false,
+            checks: [],
+            errorCode: "INVALID_EVALUATOR_RESULT",
+            failureReason: "评估结果无效",
+          });
+        } else {
+          dimensions.push({ ...result, status, passed: status === "evaluated" && result.passed });
+        }
+      } catch {
+        // Provider exceptions can contain prompts or credentials; keep only a stable failure code.
         dimensions.push({
           dimensionId: dim.id,
+          status: "error",
           score: 0,
           passed: false,
-          checks: [
-            {
-              name: dim.name,
-              passed: false,
-              score: 0,
-              detail: `评估失败: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          checks: [],
+          errorCode: "EVALUATOR_ERROR",
           failureReason: "评估异常",
         });
       }
@@ -159,7 +194,8 @@ export class EvalRunner {
 
     // 计算综合得分
     const overallScore = this.calculateOverallScore(dimensions);
-    const passed = this.checkPassed(dimensions);
+    const completeness = this.completeness(dimensions);
+    const passed = completeness.complete && this.checkPassed(dimensions);
 
     // 构建报告
     const report: EvalReport = {
@@ -168,13 +204,14 @@ export class EvalRunner {
       input,
       output,
       overallScore,
+      completeness,
       passed,
       dimensions,
       failedRequired: this.getFailedRequired(dimensions),
       allSuggestions: this.collectSuggestions(dimensions),
       metadata: {
-        model: metadata?.model ?? "unknown",
-        provider: metadata?.provider ?? "unknown",
+        model: metadata?.model ?? this.config.modelInfo?.model ?? "unknown",
+        provider: metadata?.provider ?? this.config.modelInfo?.provider ?? "unknown",
         duration: Date.now() - startTime,
         tokenUsage: metadata?.tokenUsage,
       },
@@ -182,13 +219,13 @@ export class EvalRunner {
 
     // 回归检测
     let regressions: Regression[] = [];
-    if (this.config.detectRegression) {
+    if (this.config.detectRegression && completeness.complete) {
       regressions = this.baselineManager.detectRegressions([report]);
     }
 
     // 归因分析
     let attribution: AttributionResult | undefined;
-    if (this.config.generateAttribution && !passed) {
+    if (this.config.generateAttribution && !passed && completeness.complete) {
       attribution = this.analyzer.analyzeReport(report);
     }
 
@@ -231,12 +268,23 @@ export class EvalRunner {
     }
 
     // 计算综合指标
-    const overallScore = reports.reduce((sum, r) => sum + r.overallScore, 0) / reports.length;
+    const scoredReports = reports.filter(
+      (report) => (report.completeness?.evaluatedWeight ?? 1) > 0,
+    );
+    const overallScore = scoredReports.length
+      ? scoredReports.reduce((sum, r) => sum + r.overallScore, 0) / scoredReports.length
+      : 0;
     const passedCount = reports.filter((r) => r.passed).length;
-    const passRate = passedCount / reports.length;
+    const passRate = reports.length ? passedCount / reports.length : 0;
+    const complete = reports.length > 0 && reports.every((report) => report.completeness?.complete);
+    const passed = complete && passRate >= 0.8;
 
     // 检测回归
-    const regressions = this.baselineManager.detectRegressions(reports);
+    const regressions = this.config.detectRegression
+      ? this.baselineManager.detectRegressions(
+          reports.filter((report) => report.completeness?.complete),
+        )
+      : [];
 
     // 保存批量结果
     const reportDir = path.resolve(
@@ -256,7 +304,8 @@ export class EvalRunner {
           timestamp,
           overallScore,
           passRate,
-          passed: passRate >= 0.8,
+          passed,
+          complete,
           scenarioCount: scenarios.length,
           passedCount,
           failedCount: scenarios.length - passedCount,
@@ -273,7 +322,8 @@ export class EvalRunner {
       reports,
       overallScore,
       passRate,
-      passed: passRate >= 0.8,
+      passed,
+      complete,
       regressions,
       attributions,
       reportDir,
@@ -284,6 +334,9 @@ export class EvalRunner {
    * 更新基线
    */
   updateBaseline(reports: EvalReport[], description?: string): void {
+    if (reports.length === 0 || reports.some((report) => !hasCompleteEvaluation(report))) {
+      throw new Error("Incomplete assessments cannot become evaluation baselines");
+    }
     this.baselineManager.createBaseline(reports, description);
   }
 
@@ -303,18 +356,42 @@ export class EvalRunner {
 
   // ─── 内部方法 ──────────────────────────────────────────
 
-  private calculateOverallScore(dimensions: DimensionResult[]): number {
-    const totalWeight = getTotalWeight();
-    let weightedSum = 0;
+  private completeness(dimensions: DimensionResult[]): EvaluationCompleteness {
+    const evaluated = dimensions
+      .filter((result) => result.status === "evaluated")
+      .map((result) => result.dimensionId);
+    const skipped = dimensions
+      .filter((result) => result.status === "skipped")
+      .map((result) => result.dimensionId);
+    const errors = dimensions
+      .filter((result) => result.status === "error")
+      .map((result) => result.dimensionId);
+    return {
+      complete: evaluated.length === EVAL_DIMENSIONS.length,
+      evaluated,
+      skipped,
+      errors,
+      evaluatedWeight: EVAL_DIMENSIONS.filter((dim) => evaluated.includes(dim.id)).reduce(
+        (sum, dim) => sum + dim.weight,
+        0,
+      ),
+      totalWeight: EVAL_DIMENSIONS.reduce((sum, dim) => sum + dim.weight, 0),
+    };
+  }
 
+  /** Available evidence only; a zero with evaluatedWeight=0 means no score is available. */
+  private calculateOverallScore(dimensions: DimensionResult[]): number {
+    let totalWeight = 0;
+    let weightedSum = 0;
     for (const dim of dimensions) {
+      if (dim.status !== "evaluated") continue;
       const dimensionDef = EVAL_DIMENSIONS.find((d) => d.id === dim.dimensionId);
       if (dimensionDef) {
+        totalWeight += dimensionDef.weight;
         weightedSum += dim.score * dimensionDef.weight;
       }
     }
-
-    return weightedSum / totalWeight;
+    return totalWeight ? weightedSum / totalWeight : 0;
   }
 
   private checkPassed(dimensions: DimensionResult[]): boolean {

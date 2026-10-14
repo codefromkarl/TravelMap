@@ -11,7 +11,9 @@
  */
 
 import { agent, currentLang, showToast } from '../infra/context.js';
-import { renderTripStats, computeTripStats } from '../trip/trip-stats.js';
+import { computeTripStats } from '../trip/trip-stats.js';
+import { getCurrentTripPlan, setCurrentTripPlan } from './trip-state.js';
+import { escapeHtml } from '../infra/content-safety.js';
 import { I18N } from '../i18n.js';
 
 const BAR_ID = 'plan-compare-bar';
@@ -69,7 +71,7 @@ function computeStats(tripPlan) {
   return {
     days: stats?.days ?? 0,
     attractions: stats?.attractions ?? 0,
-    budget: stats?.budgetTotal ?? null,
+    budget: typeof stats?.budgetTotal === 'number' && Number.isFinite(stats.budgetTotal) && stats.budgetTotal >= 0 ? stats.budgetTotal : null,
   };
 }
 
@@ -120,15 +122,6 @@ function cardHtml(side, label, hint, stats, active, generating) {
     </button>`;
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 function renderBar() {
   const bar = ensureBar();
   if (!bar) return;
@@ -164,7 +157,7 @@ function renderBar() {
 
 /** 开启对比：快照方案 A 并生成方案 B */
 async function startCompare() {
-  const current = window._lastTripPlan;
+  const current = getCurrentTripPlan();
   if (!current) {
     showToastMsg(dictionary().compareNeedPlan, 3000, 'warning');
     return;
@@ -186,6 +179,7 @@ async function startCompare() {
     planA: deepClone(current),
     planB: null,
     activeSide: 'A',
+    previousPlan: current,
   };
   renderBar();
 
@@ -206,8 +200,11 @@ function switchTo(side) {
   const plan = side === 'A' ? _state.planA : _state.planB;
   if (!plan || side === _state.activeSide) return;
 
+  // Preserve manual edits to the currently selected side before switching away.
+  const active = getCurrentTripPlan();
+  if (active) _state[_state.activeSide === 'A' ? 'planA' : 'planB'] = deepClone(active);
   _state.activeSide = side;
-  window._lastTripPlan = deepClone(plan);
+  setCurrentTripPlan(deepClone(plan));
 
   const render = typeof window._renderTripOnMap === 'function'
     ? window._renderTripOnMap
@@ -217,7 +214,6 @@ function switchTo(side) {
       console.warn('[PlanCompare] 切换方案渲染失败:', err);
     });
   }
-  renderTripStats(plan);
   renderBar();
   showToastMsg(`${dictionary().compareSwitch} ${side === 'A' ? dictionary().comparePlanA : dictionary().comparePlanB}`, 1800, 'success');
 }
@@ -250,15 +246,19 @@ export function initPlanCompare() {
       // 对比生成完成：chat-init 的 agent_end 处理器先执行（先注册），
       // 此时 window._lastTripPlan 已是最新方案 B
       if (event.type === 'agent_end' && _state.active && _state.generating) {
-        if (window._lastTripPlan) {
-          _state.planB = deepClone(window._lastTripPlan);
+        const plan = getCurrentTripPlan();
+        const failed = event.messages?.some(message => message.role === 'assistant' && (message.errorMessage || ['error', 'aborted'].includes(message.stopReason)));
+        if (!failed && plan && plan !== _state.previousPlan) {
+          _state.planB = deepClone(plan);
           _state.activeSide = 'B';
           _state.generating = false;
           renderBar();
+        } else {
+          closeCompare();
         }
       }
       // 新一轮普通规划开始时重置对比状态
-      if (event.type === 'turn_start' && _state.active && !_state.generating) {
+      if (event.type === 'agent_start' && _state.active && !_state.generating) {
         closeCompare();
       }
     });

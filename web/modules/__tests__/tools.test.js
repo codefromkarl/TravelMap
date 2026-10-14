@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../../src/__tests__/mocks/server.js';
 
 // Mock pi-ai Type system
 vi.mock('@earendil-works/pi-ai', () => ({
@@ -17,6 +19,7 @@ vi.mock('@earendil-works/pi-ai', () => ({
 // Mock context.js
 vi.mock('../context.js', () => ({
   currentTravelers: null,
+  currentLang: 'zh',
   CITY_CENTERS: { '西安': [34.3416, 108.9398], '北京': [39.9042, 116.4074], '上海': [31.2304, 121.4737] },
   getAmapGeoKey: () => 'test-geo-key',
   getAmapKey: () => 'test-amap-key',
@@ -66,17 +69,35 @@ describe('search_attractions tool', () => {
     expect(tools.searchAttractionsTool.parameters.properties).toHaveProperty('city');
   });
 
-  it('execute returns structured result', async () => {
-    const result = await tools.searchAttractionsTool.execute('id', { city: '北京' });
-    expect(result).toHaveProperty('content');
-    expect(result).toHaveProperty('details');
-    expect(result.content[0].type).toBe('text');
-    expect(result.details.attractions.length).toBeGreaterThan(0);
+  it('execute returns structured provider result', async () => {
+    server.use(http.post('https://travelmap.test/api/amap', () => HttpResponse.json({
+      status: '1', pois: [{ id: 'poi-1', name: '故宫博物院', location: '116.3972,39.9163' }],
+    })));
+    const nativeFetch = globalThis.fetch;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) =>
+      nativeFetch(new URL(url, 'https://travelmap.test'), options));
+    try {
+      const result = await tools.searchAttractionsTool.execute('id', { city: '北京' });
+      expect(result.content[0].type).toBe('text');
+      expect(result.details.attractions).toHaveLength(1);
+      expect(result.details.attractions[0].source).toBe('amap');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
-  it('execute handles unknown city with fallback', async () => {
-    const result = await tools.searchAttractionsTool.execute('id', { city: '未知城市' });
-    expect(result.details.attractions.length).toBeGreaterThan(0);
+  it('execute leaves an unknown city empty when the source has no data', async () => {
+    server.use(http.post('https://travelmap.test/api/amap', () => HttpResponse.json({ status: '1', pois: [] })));
+    const nativeFetch = globalThis.fetch;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) =>
+      nativeFetch(new URL(url, 'https://travelmap.test'), options));
+    try {
+      const result = await tools.searchAttractionsTool.execute('id', { city: '未知城市' });
+      expect(result.details.attractions).toEqual([]);
+      expect(result.details.status).toBe('empty');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
 

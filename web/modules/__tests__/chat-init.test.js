@@ -48,11 +48,11 @@ vi.mock('../config.js', () => ({
 }));
 
 vi.mock('@earendil-works/pi-agent-core', () => ({
-  Agent: vi.fn().mockImplementation(() => ({
+  Agent: vi.fn().mockImplementation(function MockAgent() { return {
     subscribe: vi.fn(),
     state: { messages: [] },
     prompt: vi.fn(),
-  })),
+  }; }),
 }));
 
 vi.mock('../auth/auth.js', () => ({
@@ -136,6 +136,8 @@ vi.mock('../stt.js', () => ({
 }));
 
 // 导入被测模块
+import { Agent } from '@earendil-works/pi-agent-core';
+import { getCurrentTripPlan, getCurrentTripMarkdown } from '../trip/trip-state.js';
 import { feedback } from '../feedback.js';
 import { initApp, retryLastMessage } from '../chat-init.js';
 
@@ -183,6 +185,85 @@ describe('chat-init.js', () => {
         // 某些 DOM 元素缺失可能导致错误，这是可以接受的
         console.warn('initApp error (expected in test):', e.message);
       }
+    });
+  });
+
+  describe('active generation results', () => {
+    function makePlan(name) {
+      return { city: '杭州', days: [{ date: '2026-06-01', city: '杭州', attractions: [{ name }] }], weatherInfo: [] };
+    }
+    async function initializedAgent() {
+      await initApp();
+      const instance = Agent.mock.results.at(-1).value;
+      return { instance, callback: instance.subscribe.mock.calls[0][0] };
+    }
+    afterEach(() => vi.useRealTimers());
+
+    it('takes newest valid result from this run, never a historical plan', async () => {
+      vi.useFakeTimers();
+      const { instance, callback } = await initializedAgent();
+      const historical = { role: 'toolResult', details: { tripPlan: makePlan('历史景点') } };
+      instance.state.messages = [historical];
+      window._lastTripPlan = historical.details.tripPlan;
+      await callback({ type: 'agent_start' });
+      const first = { role: 'toolResult', details: { tripPlan: makePlan('初稿景点') } };
+      const latest = { role: 'toolResult', details: { tripPlan: makePlan('最新景点') } };
+      instance.state.messages.push(first, latest);
+      await callback({ type: 'turn_start' });
+      await callback({ type: 'agent_end', messages: [first, latest] });
+      expect(getCurrentTripPlan()).toBe(latest.details.tripPlan);
+      expect(getCurrentTripMarkdown()).toContain('最新景点');
+      expect(getCurrentTripMarkdown()).not.toContain('历史景点');
+    });
+
+    it('keeps last valid plan, exported content and map when a new run fails', async () => {
+      vi.useFakeTimers();
+      const { instance, callback } = await initializedAgent();
+      const previous = makePlan('保留景点');
+      window._lastTripPlan = previous;
+      window._renderTripOnMap = vi.fn();
+      instance.state.messages = [{ role: 'toolResult', details: { tripPlan: previous } }];
+      await callback({ type: 'agent_start' });
+      const failed = [
+        { role: 'toolResult', details: { tripPlan: makePlan('未完成新景点') } },
+        { role: 'assistant', errorMessage: 'provider failed', content: '' },
+      ];
+      instance.state.messages.push(...failed);
+      await callback({ type: 'agent_end', messages: failed });
+      expect(getCurrentTripPlan()).toBe(previous);
+      expect(getCurrentTripMarkdown()).toContain('保留景点');
+      expect(getCurrentTripMarkdown()).not.toContain('未完成新景点');
+      expect(window._renderTripOnMap).toHaveBeenCalledWith(previous);
+    });
+
+    it('preserves prior plan when provider aborts without an error message', async () => {
+      vi.useFakeTimers();
+      const { instance, callback } = await initializedAgent();
+      const previous = makePlan('保留景点');
+      window._lastTripPlan = previous;
+      await callback({ type: 'agent_start' });
+      const aborted = [{ role: 'toolResult', details: { tripPlan: makePlan('未完成景点') } }, { role: 'assistant', stopReason: 'aborted', content: '' }];
+      instance.state.messages.push(...aborted);
+      await callback({ type: 'agent_end', messages: aborted });
+      expect(getCurrentTripPlan()).toBe(previous);
+    });
+
+    it('keeps prior result when active run has text only or invalid structured data', async () => {
+      vi.useFakeTimers();
+      const { instance, callback } = await initializedAgent();
+      const previous = makePlan('原始景点');
+      window._lastTripPlan = previous;
+      instance.state.messages = [{ role: 'toolResult', details: { tripPlan: previous } }];
+      await callback({ type: 'agent_start' });
+      instance.state.messages.push({ role: 'assistant', content: '没有结构化行程' });
+      // Omitted event.messages exercises agent_start snapshot fallback.
+      await callback({ type: 'agent_end' });
+      expect(getCurrentTripPlan()).toBe(previous);
+      await callback({ type: 'agent_start' });
+      const invalid = { role: 'toolResult', details: { tripPlan: { city: '杭州', days: [] } } };
+      instance.state.messages.push(invalid);
+      await callback({ type: 'agent_end', messages: [invalid] });
+      expect(getCurrentTripPlan()).toBe(previous);
     });
   });
 

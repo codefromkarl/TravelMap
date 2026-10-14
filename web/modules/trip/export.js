@@ -1,8 +1,10 @@
-import { agent, currentLang, showToast, EXPORT_STORAGE_KEY, lastTripContent } from '../infra/context.js';
+import { agent, currentLang, showToast, EXPORT_STORAGE_KEY } from '../infra/context.js';
+import { getCurrentTripPlan, getCurrentTripMarkdown } from './trip-state.js';
+import { safeMarkdown, markdownToSafeHtml } from '../infra/content-safety.js';
 import { I18N } from '../i18n.js';
 import {
   generateShareImage, generateShareLink,
-  downloadImage, loadSharedTripFromHash,
+  downloadImage,
   createServerShareId, decodeSharedTripContent
 } from '../share.js';
 import { track, EVENT } from "../infra/analytics.js";
@@ -19,17 +21,21 @@ async function getQRCodeGenerator() {
 
 // ─── 导出服务 ─────────────────────────────────────────
 export function getLastAssistantContent() {
+  const current = getCurrentTripMarkdown();
+  if (current) return current;
   if (!agent) return null;
   const msgs = agent.state.messages;
   for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].role === "assistant" && typeof msgs[i].content === "string" && msgs[i].content.length > 100) {
-      return msgs[i].content;
-    }
+    if (msgs[i].role !== "assistant") continue;
+    const content = typeof msgs[i].content === "string" ? msgs[i].content
+      : Array.isArray(msgs[i].content) ? msgs[i].content.filter(block => block.type === "text").map(block => block.text || "").join("\n") : "";
+    if (content.length > 100) return content;
   }
   return null;
 }
 
 export function generateMarkdown(content) {
+  content = safeMarkdown(content);
   if (!content.trim().startsWith("#")) {
     const date = new Date().toLocaleDateString("zh-CN");
     return `# 🗺️ 旅行计划
@@ -61,16 +67,7 @@ export function downloadMarkdown(content) {
 export function exportPDF(content) {
   const md = generateMarkdown(content);
   const printEl = document.getElementById("print-content");
-  const html = md
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/^\d+\.\s+(.+)$/gm, (m, p1) => `<li>${p1}</li>`)
-    .replace(/^-\s+(.+)$/gm, "<li>$1</li>")
-    .replace(/^---$/gm, "<hr>")
-    .replace(/\n\n/g, "</p><p>")
-    .split("\n").map(line => line.startsWith("<") ? line : (line.trim() ? `<p>${line}</p>` : "")).join("\n");
+  const html = markdownToSafeHtml(md);
   printEl.innerHTML = `<h1 style="text-align:center;margin-bottom:4px;">🗺️ 旅行计划</h1>
 <p style="text-align:center;color:#666;font-size:11pt;margin-bottom:20px;">由「TravelMap」AI 生成 · ${new Date().toLocaleDateString("zh-CN")}</p>
 ${html}`;
@@ -126,7 +123,7 @@ export async function loadSharedTrip() {
 function renderSharedTrip(content) {
   const msg = {
     role: "assistant",
-    content: "# 📋 分享的旅行计划\n\n" + content,
+    content: "# 📋 分享的旅行计划\n\n" + safeMarkdown(content),
     timestamp: Date.now(),
   };
   if (agent) {
@@ -193,9 +190,7 @@ document.getElementById("btn-export-pdf")?.addEventListener("click", () => {
 // ─── 分享按钮绑定 ─────────────────────────────────────
 
 function getShareTripPlan() {
-  // 优先使用全局解析好的 TripPlan
-  if (window._lastTripPlan) return window._lastTripPlan;
-  return null;
+  return getCurrentTripPlan();
 }
 
 let isShareModalGenerating = false;
@@ -204,13 +199,13 @@ async function openShareModal(type) {
   if (isShareModalGenerating) return;
   isShareModalGenerating = true;
   const overlay = document.getElementById('share-modal-overlay');
-  const header = document.getElementById('share-modal-header').querySelector('h2');
+  const header = document.getElementById('share-modal-header')?.querySelector('h2');
   const imgContainer = document.getElementById('share-preview-image');
   const qrContainer = document.getElementById('share-qr-container');
   const imgEl = document.getElementById('share-preview-img');
   const qrEl = document.getElementById('share-qr-img');
 
-  if (!overlay) return;
+  if (!overlay || !header || !imgContainer || !qrContainer || !imgEl || !qrEl) { isShareModalGenerating = false; return; }
 
   // 确保 footer 存在（动态创建，避免首屏渲染）
   let footer = document.getElementById('share-modal-footer');
@@ -233,6 +228,7 @@ async function openShareModal(type) {
   if (!tripPlan) {
     const dict = I18N[currentLang] || I18N.zh;
     showToast(dict.shareLoadError || '⚠️ 没有可分享的行程内容', 2500, 'warning');
+    isShareModalGenerating = false;
     return;
   }
 

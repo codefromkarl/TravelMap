@@ -7,7 +7,7 @@
  */
 
 import { HttpResponse, http } from "msw";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import {
   clearElevationCache,
   fillWaypointElevations,
@@ -15,7 +15,7 @@ import {
 } from "../../../services/elevation-service.js";
 import { server } from "../../mocks/server.js";
 
-let fetchSpy: ReturnType<typeof vi.fn>;
+let fetchSpy: Mock<(url: string) => void>;
 
 describe("queryElevations", () => {
   beforeEach(() => {

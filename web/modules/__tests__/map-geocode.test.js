@@ -5,7 +5,7 @@
  * - 有坐标的景点不触发补全
  * - location: null 触发高德 API 补全
  * - location: {0, 0} 触发补全
- * - 高德 API 失败时 fallback 到 CITY_CENTERS
+ * - 高德 API 失败时保留未知坐标
  * - 批量补全并发控制
  * - LRU 缓存命中
  * - 无 API Key 时返回 0
@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Mock context.js (ui/map.js 实际 import ./infra/context.js，需同时 mock)
 vi.mock('../context.js', () => ({
   showToast: vi.fn(),
+  currentLang: 'zh',
   getAmapGeoKey: vi.fn(() => 'test-geo-key'),
   CITY_CENTERS: {
     '杭州': [30.2741, 120.1551],
@@ -30,6 +31,7 @@ vi.mock('../context.js', () => ({
 
 vi.mock('../infra/context.js', () => ({
   showToast: vi.fn(),
+  currentLang: 'zh',
   getAmapGeoKey: vi.fn(() => 'test-geo-key'),
   CITY_CENTERS: {
     '杭州': [30.2741, 120.1551],
@@ -40,7 +42,7 @@ vi.mock('../infra/context.js', () => ({
 
 // Mock i18n.js
 vi.mock('../i18n.js', () => ({
-  I18N: {},
+  I18N: { zh: { mapCoordinatesUnavailable: '{count} 个景点坐标待核实' } },
 }));
 
 // Mock db.js
@@ -75,6 +77,9 @@ describe('geocodeAttractions', () => {
   let mockFetch;
 
   beforeEach(async () => {
+    const { getAmapGeoKey } = await import('../infra/context.js');
+    getAmapGeoKey.mockReturnValue('test-geo-key');
+    localStorage.clear();
     // 动态导入以获取新的模块实例
     const mapModule = await import('../map.js');
     geocodeAttractions = mapModule.geocodeAttractions || window._geocodeAttractions;
@@ -138,7 +143,7 @@ describe('geocodeAttractions', () => {
     expect(count).toBe(1);
   });
 
-  it('高德 API 失败时 fallback 到 CITY_CENTERS', async () => {
+  it('高德 API 失败时保留未知坐标', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
     const tripPlan = createTripPlan([
@@ -146,14 +151,13 @@ describe('geocodeAttractions', () => {
     ]);
 
     const count = await geocodeAttractions(tripPlan);
-    expect(count).toBe(1);
-    // 应该使用杭州中心坐标 + 随机偏移
-    const loc = tripPlan.days[0].attractions[0].location;
-    expect(loc.latitude).toBeCloseTo(30.2741, 0); // 允许 0.03 偏移
-    expect(loc.longitude).toBeCloseTo(120.1551, 0);
+    expect(count).toBe(0);
+    expect(tripPlan.days[0].attractions[0].location).toBeNull();
+    const { showToast } = await import('../infra/context.js');
+    expect(showToast).toHaveBeenCalledWith('1 个景点坐标待核实', 6000, 'warning');
   });
 
-  it('无 API Key 时使用 CITY_CENTERS fallback', async () => {
+  it('无 API Key 时保留未知坐标', async () => {
     const { getAmapGeoKey } = await import('../infra/context.js');
     getAmapGeoKey.mockReturnValue('');
 
@@ -162,8 +166,25 @@ describe('geocodeAttractions', () => {
     ]);
 
     const count = await geocodeAttractions(tripPlan);
-    expect(count).toBe(1);
+    expect(count).toBe(0);
+    expect(tripPlan.days[0].attractions[0].location).toBeNull();
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it.each(['0,0', '999,30', '120,NaN', ',30'])('无效供应商坐标 %s 不会被持久化', async (location) => {
+    mockFetch.mockResolvedValue({ json: async () => ({ status: '1', geocodes: [{ location }] }) });
+    const tripPlan = createTripPlan([createAttraction('无法定位', null)]);
+    expect(await geocodeAttractions(tripPlan)).toBe(0);
+    expect(tripPlan.days[0].attractions[0].location).toBeNull();
+  });
+
+  it('部分查询失败只补全真实坐标，不制造其他点', async () => {
+    mockFetch.mockResolvedValueOnce({ json: async () => ({ status: '1', geocodes: [{ location: '120.1484,30.2458' }] }) });
+    mockFetch.mockRejectedValueOnce(new Error('Unavailable'));
+    const tripPlan = createTripPlan([createAttraction('真实地点', null), createAttraction('待核实地点', null)]);
+    expect(await geocodeAttractions(tripPlan)).toBe(1);
+    expect(tripPlan.days[0].attractions[0].location).toEqual({ latitude: 30.2458, longitude: 120.1484 });
+    expect(tripPlan.days[0].attractions[1].location).toBeNull();
   });
 
   it('批量补全并发控制（最多 5 个并发）', async () => {

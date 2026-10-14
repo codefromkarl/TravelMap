@@ -1,5 +1,8 @@
-import { agent, currentLang, currentTripId, currentUser, setCurrentTripId, showToast } from '../infra/context.js';
-import { listTrips, loadTripById, deleteTripById } from '../db.js';
+import { agent, currentLang, currentUser, setCurrentTripId, showToast } from '../infra/context.js';
+import { listTrips, loadTripById, deleteTripById, clearTripsLocal } from '../db.js';
+import { pauseTripSync } from '../infra/trip-sync.js';
+import { escapeHtml, safeHttpUrl } from '../infra/content-safety.js';
+import { setCurrentTripPlan } from './trip-state.js';
 import { I18N } from '../infra/i18n.js';
 
 // ─── 格式化日期 ────────────────────────────────────────
@@ -23,11 +26,11 @@ function formatDate(iso) {
 function renderTripCard(trip) {
   const dict = I18N[currentLang] || I18N.zh;
   const date = formatDate(trip.updatedAt);
-  const city = trip.city || "";
-  const days = trip.days || 0;
-  const coverImage = trip.coverImage || "";
-  const title = trip.title || "未命名行程";
-  const summary = trip.summary || "";
+  const city = escapeHtml(trip.city || "");
+  const days = Number.isFinite(trip.days) ? Math.max(0, trip.days) : 0;
+  const coverImage = safeHttpUrl(trip.coverImage);
+  const title = escapeHtml(trip.title || "未命名行程");
+  const summary = escapeHtml(trip.summary || "");
 
   // 日期范围
   let dateRange = "";
@@ -48,25 +51,26 @@ function renderTripCard(trip) {
     if (parts.length > 0) travelerTag = `👥 ${parts.join(" ")}`;
   }
 
-  return `<div class="history-item" data-id="${trip.id}">
-    ${coverImage ? `<div class="item-cover" style="background-image:url(${coverImage})"></div>` : ""}
+  return `<div class="history-item" data-id="${escapeHtml(trip.id)}">
+    ${coverImage ? `<img class="item-cover" style="object-fit:cover;display:block" src="${escapeHtml(coverImage)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}
     <div class="item-body">
       <div class="item-header">
         <div class="item-title">${title}</div>
+        ${trip.syncState === "conflict" ? `<span class="item-sync-conflict" role="status">${escapeHtml(dict.syncConflictNotice || "同步冲突：本地修改已保留")}</span>` : ""}
         <div class="item-meta">
           ${city ? `<span class="item-city">📍 ${city}</span>` : ""}
           ${days > 0 ? `<span class="item-days">📅 ${days}天</span>` : ""}
           ${dateRange ? `<span class="item-dates">${dateRange}</span>` : ""}
-          ${travelerTag ? `<span class="item-travelers">${travelerTag}</span>` : ""}
+          ${travelerTag ? `<span class="item-travelers">${escapeHtml(travelerTag)}</span>` : ""}
         </div>
       </div>
       ${summary ? `<div class="item-summary">${summary}</div>` : ""}
       <div class="item-footer">
         <span class="item-date">${date}</span>
         <div class="item-actions">
-          <button class="restore-btn" data-id="${trip.id}">恢复</button>
-          <button class="edit-btn" data-id="${trip.id}" title="${dict.tripEditorEditTitle}">编辑</button>
-          <button class="delete-btn" data-id="${trip.id}">删除</button>
+          <button class="restore-btn" data-id="${escapeHtml(trip.id)}">恢复</button>
+          <button class="edit-btn" data-id="${escapeHtml(trip.id)}" title="${escapeHtml(dict.tripEditorEditTitle)}">编辑</button>
+          <button class="delete-btn" data-id="${escapeHtml(trip.id)}">删除</button>
         </div>
       </div>
     </div>
@@ -105,9 +109,10 @@ export async function renderHistory() {
           return;
         }
 
+        // Restoring text-only history also clears any previous structured itinerary.
+        setCurrentTripPlan(trip.tripPlan || null);
         // 恢复 tripPlan（结构化数据）
         if (trip.tripPlan) {
-          window._lastTripPlan = trip.tripPlan;
           // 校验坐标完整性
           try {
             const { validateAndWarn } = await import('../tools/validate-trip.js');
@@ -238,32 +243,36 @@ async function exportMyData() {
 }
 
 async function deleteAccountData() {
-  if (isLocalHost() || !currentUser) {
+  const ownerId = currentUser?.id;
+  if (isLocalHost() || typeof ownerId !== "string" || !ownerId) {
     showToast("云端数据删除仅对登录用户开放", 2500, 'warning');
     return;
   }
   if (!window.confirm("此操作将永久删除你的账号数据（行程、设置等），且不可恢复。确定继续吗？")) {
     return;
   }
+  pauseTripSync();
   try {
     const res = await fetch("/api/account", {
       method: "DELETE",
       credentials: "same-origin",
       cache: "no-store",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "X-Sync-User": ownerId },
     });
     if (!res.ok) {
       showToast("删除失败，请稍后重试", 2500, 'error');
       return;
     }
-    showToast("账号数据已删除", 2500, 'success');
-    // 清空本地 IndexedDB 中的行程：复用 db.js 现有 API，避免改动 db.js
+    // Account deletion must remove both active records and compact tombstones without sync events.
     try {
-      const trips = await listTrips();
-      for (const trip of trips) await deleteTripById(trip.id);
+      await clearTripsLocal({ ownerId });
     } catch {
-      // 本地清理失败不阻塞页面刷新
+      const dict = I18N[currentLang] || I18N.zh;
+      showToast(dict.syncLocalClearFailed || "云端数据已删除，本地清理失败。请检查浏览器存储。", 5000, 'error');
+      return;
     }
+    const dict = I18N[currentLang] || I18N.zh;
+    showToast(dict.accountDataDeletedNotice || "账号云端数据和本机归属该账号的行程已删除；其他本地记录已保留。", 4000, 'success');
     window.location.reload();
   } catch {
     showToast("删除失败，请检查网络后重试", 2500, 'error');

@@ -16,6 +16,7 @@ import type { AttributionResult, Recommendation } from "./attribution-analyzer.j
 import { AttributionAnalyzer } from "./attribution-analyzer.js";
 import { BaselineManager } from "./baseline-manager.js";
 import type { EvalReport } from "./dimensions.js";
+import { hasCompleteEvaluation } from "./dimensions.js";
 
 // ─── 优化配置 ──────────────────────────────────────────────
 
@@ -168,6 +169,20 @@ export class OptimizationLoop {
     currentReports = await evaluateFn(initialPrompt);
     const initialReports = [...currentReports];
 
+    if (
+      currentReports.length === 0 ||
+      currentReports.some((report) => !hasCompleteEvaluation(report))
+    ) {
+      return {
+        success: false,
+        iterations: 0,
+        initialReports,
+        finalReports: currentReports,
+        history,
+        failureReason: "评估未完成，停止优化",
+      };
+    }
+
     console.log(
       `[OptimizationLoop] 开始优化，初始通过率: ${this.calculatePassRate(currentReports)}`,
     );
@@ -226,6 +241,16 @@ export class OptimizationLoop {
 
       // 重新评估
       const newReports = await evaluateFn(currentPrompt);
+      if (newReports.length === 0 || newReports.some((report) => !hasCompleteEvaluation(report))) {
+        return {
+          success: false,
+          iterations: i + 1,
+          initialReports,
+          finalReports: newReports,
+          history,
+          failureReason: "评估未完成，停止优化",
+        };
+      }
       const improvement =
         this.calculateAverageScore(newReports) - this.calculateAverageScore(currentReports);
 
@@ -239,6 +264,20 @@ export class OptimizationLoop {
       });
 
       currentReports = newReports;
+    }
+
+    // The last allowed repair is still eligible to satisfy the quality target.
+    if (
+      this.calculatePassRate(currentReports) >= this.config.targetPassRate &&
+      this.calculateAverageScore(currentReports) >= this.config.targetScore
+    ) {
+      return {
+        success: true,
+        iterations: this.config.maxIterations,
+        initialReports,
+        finalReports: currentReports,
+        history,
+      };
     }
 
     // 达到最大迭代次数

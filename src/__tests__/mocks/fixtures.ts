@@ -354,3 +354,68 @@ export function createMultiCityScenario(
 
   return { request, scenarios };
 }
+
+// Offline evaluation evidence fixtures; production code must never import these.
+export function createMockDimensionResult(
+  overrides: Partial<import("../../evaluation/dimensions.js").DimensionResult> = {},
+): import("../../evaluation/dimensions.js").DimensionResult {
+  return {
+    dimensionId: "structure",
+    status: "evaluated",
+    score: 0.9,
+    passed: true,
+    checks: [{ name: "必填字段: 目的地", passed: true, score: 1, detail: "包含北京目的地" }],
+    ...overrides,
+  };
+}
+
+export function createMockEvalReport(
+  overrides: Partial<import("../../evaluation/dimensions.js").EvalReport> = {},
+): import("../../evaluation/dimensions.js").EvalReport {
+  const dimensions = overrides.dimensions ?? [createMockDimensionResult()];
+  return {
+    id: "beijing-family",
+    timestamp: "2026-10-13T00:00:00.000Z",
+    input: "北京亲子两日游",
+    output: "目的地北京；Day 1 故宫；Day 2 颐和园。",
+    overallScore: 0.9,
+    passed: true,
+    dimensions,
+    completeness: {
+      complete: dimensions.every(
+        (dimension) => !dimension.status || dimension.status === "evaluated",
+      ),
+      evaluated: dimensions
+        .filter((dimension) => !dimension.status || dimension.status === "evaluated")
+        .map((dimension) => dimension.dimensionId),
+      skipped: dimensions
+        .filter((dimension) => dimension.status === "skipped")
+        .map((dimension) => dimension.dimensionId),
+      errors: dimensions
+        .filter((dimension) => dimension.status === "error")
+        .map((dimension) => dimension.dimensionId),
+      evaluatedWeight: dimensions.filter(
+        (dimension) => !dimension.status || dimension.status === "evaluated",
+      ).length,
+      totalWeight: dimensions.length,
+    },
+    failedRequired: [],
+    allSuggestions: [],
+    metadata: { model: "offline-fixture", provider: "mock", duration: 10 },
+    ...overrides,
+  };
+}
+
+export function createMockRecommendation(
+  overrides: Partial<import("../../evaluation/attribution-analyzer.js").Recommendation> = {},
+): import("../../evaluation/attribution-analyzer.js").Recommendation {
+  return {
+    id: "rec-add-destination",
+    type: "prompt",
+    description: "在输出中添加目的地信息",
+    action: "明确输出目的地城市",
+    expectedEffect: "结构完整性提升",
+    priority: 100,
+    ...overrides,
+  };
+}

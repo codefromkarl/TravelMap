@@ -19,10 +19,10 @@ export default defineConfig({
     setupFiles: ["src/__tests__/helpers/ai-e2e-setup.ts"],
 
     // 包含 e2e 和 evaluation 的 AI 测试
-    include: [
-      "src/__tests__/e2e/**/*.test.ts",
-      "src/__tests__/evaluation/**/*.test.ts",
-    ],
+    include:
+      process.env.AI_E2E === "true"
+        ? ["src/__tests__/e2e/**/*.test.ts", "src/__tests__/evaluation/**/*.test.ts"]
+        : [],
 
     // LLM 响应可能较慢
     testTimeout: 180_000,
@@ -31,10 +31,8 @@ export default defineConfig({
     // 串行执行 — 避免并发导致 API 限流
     pool: "forks",
     maxWorkers: 1,
-    minWorkers: 1,
 
     // 仅在 AI_E2E=true 时运行
-    enabled: process.env.AI_E2E === "true",
 
     alias: {
       "@": path.resolve(__dirname, "src"),
